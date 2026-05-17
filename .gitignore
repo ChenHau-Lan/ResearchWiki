@@ -2,3 +2,9 @@
 .obsidian/workspace.json
 .obsidian/workspace-mobile.json
 
+# Keep raw source folders local by default. These may contain large PDFs,
+# photos, videos, transcripts, or downloaded source material.
+raw/**
+!raw/
+!raw/**/
+!raw/**/.gitkeep

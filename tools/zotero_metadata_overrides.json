@@ -1,0 +1,32 @@
+{
+  "L5FDFMZE": {
+    "itemType": "book",
+    "title": "Aerosol Pollution Impact on Precipitation: A Scientific Review",
+    "creators": ["Zev Levin", "William R. Cotton"],
+    "year": "2009"
+  },
+  "VZMPA2G3": {
+    "itemType": "journalArticle",
+    "title": "The unprecedented 2017-2018 stratospheric smoke event: decay phase and aerosol properties observed with the EARLINET",
+    "creators": ["Holger Baars", "Albert Ansmann", "Kevin Ohneiser", "Moritz Haarig", "Ronny Engelmann", "Dietrich Althausen", "Ingrid Hanssen", "Michael Gausa", "Aleksander Pietruczuk", "Artur Szkop", "Iwona S. Stachlewska", "Dongxiang Wang", "Jens Reichardt", "Annett Skupin", "Ina Mattis", "Thomas Trickl", "Hannes Vogelmann", "Francisco Navas-Guzman", "Alexander Haefele", "Karen Acheson", "Albert A. Ruth", "Boyan Tatarov", "Detlef Muller", "Qiaoyun Hu", "Thierry Podvin", "Philippe Goloub", "Igor Veselovskii", "Christophe Pietras", "Martial Haeffelin", "Patrick Freville", "Michael Sicard", "Adolfo Comeron", "Alfonso Javier Fernandez Garcia", "Francisco Molero Menendez", "Carmen Cordoba-Jabonero", "Juan Luis Guerrero-Rascado", "Lucas Alados-Arboledas", "Daniele Bortoli", "Maria Joao Costa", "Davide Dionisi", "Gian Luigi Liberti", "Xuan Wang", "Alessia Sannino", "Nikolaos Papagiannopoulos", "Antonella Boselli", "Lucia Mona", "Giuseppe D'Amico", "Salvatore Romano", "Maria Rita Perrone", "Livio Belegante", "Doina Nicolae", "Ivan Grigorov", "Anna Gialitaki", "Vassilis Amiridis", "Ourania Soupiona", "Alexandros Papayannis", "Rodanthi-Elisaveth Mamouri", "Argyro Nisantzi", "Birgit Heese", "Julian Hofer", "Yoav Y. Schechner", "Ulla Wandinger", "Gelsomina Pappalardo"],
+    "year": "2019"
+  },
+  "VDGFW7P2": {
+    "itemType": "journalArticle",
+    "title": "Significant Effective Radiative Forcing of Stratospheric Wildfire Smoke",
+    "creators": ["Cheng-Cheng Liu", "Robert W. Portmann", "Shang Liu", "Karen H. Rosenlof", "Yifeng Peng", "Pengfei Yu"],
+    "year": "2022"
+  },
+  "6CT9QNEB": {
+    "itemType": "journalArticle",
+    "title": "Evaluation of the OMPS/LP stratospheric aerosol extinction product using SAGE III/ISS observations",
+    "creators": ["Zhong Chen", "Pawan K. Bhartia", "Omar Torres", "Glen Jaross", "Robert Loughman", "Matthew DeLand", "Peter Colarco", "Robert Damadeo", "Ghassan Taha"],
+    "year": "2020"
+  },
+  "TMYQY593": {
+    "itemType": "preprint",
+    "title": "Wildfire aerosols lofted by North American pyrocumulonimbus clouds: long-range transport and aerosol-cloud-radiative effects",
+    "creators": ["Yan Wang", "Yujia Cao", "Haixiao Yu", "Shuo Wang", "Qiaoyun Hu", "Yuyang Chang", "Chun Zhao", "Zhengqiang Li", "Cheng Chen"],
+    "year": "2025"
+  }
+}

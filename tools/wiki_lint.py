@@ -76,7 +76,8 @@ def main() -> int:
         if missing:
             errors.append(f"{rel}: missing frontmatter keys: {', '.join(sorted(missing))}")
 
-        if path.name != "index.md" and str(path.relative_to(WIKI).with_suffix("")) not in index_text:
+        page_id = path.relative_to(WIKI).with_suffix("").as_posix()
+        if path.name != "index.md" and page_id not in index_text:
             if "[[" not in text:
                 errors.append(f"{rel}: not linked from index.md and has no wiki links")
 

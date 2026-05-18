@@ -1,0 +1,215 @@
+{
+  "main": {
+    "id": "7040383c06af6407",
+    "type": "split",
+    "children": [
+      {
+        "id": "e3349236e67603e3",
+        "type": "tabs",
+        "children": [
+          {
+            "id": "1173e1f762d2b50d",
+            "type": "leaf",
+            "state": {
+              "type": "markdown",
+              "state": {
+                "file": "literature/wang_current_2004.md",
+                "mode": "source",
+                "source": false
+              },
+              "icon": "lucide-file",
+              "title": "wang_current_2004"
+            }
+          }
+        ]
+      }
+    ],
+    "direction": "vertical"
+  },
+  "left": {
+    "id": "64ba63383d5b8c8b",
+    "type": "split",
+    "children": [
+      {
+        "id": "8dd199b66523ba81",
+        "type": "tabs",
+        "children": [
+          {
+            "id": "af800816449f9040",
+            "type": "leaf",
+            "state": {
+              "type": "file-explorer",
+              "state": {
+                "sortOrder": "alphabetical",
+                "autoReveal": false
+              },
+              "icon": "lucide-folder-closed",
+              "title": "檔案瀏覽器"
+            }
+          },
+          {
+            "id": "617b9df4cce115c9",
+            "type": "leaf",
+            "state": {
+              "type": "search",
+              "state": {
+                "query": "",
+                "matchingCase": false,
+                "explainSearch": false,
+                "collapseAll": false,
+                "extraContext": false,
+                "sortOrder": "alphabetical"
+              },
+              "icon": "lucide-search",
+              "title": "搜尋"
+            }
+          },
+          {
+            "id": "0b2f879fe703a12d",
+            "type": "leaf",
+            "state": {
+              "type": "bookmarks",
+              "state": {},
+              "icon": "lucide-bookmark",
+              "title": "書籤"
+            }
+          }
+        ]
+      }
+    ],
+    "direction": "horizontal",
+    "width": 300
+  },
+  "right": {
+    "id": "1d29e7f39e5e9406",
+    "type": "split",
+    "children": [
+      {
+        "id": "8b44974f64e91f66",
+        "type": "tabs",
+        "children": [
+          {
+            "id": "c40fb0d6cd41fdb9",
+            "type": "leaf",
+            "state": {
+              "type": "backlink",
+              "state": {
+                "collapseAll": false,
+                "extraContext": false,
+                "sortOrder": "alphabetical",
+                "showSearch": false,
+                "searchQuery": "",
+                "backlinkCollapsed": false,
+                "unlinkedCollapsed": true
+              },
+              "icon": "links-coming-in",
+              "title": "反向連結"
+            }
+          },
+          {
+            "id": "92812aed3e8a37c3",
+            "type": "leaf",
+            "state": {
+              "type": "outgoing-link",
+              "state": {
+                "linksCollapsed": false,
+                "unlinkedCollapsed": true
+              },
+              "icon": "links-going-out",
+              "title": "對外連結"
+            }
+          },
+          {
+            "id": "982d2421cd4e7847",
+            "type": "leaf",
+            "state": {
+              "type": "tag",
+              "state": {
+                "sortOrder": "frequency",
+                "useHierarchy": true,
+                "showSearch": false,
+                "searchQuery": ""
+              },
+              "icon": "lucide-tags",
+              "title": "標籤"
+            }
+          },
+          {
+            "id": "4c297092391375a5",
+            "type": "leaf",
+            "state": {
+              "type": "all-properties",
+              "state": {
+                "sortOrder": "frequency",
+                "showSearch": false,
+                "searchQuery": ""
+              },
+              "icon": "lucide-archive",
+              "title": "所有屬性"
+            }
+          },
+          {
+            "id": "896a63cbf57f4132",
+            "type": "leaf",
+            "state": {
+              "type": "outline",
+              "state": {
+                "followCursor": false,
+                "showSearch": false,
+                "searchQuery": ""
+              },
+              "icon": "lucide-list",
+              "title": "大綱"
+            }
+          }
+        ]
+      }
+    ],
+    "direction": "horizontal",
+    "width": 300,
+    "collapsed": true
+  },
+  "left-ribbon": {
+    "hiddenItems": {
+      "switcher:開啟快速切換": false,
+      "graph:查看關聯圖": false,
+      "canvas:建立新畫布": false,
+      "daily-notes:開啟今天的每日筆記": false,
+      "templates:插入模板": false,
+      "command-palette:開啟命令面板": false,
+      "bases:建立新的 base": false
+    }
+  },
+  "active": "1173e1f762d2b50d",
+  "lastOpenFiles": [
+    "index.md",
+    "code/code_methods.md",
+    "code/code.md",
+    "literature/timmreck_a_2000.md",
+    "literature/aydell_mobile_2021.md",
+    "literature/ward_a_2011.md",
+    "literature/liang_future_2023.md",
+    "literature/jia_exploring_2019.md",
+    "literature/geresdi_evaluation_2017.md",
+    "literature/yu_on_2018.md",
+    "literature/grabowski_cloud_2000.md",
+    "literature/ovtchinnikov_nonlinear_2009.md",
+    "literature/glotfelty_the_2019.md",
+    "literature/ekman_impact_2011.md",
+    "literature/min_evaluation_2015.md",
+    "literature/selimovic_in_2019.md",
+    "literature/kogan_a_2013.md",
+    "literature/liu_sensitivity_2007.md",
+    "literature/deshler_a_2008.md",
+    "remote_sensing/stratospheric_aerosol_observations.md",
+    "literature/legacy_zotero_reading_queue.md",
+    "literature/legacy_zotero_library_inventory.md",
+    "literature/legacy_instrumentation.md",
+    "literature/legacy_synthesis.md",
+    "literature/legacy_stratospheric_aerosol_observations.md",
+    "literature/legacy_modeling.md",
+    "code",
+    "literature",
+    "zotero_mind_map.canvas"
+  ]
+}

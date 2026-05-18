@@ -3,6 +3,7 @@ type: paper
 status: draft
 source_status: peer-reviewed
 topics: []
+keywords: []
 created: YYYY-MM-DD
 updated: YYYY-MM-DD
 sources: [citation-key]
@@ -21,6 +22,11 @@ sources: [citation-key]
 - URL:
 - Raw Source:
 - Read Status: full-text / abstract-only / metadata-only
+
+## Keywords
+
+- Topics:
+- Keywords:
 
 ## Research Question
 
@@ -52,6 +58,7 @@ How did the authors answer it?
 - Related concepts:
 - Related methods:
 - Related datasets:
+- Keyword pages:
 
 ## Synthesis Update Needed
 

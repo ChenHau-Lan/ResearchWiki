@@ -23,5 +23,9 @@
 
 ## Obsidian
 
-可直接用 Obsidian 開啟此資料夾。`wiki/index.md` 是主要入口。
+可直接用 Obsidian 開啟此資料夾。建議先開：
+
+- `wiki/home.md`
+- `wiki/zotero_mind_map.canvas`
+- `wiki/index.md`
 

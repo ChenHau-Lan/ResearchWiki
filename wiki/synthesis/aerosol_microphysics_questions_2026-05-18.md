@@ -13,6 +13,11 @@ sources: [aerosol_microphysics_scheme_synthesis]
 
 # Aerosol Microphysics Questions 2026-05-18
 
+This is the legacy combined question log. The two active split records are:
+
+- [[../research_records/questions_aerosol_scheme_2026-05-18|Questions: Aerosol Scheme 2026-05-18]]
+- [[../research_records/questions_microphysics_scheme_2026-05-18|Questions: Microphysics Scheme 2026-05-18]]
+
 ## User Questions
 
 1. 現在的 aerosol scheme 的發展是如何發展，目前的 aerosol scheme 有甚麼分類，是否有進行什麼假設。

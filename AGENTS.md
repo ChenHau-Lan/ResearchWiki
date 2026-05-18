@@ -78,6 +78,17 @@ sources: []
 
 ## Standard Workflows
 
+### research-session
+
+1. 將使用者問題拆成主題；若一個請求包含多個主題，必須分別建立問題紀錄。
+2. 使用 `templates/question-record.md` 在 `wiki/research_records/` 建立 `questions_<topic>_<YYYY-MM-DD>.md`。
+3. 若有搜尋或新增文獻，使用 `templates/search-ingest.md` 建立 `search_ingest_<topic>_<YYYY-MM-DD>.md`。
+4. 原始搜尋紀錄、網頁剪輯、PDF 或 metadata export 放入 `raw/`。
+5. 單篇文獻寫入 `wiki/literature/`，跨文獻回答寫入 `wiki/synthesis/`。
+6. 更新 `wiki/research_records/research_records.md` 與 `wiki/log.md`。
+
+每次完整研究回答至少留下三種痕跡：問了什麼、搜了什麼或注入了什麼、哪個 synthesis 被更新。
+
 ### ingest-paper
 
 1. 讀取 PDF、Zotero item、DOI、URL 或使用者提供的 metadata。
@@ -118,6 +129,23 @@ sources: []
 - topic pages 中缺少 cross-reference 的概念。
 
 Lint 後需在 `wiki/log.md` 追加 `lint-wiki` 紀錄。
+
+### scheduled-search
+
+定時搜尋用於補充知識庫，不應無差別匯入所有結果。
+
+建議頻率：
+
+- Weekly：針對 1-3 個 active synthesis pages 搜尋新文獻，建立 search ingest record 與 candidate queue。
+- Monthly：將高優先候選文獻升級成 paper pages，更新 synthesis。
+- Quarterly：檢查 citation、template、synthesis evidence、keyword/concept 是否需要重整。
+
+定時搜尋需使用 tier 判定：
+
+- Tier 1：直接回答 active research question，建立 paper page 並更新 synthesis。
+- Tier 2：重要背景或方法，加入 queue 或 keyword page。
+- Tier 3：周邊但暫不處理，只記錄在 search ingest。
+- Reject：不相關、弱來源、重複或不可驗證，記錄拒絕理由。
 
 ## Query Behavior
 

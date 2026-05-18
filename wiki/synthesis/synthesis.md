@@ -24,5 +24,7 @@ This folder holds cross-paper, cross-code, and cross-dataset research judgment.
 
 ## Current Synthesis Pages
 
-- [[aerosol_microphysics_scheme_synthesis|Aerosol Microphysics Scheme Synthesis]]
-- [[aerosol_microphysics_questions_2026-05-18|Aerosol Microphysics Questions 2026-05-18]]
+- [[aerosol_scheme_development_synthesis|Aerosol Scheme Development Synthesis]]
+- [[microphysics_scheme_development_synthesis|Microphysics Scheme Development Synthesis]]
+- [[aerosol_microphysics_scheme_synthesis|Aerosol Microphysics Scheme Synthesis]] - bridge page for coupling across both themes.
+- [[aerosol_microphysics_questions_2026-05-18|Aerosol Microphysics Questions 2026-05-18]] - legacy combined question log.

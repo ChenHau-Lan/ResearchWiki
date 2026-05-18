@@ -138,3 +138,16 @@ Append-only log. Entries should use this heading format:
 - Added or linked BibTeX entries and paper pages for aerosol scheme, microphysics scheme, and aerosol-microphysics coupling anchors.
 - Added `wiki/synthesis/aerosol_microphysics_scheme_synthesis.md`.
 - Added `wiki/synthesis/aerosol_microphysics_questions_2026-05-18.md` to record the user's research questions and follow-up questions.
+
+## [2026-05-18] refactor | Split aerosol and microphysics research records
+
+- Split the combined aerosol/microphysics synthesis into `wiki/synthesis/aerosol_scheme_development_synthesis.md` and `wiki/synthesis/microphysics_scheme_development_synthesis.md`.
+- Kept `wiki/synthesis/aerosol_microphysics_scheme_synthesis.md` as a bridge page for cross-theme coupling notes.
+- Added `wiki/research_records/` as the main directory for per-session search ingest records and question logs.
+- Added separate search ingest and question files for aerosol scheme and microphysics scheme themes.
+
+## [2026-05-18] method | Added research wiki operating workflow
+
+- Added `templates/search-ingest.md` and `templates/question-record.md`.
+- Added `wiki/concepts/research_wiki_operating_manual.md`.
+- Updated `AGENTS.md`, `wiki/index.md`, and `wiki/research_records/research_records.md` so future research sessions leave separate question records, search ingest records, raw traces, and synthesis updates.

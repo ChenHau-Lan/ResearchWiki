@@ -19,6 +19,8 @@ sources: []
 - [[code/code|Code]] - 程式碼、演算法、繪圖邏輯、資料處理流程。
 - [[synthesis/synthesis|Synthesis]] - 跨文獻、跨程式碼、跨資料的研究判斷。
 - [[concepts/concepts|Concepts]] - 穩定概念、定義、術語與背景知識。
+- [[research_records/research_records|Research Records]] - 每次搜尋注入與問題紀錄的主目錄。
+- [[concepts/research_wiki_operating_manual|Research Wiki Operating Manual]] - 研究 wiki 的使用習慣、定時搜尋與維護流程。
 
 ## Page Roles
 
@@ -40,6 +42,10 @@ sources: []
 - [[literature/external_search_queue|External Search Queue]] - 大氣常見期刊的 2000 年後 fuzzy-search 工作佇列。
 - [[literature/citation_chasing_queue|Citation Chasing Queue]] - 從已整理文獻引用文獻中擴充最相關來源。
 
+## Research Records
+
+- [[research_records/research_records|Research Records]] - 每次搜尋注入與問題紀錄分檔保存。
+
 ## Inbox Policy
 
 未驗證素材先放入 `inbox/`，不可直接寫成正式結論。升級成正式頁前需補上來源狀態、可信度、引用或驗證步驟。
@@ -49,3 +55,4 @@ sources: []
 - 每次 ingest 更新本頁。
 - 每次重要整理追加 `wiki/log.md`。
 - 定期執行 lint：檢查孤兒頁、缺 citation、矛盾 claims 與可升級 inbox 條目。
+- 定時搜尋與研究回答需建立 question record、search ingest record 與 synthesis 更新紀錄。

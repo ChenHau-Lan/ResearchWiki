@@ -3,6 +3,8 @@ full_text: true
 type: paper
 status: needs-verification
 source_status: peer-reviewed
+review_stage: ai-extracted
+reading_status: metadata-only
 topics: [remote_sensing]
 keywords: [drop_size_distribution, microphysics_scheme, retrieval_validation]
 created: 2026-05-17
@@ -26,12 +28,12 @@ citation_key: bringi_retrieval_2020
 - DOI: 10.5194/amt-13-4727-2020
 - URL: https://amt.copernicus.org/articles/13/4727/2020/
 - Raw Source: Zotero Desktop local API / references.bib
-- Read Status: metadata-only
+- Reading Status: metadata-only
 
 ## Keywords
 
 - Topics: remote_sensing
-- Keywords: drop_size_distribution, retrieval_validation
+- Keywords: drop_size_distribution, microphysics_scheme, retrieval_validation
 
 ## Research Question
 
@@ -58,3 +60,25 @@ Not yet extracted.
 - [[keyword_drop_size_distribution|drop_size_distribution]]
 - [[keyword_retrieval_validation|retrieval_validation]]
 - [[keyword_microphysics_scheme|microphysics_scheme]]
+
+## Evidence / Figures
+- Figure/table/result: Not yet extracted.
+- What it supports: Not yet extracted.
+- Reading limitation: See `reading_status`.
+
+## My Notes on This Paper
+- Single-paper interpretation: Not yet discussed.
+- Questions for discussion: TBD.
+- Possible use in my research: TBD.
+
+## Connections
+- Related concepts:
+- Related methods:
+- Related datasets:
+- Keyword pages:
+- Related code pages:
+- Related synthesis pages:
+
+## Synthesis Update Needed
+- Yes/No: TBD
+- Which synthesis page: TBD

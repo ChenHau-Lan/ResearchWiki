@@ -4,24 +4,35 @@ status: draft
 source_status: personal-note
 topics: [index]
 created: 2026-05-16
-updated: 2026-05-17
+updated: 2026-05-18
 sources: []
 ---
 
 # Research Wiki Index
 
-本頁是 wiki 的總目錄。新架構以 `literature/` 與 `code/` 為主；Obsidian Graph View 預設只看 `literature/`，用 keyword pages 呈現論文相關性。
+本頁是 wiki 的總目錄。正式知識分成 paper、code、synthesis 三種主要頁面：paper page 是單篇文獻事實，code page 是實作事實，synthesis page 是研究判斷。三者分開存放，但用 links 互相連接。
 
 ## Top-Level Folders
 
 - [[literature/literature|Literature]] - 所有 Zotero 文獻、整理過的 paper pages、keyword pages。
+- [[literature/paper_topics|Paper Topics Registry]] - paper frontmatter `topics:` 的主方向清單。
 - [[code/code|Code]] - 程式碼、演算法、繪圖邏輯、資料處理流程。
+- [[synthesis/synthesis|Synthesis]] - 跨文獻、跨程式碼、跨資料的研究判斷。
+- [[concepts/concepts|Concepts]] - 穩定概念、定義、術語與背景知識。
+
+## Page Roles
+
+- Paper pages: 單篇文獻的研究問題、方法、結果、限制與可引用 claims。
+- Code pages: 實作、資料流、參數、繪圖邏輯與輸出解讀。
+- Synthesis pages: 跨來源比較、矛盾證據、工作假說與自己的研究判斷。
+- Concept pages: 可重複使用的背景概念與機制說明。
 
 ## Graph Rules
 
 - Paper pages live flat in `wiki/literature/`.
 - Each paper page has `topics` and `keywords` in YAML frontmatter.
 - Each paper links to keyword pages named `keyword_*`.
+- Cross-paper claims live in `wiki/synthesis/`, not inside a single paper page.
 - To isolate a topic in Obsidian, use search/filter on `topics:` or open a `keyword_*` page and use local graph.
 
 ## Search Queues

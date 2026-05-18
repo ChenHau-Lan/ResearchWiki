@@ -91,3 +91,50 @@ Append-only log. Entries should use this heading format:
 - Wrote no-fulltext deletion candidates to `raw/papers/no-fulltext-delete-candidates-2026-05-17.md`.
 - Removed two non-paper pages one explicit file at a time: I-901 payment confirmation and pre-arrival guide attachment.
 - Updated Obsidian Graph View search to hide `full_text: false` pages by default.
+
+## [2026-05-18] refactor | Separated paper, code, and synthesis roles
+
+- Updated `AGENTS.md` with explicit knowledge boundaries: paper pages are single-paper facts, code pages are implementation facts, and synthesis pages are research judgment.
+- Added `reading_status`, `review_stage`, and `keywords` frontmatter rules.
+- Added `templates/synthesis.md`.
+- Added `wiki/synthesis/synthesis.md` and `wiki/concepts/concepts.md` as new top-level entry points.
+- Updated `wiki/index.md`, `wiki/literature/literature.md`, and page templates to reflect the new architecture.
+
+## [2026-05-18] taxonomy | Added paper topics registry
+
+- Added `wiki/literature/paper_topics.md` as the controlled list for paper frontmatter `topics:`.
+- Updated `AGENTS.md`, `wiki/index.md`, and `wiki/literature/literature.md` so paper topics are selected from the registry before new broad topics are introduced.
+
+## [2026-05-18] taxonomy | Promoted candidate paper topics
+
+- Promoted `radar_meteorology`, `field_campaigns`, and `climate_change` to active paper topics.
+- Added simplification guidance so mechanism/method terms such as `pyrocb`, `retrieval_validation`, `drop_size_distribution`, and `microphysics_scheme` stay in `keywords:` rather than broad `topics:`.
+
+## [2026-05-18] taxonomy | Revised active paper topic list
+
+- Revised active paper topics to: `aerosol`, `microphysics`, `cloud_physics`, `remote_sensing`, `modeling`, `instrumentation`, `tropical_cyclone`, `precipitation`, `wildfire`, `radar_meteorology`, `field_campaign`, and `climate_change`.
+- Moved `cloud_microphysics`, `wildfire_smoke`, `field_campaigns`, and `stratospheric_aerosol` guidance into simplification/candidate rules instead of keeping them as active topic names.
+- Kept `radar_meteorology` as the active topic name; use `radar_metrology` as a keyword only when the source is specifically about radar measurement/calibration uncertainty.
+
+## [2026-05-18] lint-wiki | Converted paper topics to revised registry
+
+- Added `wiki/literature/topic_cleanup_report.md`.
+- Converted 47 paper pages from old topic names to the revised active topic registry.
+- Moved detailed terms such as `pyrocb`, `wildfire_smoke`, `stratospheric_aerosol`, `retrieval_validation`, and `aerosol_cloud_interaction` into `keywords:`.
+- Moved `needs_triage` from `topics:` into `keywords:` where applicable.
+- Synced paper page body `## Keywords` display lines with the revised frontmatter.
+- Verified that no paper page still uses a non-registry topic after conversion.
+
+## [2026-05-18] lint-wiki | Audited paper template compliance
+
+- Added `wiki/literature/paper_template_audit.md`.
+- Checked all `type: paper` pages against the current paper template.
+- Added missing `reading_status`, `review_stage`, `keywords`, and required paper sections where absent.
+- No paper claims were changed during the audit.
+
+## [2026-05-18] ingest-paper | Added aerosol and microphysics scheme anchors
+
+- Added `raw/literature_search/aerosol_microphysics_scheme_search_2026-05-18.md`.
+- Added or linked BibTeX entries and paper pages for aerosol scheme, microphysics scheme, and aerosol-microphysics coupling anchors.
+- Added `wiki/synthesis/aerosol_microphysics_scheme_synthesis.md`.
+- Added `wiki/synthesis/aerosol_microphysics_questions_2026-05-18.md` to record the user's research questions and follow-up questions.

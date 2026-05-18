@@ -3,7 +3,9 @@ full_text: true
 type: paper
 status: needs-verification
 source_status: peer-reviewed
-topics: [cloud_microphysics, instrumentation, modeling]
+review_stage: ai-extracted
+reading_status: metadata-only
+topics: [microphysics, instrumentation, modeling]
 keywords: [drop_size_distribution, microphysics_scheme]
 created: 2026-05-17
 updated: 2026-05-17
@@ -26,12 +28,12 @@ citation_key: thurai_measurements_2019
 - DOI: 10.3390/atmos10010039
 - URL: http://www.mdpi.com/2073-4433/10/1/39
 - Raw Source: Zotero Desktop local API / references.bib
-- Read Status: metadata-only
+- Reading Status: metadata-only
 
 ## Keywords
 
-- Topics: cloud_microphysics, instrumentation, modeling
-- Keywords: drop_size_distribution
+- Topics: microphysics, instrumentation, modeling
+- Keywords: drop_size_distribution, microphysics_scheme
 
 ## Research Question
 
@@ -57,3 +59,25 @@ Not yet extracted.
 
 - [[keyword_drop_size_distribution|drop_size_distribution]]
 - [[keyword_microphysics_scheme|microphysics_scheme]]
+
+## Evidence / Figures
+- Figure/table/result: Not yet extracted.
+- What it supports: Not yet extracted.
+- Reading limitation: See `reading_status`.
+
+## My Notes on This Paper
+- Single-paper interpretation: Not yet discussed.
+- Questions for discussion: TBD.
+- Possible use in my research: TBD.
+
+## Connections
+- Related concepts:
+- Related methods:
+- Related datasets:
+- Keyword pages:
+- Related code pages:
+- Related synthesis pages:
+
+## Synthesis Update Needed
+- Yes/No: TBD
+- Which synthesis page: TBD

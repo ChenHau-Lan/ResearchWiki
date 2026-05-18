@@ -3,8 +3,10 @@ full_text: true
 type: paper
 status: needs-verification
 source_status: peer-reviewed
-topics: [needs_triage]
-keywords: [needs_subkeyword]
+review_stage: ai-extracted
+reading_status: metadata-only
+topics: [climate_change]
+keywords: [needs_subkeyword, needs_triage]
 created: 2026-05-17
 updated: 2026-05-17
 sources: [intergovernmental_panel_on_climate_change_climate_2014]
@@ -26,12 +28,12 @@ citation_key: intergovernmental_panel_on_climate_change_climate_2014
 - DOI: 
 - URL: https://www.cambridge.org/core/product/identifier/CBO9781107415324A036/type/book_part
 - Raw Source: Zotero Desktop local API / references.bib
-- Read Status: metadata-only
+- Reading Status: metadata-only
 
 ## Keywords
 
-- Topics: needs_triage
-- Keywords: needs_subkeyword
+- Topics: climate_change
+- Keywords: needs_subkeyword, needs_triage
 
 ## Research Question
 
@@ -56,3 +58,25 @@ Not yet extracted.
 ## Graph Links
 
 - [[keyword_needs_subkeyword|needs_subkeyword]]
+
+## Evidence / Figures
+- Figure/table/result: Not yet extracted.
+- What it supports: Not yet extracted.
+- Reading limitation: See `reading_status`.
+
+## My Notes on This Paper
+- Single-paper interpretation: Not yet discussed.
+- Questions for discussion: TBD.
+- Possible use in my research: TBD.
+
+## Connections
+- Related concepts:
+- Related methods:
+- Related datasets:
+- Keyword pages:
+- Related code pages:
+- Related synthesis pages:
+
+## Synthesis Update Needed
+- Yes/No: TBD
+- Which synthesis page: TBD

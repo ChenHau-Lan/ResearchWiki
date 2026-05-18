@@ -3,8 +3,10 @@ full_text: true
 type: paper
 status: needs-verification
 source_status: peer-reviewed
-topics: [needs_triage]
-keywords: [bulk_microphysics, drop_size_distribution, microphysics_scheme]
+review_stage: ai-extracted
+reading_status: metadata-only
+topics: [microphysics]
+keywords: [bulk_microphysics, drop_size_distribution, microphysics_scheme, needs_triage]
 created: 2026-05-17
 updated: 2026-05-17
 sources: [lee_general_2004]
@@ -26,12 +28,12 @@ citation_key: lee_general_2004
 - DOI: 10.1175/1520-0450(2004)043<0264:AGATDN>2.0.CO;2
 - URL: http://journals.ametsoc.org/doi/10.1175/1520-0450(2004)043<0264:AGATDN>2.0.CO;2
 - Raw Source: Zotero Desktop local API / references.bib
-- Read Status: metadata-only
+- Reading Status: metadata-only
 
 ## Keywords
 
-- Topics: needs_triage
-- Keywords: bulk_microphysics, drop_size_distribution
+- Topics: microphysics
+- Keywords: bulk_microphysics, drop_size_distribution, microphysics_scheme, needs_triage
 
 ## Research Question
 
@@ -58,3 +60,25 @@ Not yet extracted.
 - [[keyword_bulk_microphysics|bulk_microphysics]]
 - [[keyword_drop_size_distribution|drop_size_distribution]]
 - [[keyword_microphysics_scheme|microphysics_scheme]]
+
+## Evidence / Figures
+- Figure/table/result: Not yet extracted.
+- What it supports: Not yet extracted.
+- Reading limitation: See `reading_status`.
+
+## My Notes on This Paper
+- Single-paper interpretation: Not yet discussed.
+- Questions for discussion: TBD.
+- Possible use in my research: TBD.
+
+## Connections
+- Related concepts:
+- Related methods:
+- Related datasets:
+- Keyword pages:
+- Related code pages:
+- Related synthesis pages:
+
+## Synthesis Update Needed
+- Yes/No: TBD
+- Which synthesis page: TBD

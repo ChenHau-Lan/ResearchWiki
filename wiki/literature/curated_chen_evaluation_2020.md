@@ -2,7 +2,10 @@
 type: paper
 status: needs-verification
 source_status: peer-reviewed
-topics: [remote_sensing, stratospheric_aerosol, retrieval_validation]
+review_stage: ai-extracted
+reading_status: metadata-only
+topics: [remote_sensing, aerosol]
+keywords: [stratospheric_aerosol, retrieval_validation]
 created: 2026-05-17
 updated: 2026-05-17
 sources: [chen_evaluation_2020]
@@ -20,7 +23,7 @@ sources: [chen_evaluation_2020]
 - DOI: 10.5194/amt-13-3471-2020
 - URL: https://doi.org/10.5194/amt-13-3471-2020
 - Raw Source: Zotero item `6CT9QNEB`; metadata checked against Copernicus AMT record
-- Read Status: abstract-only
+- Reading Status: abstract-only
 
 ## Research Question
 
@@ -53,3 +56,17 @@ Abstract-level only: compares OMPS/LP aerosol extinction profiles with SAGE III/
 
 - Yes: remote sensing validation synthesis
 - Which synthesis page: TBD
+
+## Keywords
+- Topics: remote_sensing, aerosol
+- Keywords: stratospheric_aerosol, retrieval_validation
+
+## Evidence / Figures
+- Figure/table/result: Not yet extracted.
+- What it supports: Not yet extracted.
+- Reading limitation: See `reading_status`.
+
+## My Notes on This Paper
+- Single-paper interpretation: Not yet discussed.
+- Questions for discussion: TBD.
+- Possible use in my research: TBD.

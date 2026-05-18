@@ -3,7 +3,9 @@ full_text: true
 type: paper
 status: needs-verification
 source_status: peer-reviewed
-topics: [cloud_microphysics, remote_sensing]
+review_stage: ai-extracted
+reading_status: metadata-only
+topics: [microphysics, remote_sensing]
 keywords: [needs_subkeyword]
 created: 2026-05-17
 updated: 2026-05-17
@@ -26,11 +28,11 @@ citation_key: ryzhkov_polarimetric_2022
 - DOI: 10.3390/rs14071695
 - URL: https://www.mdpi.com/2072-4292/14/7/1695
 - Raw Source: Zotero Desktop local API / references.bib
-- Read Status: metadata-only
+- Reading Status: metadata-only
 
 ## Keywords
 
-- Topics: cloud_microphysics, remote_sensing
+- Topics: microphysics, remote_sensing
 - Keywords: needs_subkeyword
 
 ## Research Question
@@ -56,3 +58,25 @@ Not yet extracted.
 ## Graph Links
 
 - [[keyword_needs_subkeyword|needs_subkeyword]]
+
+## Evidence / Figures
+- Figure/table/result: Not yet extracted.
+- What it supports: Not yet extracted.
+- Reading limitation: See `reading_status`.
+
+## My Notes on This Paper
+- Single-paper interpretation: Not yet discussed.
+- Questions for discussion: TBD.
+- Possible use in my research: TBD.
+
+## Connections
+- Related concepts:
+- Related methods:
+- Related datasets:
+- Keyword pages:
+- Related code pages:
+- Related synthesis pages:
+
+## Synthesis Update Needed
+- Yes/No: TBD
+- Which synthesis page: TBD

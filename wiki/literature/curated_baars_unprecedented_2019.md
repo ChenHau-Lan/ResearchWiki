@@ -2,7 +2,10 @@
 type: paper
 status: needs-verification
 source_status: peer-reviewed
-topics: [remote_sensing, aerosol, pyrocb, lidar]
+review_stage: ai-extracted
+reading_status: metadata-only
+topics: [remote_sensing, aerosol, wildfire]
+keywords: [pyrocb, lidar]
 created: 2026-05-17
 updated: 2026-05-17
 sources: [baars_unprecedented_2019]
@@ -20,7 +23,7 @@ sources: [baars_unprecedented_2019]
 - DOI: 10.5194/acp-19-15183-2019
 - URL: https://doi.org/10.5194/acp-19-15183-2019
 - Raw Source: Zotero item `VZMPA2G3`; metadata checked against Copernicus ACP record
-- Read Status: abstract-only
+- Reading Status: abstract-only
 
 ## Research Question
 
@@ -53,3 +56,17 @@ Abstract-level only: uses EARLINET lidar observations to characterize smoke-laye
 
 - Yes: pyroCb / stratospheric smoke synthesis
 - Which synthesis page: TBD
+
+## Keywords
+- Topics: remote_sensing, aerosol, wildfire
+- Keywords: pyrocb, lidar
+
+## Evidence / Figures
+- Figure/table/result: Not yet extracted.
+- What it supports: Not yet extracted.
+- Reading limitation: See `reading_status`.
+
+## My Notes on This Paper
+- Single-paper interpretation: Not yet discussed.
+- Questions for discussion: TBD.
+- Possible use in my research: TBD.

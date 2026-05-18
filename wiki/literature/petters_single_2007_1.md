@@ -3,6 +3,8 @@ full_text: true
 type: paper
 status: needs-verification
 source_status: peer-reviewed
+review_stage: ai-extracted
+reading_status: metadata-only
 topics: [aerosol]
 keywords: [aerosol_cloud_interaction]
 created: 2026-05-17
@@ -26,7 +28,7 @@ citation_key: petters_single_2007-1
 - DOI: 10.5194/acp-7-1961-2007
 - URL: https://acp.copernicus.org/articles/7/1961/2007/
 - Raw Source: Zotero Desktop local API / references.bib
-- Read Status: metadata-only
+- Reading Status: metadata-only
 
 ## Keywords
 
@@ -56,3 +58,25 @@ Not yet extracted.
 ## Graph Links
 
 - [[keyword_aerosol_cloud_interaction|aerosol_cloud_interaction]]
+
+## Evidence / Figures
+- Figure/table/result: Not yet extracted.
+- What it supports: Not yet extracted.
+- Reading limitation: See `reading_status`.
+
+## My Notes on This Paper
+- Single-paper interpretation: Not yet discussed.
+- Questions for discussion: TBD.
+- Possible use in my research: TBD.
+
+## Connections
+- Related concepts:
+- Related methods:
+- Related datasets:
+- Keyword pages:
+- Related code pages:
+- Related synthesis pages:
+
+## Synthesis Update Needed
+- Yes/No: TBD
+- Which synthesis page: TBD

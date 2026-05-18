@@ -2,7 +2,10 @@
 type: concept
 status: draft
 source_status: personal-note
+reading_status: mixed
+review_stage: ai-extracted
 topics: []
+keywords: []
 created: YYYY-MM-DD
 updated: YYYY-MM-DD
 sources: []
@@ -30,4 +33,3 @@ One paragraph summary.
 ## Open Questions
 
 - Question to investigate.
-

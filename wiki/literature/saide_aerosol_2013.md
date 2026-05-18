@@ -3,7 +3,9 @@ full_text: true
 type: paper
 status: needs-verification
 source_status: peer-reviewed
-topics: [aerosol, cloud_microphysics, modeling, remote_sensing]
+review_stage: ai-extracted
+reading_status: metadata-only
+topics: [aerosol, microphysics, modeling, remote_sensing]
 keywords: [aerosol_scheme, retrieval_validation]
 created: 2026-05-17
 updated: 2026-05-17
@@ -26,12 +28,12 @@ citation_key: saide_aerosol_2013
 - DOI: 10.5194/acp-13-10425-2013
 - URL: https://acp.copernicus.org/articles/13/10425/2013/
 - Raw Source: Zotero Desktop local API / references.bib
-- Read Status: metadata-only
+- Reading Status: metadata-only
 
 ## Keywords
 
-- Topics: aerosol, cloud_microphysics, modeling, remote_sensing
-- Keywords: retrieval_validation
+- Topics: aerosol, microphysics, modeling, remote_sensing
+- Keywords: aerosol_scheme, retrieval_validation
 
 ## Research Question
 
@@ -57,3 +59,25 @@ Not yet extracted.
 
 - [[keyword_retrieval_validation|retrieval_validation]]
 - [[keyword_aerosol_scheme|aerosol_scheme]]
+
+## Evidence / Figures
+- Figure/table/result: Not yet extracted.
+- What it supports: Not yet extracted.
+- Reading limitation: See `reading_status`.
+
+## My Notes on This Paper
+- Single-paper interpretation: Not yet discussed.
+- Questions for discussion: TBD.
+- Possible use in my research: TBD.
+
+## Connections
+- Related concepts:
+- Related methods:
+- Related datasets:
+- Keyword pages:
+- Related code pages:
+- Related synthesis pages:
+
+## Synthesis Update Needed
+- Yes/No: TBD
+- Which synthesis page: TBD

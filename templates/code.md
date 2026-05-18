@@ -2,7 +2,10 @@
 type: code
 status: draft
 source_status: software
+reading_status: full-read
+review_stage: ai-extracted
 topics: [code_methods]
+keywords: []
 created: YYYY-MM-DD
 updated: YYYY-MM-DD
 sources: []
@@ -19,6 +22,7 @@ What problem does this code solve?
 - Repository/path:
 - Commit or version:
 - Related raw files:
+- Review Stage: ai-extracted / human-checked / discussed / integrated / cited
 
 ## Data Flow
 
@@ -54,5 +58,11 @@ Input -> processing steps -> output.
 
 ## Related Pages
 
-- Link to topic or paper pages.
+- Related paper pages:
+- Related concept pages:
+- Related synthesis pages:
 
+## Synthesis Update Needed
+
+- Yes/No:
+- Which synthesis page:

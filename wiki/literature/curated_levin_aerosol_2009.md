@@ -2,7 +2,10 @@
 type: paper
 status: needs-verification
 source_status: peer-reviewed
-topics: [aerosol, aerosol_cloud_interaction, precipitation]
+review_stage: ai-extracted
+reading_status: metadata-only
+topics: [aerosol, precipitation]
+keywords: [aerosol_cloud_interaction]
 created: 2026-05-17
 updated: 2026-05-17
 sources: [levin_aerosol_2009]
@@ -20,7 +23,7 @@ sources: [levin_aerosol_2009]
 - DOI: 10.1007/978-1-4020-8690-8
 - URL: https://doi.org/10.1007/978-1-4020-8690-8
 - Raw Source: Zotero item `L5FDFMZE`; metadata checked against Springer and Tel Aviv University record
-- Read Status: metadata-only
+- Reading Status: metadata-only
 
 ## Research Question
 
@@ -53,3 +56,17 @@ Not yet extracted. Treat as an edited scientific review, not a single experiment
 
 - Yes: aerosol-cloud interaction synthesis
 - Which synthesis page: TBD
+
+## Keywords
+- Topics: aerosol, precipitation
+- Keywords: aerosol_cloud_interaction
+
+## Evidence / Figures
+- Figure/table/result: Not yet extracted.
+- What it supports: Not yet extracted.
+- Reading limitation: See `reading_status`.
+
+## My Notes on This Paper
+- Single-paper interpretation: Not yet discussed.
+- Questions for discussion: TBD.
+- Possible use in my research: TBD.

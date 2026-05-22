@@ -39,6 +39,16 @@
 - `codex/core-*` 用於 core contract；`codex/command-*` 用於 command/UI；`personal/*` 用於個人研究狀態。
 - Issue 回報採 redacted prefilled URL；不自動送出，也不貼 private raw PDF/full_text/Codex logs。
 
+## Updating AGENTS.md During Tests
+
+`AGENTS.md` 會影響未來 Codex 如何理解與操作整個 repo，因此不要把它當成測試筆記本。
+
+- 臨時測試觀察：寫到 `maintenance/`、test report 或 issue，不直接改 `AGENTS.md`。
+- 核心規則改變：先改 `core/agent_contract.md`、`core/data_contract.md` 或相關 `core/*`，再讓 `AGENTS.md` 保持簡短索引。
+- Command 操作細節改變：改 `USER_GUIDE*` 或 command prompt，不把細節塞進 `AGENTS.md`。
+- 個人偏好或個人研究流程：放到 `personal/*` branch，不進 template `main`。
+- 若確實需要改 `AGENTS.md`，必須走 PR，並同步更新 README / USER_GUIDE 中對使用者有影響的部分。
+
 ## Deletion Safety
 
 禁止批量刪除文件或目錄。

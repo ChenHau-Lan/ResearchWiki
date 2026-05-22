@@ -1,119 +1,154 @@
-# Research Wiki 中文快速說明
+# Research Wiki：把 DOI 變成可以查的研究資料庫
 
 [English README](README.md)
 
-這是一個 GitHub 可上架的 Karpathy-style LLM Wiki 研究資料庫模板。
+Research Wiki 是一個給研究者用的 GitHub-ready LLM Wiki 模板。你可以把 DOI、PDF、全文、閱讀筆記、meeting、seminar 和 synthesis 放在同一個可維護的資料庫裡。
 
-核心精神：
+一句話版：
 
-- `core/` 是 command-independent source of truth，保存原理、資料契約、agent 契約、skills 與測試契約。
-- `ResearchWiki.command` 做低 token / 無 token 的本地操作。
-- Codex / LLM 做真正需要理解的文獻攝入、萃取、討論與 synthesis。
-- `raw/` 保存證據；`wiki/` 保存整理後的知識。
-- Obsidian graph 是一級功能，每個重要頁面都要有明確 wikilinks。
-- 資料庫要能被定期診斷與修復，但不自動批量刪除。
+> 機械整理交給 command，本地 evidence 留在 `raw/`，需要理解的閱讀與判斷再交給 Codex。
 
-## 最快開始
+## 你大概只需要記住這張圖
 
-1. 用 Codex 打開 repo。
-2. 請 Codex 檢查需要的工具：
+```mermaid
+flowchart TD
+    A["貼 DOI 到 raw/doi_list.md"] --> B["ResearchWiki.command 第 5 項<br/>開合法 PDF 頁面"]
+    B --> C["手動下載合法 PDF<br/>放進 raw/doi_pdf/"]
+    C --> D["第 6 項<br/>改名、抽 full_text、更新 dashboard/index"]
+    D --> E["第 7 項<br/>Codex 重排/QC full_text"]
+    E --> F["產生 wiki/literature paper page"]
+    F --> G["需要跨文獻判斷時<br/>再寫 wiki/synthesis"]
 
-   ```text
-   請讀 core/README.md、README.md、USER_GUIDE.md、AGENTS.md，然後執行 python3 tools/check_install.py，幫我確認這台電腦是否可以使用 Research Wiki。
-   ```
+    B -. "找不到 PDF 或需要來源判斷" .-> H["第 3/4 項<br/>Codex fallback acquisition"]
+    H --> D
+```
 
-3. 打開 `ResearchWiki.command`。
-4. 把 DOI 貼到 `raw/doi_list.md`。
-5. 選 `Open authorized PDF pages (recommended first)`，只從 publisher、作者、open-access、institutional access 或使用者已授權來源下載 PDF，並放到 `raw/doi_pdf/`。
-6. 回 command 選 `Import PDFs + extract full_text + rebuild index`，由本地工具從 PDF DOI metadata 建 row、改名、抽機械文字、標記 Codex QC、更新 dashboard/index。
-7. 機械 full text 產生後，再選 `Launch Codex full_text QC + wiki ingest`，由 Codex 重排/QC full text 並產生或更新 paper page。
-8. 只有 open publisher HTML/XML、授權瀏覽器 session 或真的需要來源判斷時，才用 `Launch Codex fallback acquisition (slow)`。
+正常情況下，不要一開始就叫 Codex 慢慢找全文。先用第 5 項打開合法來源頁面，把 PDF 放進 `raw/doi_pdf/`，再用第 6 項讓本地工具抽文字。Codex 最值得用在第 7 項：重排全文、做 QC、理解論文、寫 paper page。
 
-## Command 重要項目
+## 完全不懂 GitHub 怎麼開始
 
-- 第 1 項 `Open/add DOI to raw/doi_list.md`：加入或打開 DOI 輸入檔。
-- 第 2 項 `Open/manage DOI dashboard`：打開目前 DOI 進度看板。
-- 第 3 項 `Launch Codex fallback acquisition (slow)`：只處理例外情況，例如 open publisher HTML/XML、授權瀏覽器 session，或需要判斷合法來源路徑的 DOI。遇到出版社阻擋時不要長時間硬找，應回到 PDF-first 流程。
-- 第 4 項 `Generate Codex app fallback acquisition prompt`：不執行 CLI；產生 fallback acquisition prompt，寫到 `maintenance/codex_app_handoff_prompt.md`，初始化 `maintenance/codex_app_last_run.log`，可用時複製到剪貼簿，並開啟 Codex app 到本專案。
-- 第 5 項 `Open authorized PDF pages (recommended first)`：針對 dashboard 中沒有 PDF 的 DOI 開啟 DOI landing page 與 `raw/doi_pdf/`。只使用 publisher、作者、open-access、institutional access 或使用者已授權 PDF；本專案不自動化 shadow-library / 未授權下載。
-- 第 6 項 `Import PDFs + extract full_text + rebuild index`：本地維護，會先檢查 `raw/doi_pdf/` 裡是否有新放入、尚未按規則命名的 PDF；若 PDF 內有 DOI 但 dashboard 沒有 row，會自動建立 row；接著改名為 `<paper_file_key>.pdf`，抽成 machine-extracted `raw/full_text/<paper_file_key>.md`，標記 `codex_qc_full_text`，更新 PDF path / full_text / DOI dashboard，再重建 full_text index。不做文獻理解，目標是不消耗 token。
-- 第 7 項 `Launch Codex full_text QC + wiki ingest`：前台執行 Codex，先重排與 QC machine-extracted full text，判斷 readability / equation quality / metadata 設定，再從 QCed `raw/full_text/` 產生或更新 `wiki/literature/` paper page；終端只顯示精簡 QC/ingest 結果。生成頁面應只放該篇論文本身內容與必要來源指標，不放空欄位或模板說明。
-- 第 8 項 `Launch Codex project conversation`：啟動新的 project / idea 討論，英文 prompt 會要求 Codex 先和使用者釐清問題，再自動判斷 topics、subtopics、相關文獻與是否需要新增 DOI。
-- 第 9 項 `Manage topic/subtopic registry`：管理必要的 topic/subtopic registry。
-- 第 10 項 `Open Obsidian graph guide`：打開 graph 使用說明，讓使用者知道如何看 literature、synthesis、seminar、meeting、project synthesis 的關係。
-- 第 11 項 `Run database health check (diagnose only)`：只診斷問題，例如 stale path、缺 Graph Links、release hygiene、本機絕對路徑與結構異常；不刪檔。
-- 第 12 項 `Generate repair plan (no deletes)`：把第 11 項可能發現的問題整理成 `maintenance/repair_plan_YYYY-MM-DD.md`，並附上分類後的人工修復建議；仍不自動刪檔。
-- 第 13 項 `Prepare GitHub support issue (redacted)`：產生遮蔽後的 support report，並開啟 GitHub issue 草稿；送出前必須人工確認。
-
-DOI 產生的檔名採 paper-based 命名：`last_name_year_journal_abbrev`。例如 Conrick et al. 2021 in Weather and Forecasting 會變成 `conrick_2021_waf`。
-
-若 shell 下載被 403 / CloudFront 擋住，但使用者在正常網頁可以看到全文並按 PDF，這代表可走授權瀏覽器 session。不過預設仍建議先用第 5 項開頁面、手動下載合法 PDF，再用第 6 項本地抽 full text；第 3 項只作為 fallback。
-
-如果第 3 項是在 command-line Codex session 被 browser automation 權限擋住，可改用第 4 項：它會產生 prompt、開啟 Codex app，你把 prompt 貼到 Codex app 對話裡執行。此 prompt 會要求 Codex app 把重要過程追加到 `maintenance/codex_app_last_run.log`。完成後回到 command 跑第 6 項更新 dashboard，再跑第 7 項產生 wiki page。
-
-如果你手動下載 PDF，不需要放到 Downloads 給 command 找。直接把 PDF 放進 `raw/doi_pdf/`，再執行第 6 項；command 會檢查 `raw/doi_pdf/` 裡的額外 PDF，能比對 DOI/title 時自動改名、抽 full text，並更新資料庫。
-
-架構上，wiki page 不需要直接從 PDF 生成。較穩定的流程是 `DOI -> evidence package(PDF if available + full_text.md) -> wiki page`。若 publisher HTML/XML/DOM 已提供完整全文，`full_text.md` 可以先進 wiki；PDF 缺失則作為後續 backfill。
-
-DOI dashboard 採精簡欄位：
+打開 Codex，把這段貼給它：
 
 ```text
-Last Name_Year | Journal | DOI | Wiki Status | 論文取得合法性 | PDF | Full Text
+請幫我使用這個 Research Wiki repository。我不熟 GitHub。
+請先讀 README.zh-TW.md、core/README.md、USER_GUIDE.zh-TW.md、AGENTS.md，
+然後執行 python3 tools/check_install.py。
+請用中文告訴我缺什麼工具、下一步要做什麼；不要上傳 private PDF、全文、local path 或 Codex logs。
 ```
 
-較長的失敗原因與下一步會放在同檔案下方的 `DOI Notes`，主看板保持可讀。
+然後照 Codex 說的做。真的要自己手動操作時，通常就是：
 
-## 查詢優先順序
+1. 打開 `ResearchWiki.command`。
+2. 選第 1 項，把 DOI 貼進 `raw/doi_list.md`。
+3. 選第 5 項，從合法頁面下載 PDF。
+4. 把 PDF 放進 `raw/doi_pdf/`。
+5. 選第 6 項，讓本地工具整理 PDF 和 full_text。
+6. 選第 7 項，讓 Codex 做 full_text QC 和 paper page。
 
-一般研究問題：
+## 三層結構
 
-```text
-synthesis > literature > seminars
+```mermaid
+flowchart LR
+    C["core/<br/>規則、原理、契約、skills"] --> CMD["command layer<br/>ResearchWiki.command + tools/"]
+    CMD --> W["raw/ + wiki/<br/>你的資料庫內容"]
+    P["personal/* branch<br/>個人研究狀態"] -. "不要混進 template main" .-> W
 ```
 
-如果問 project history、meeting decision、跨 project 關聯：
+- `core/`：資料庫規則。若 command 和 core 衝突，以 core 為準。
+- `ResearchWiki.command` / `tools/`：操作介面，只實作 core 規則。
+- `raw/`：證據層，例如 DOI、PDF、full_text、原始檔。
+- `wiki/`：知識層，例如 paper page、synthesis、meeting、seminar。
+- `maintenance/`：診斷、repair plan、release、branch 說明，不是正式 wiki 知識。
+- `personal/*` branch：個人研究狀態，不應直接混進可發布模板。
 
-```text
-project_synthesis > meetings
-```
+## 支援回報是什麼
 
-## 主要目錄
-
-```text
-core/                 資料庫原理、契約、skills、測試契約
-raw/                  DOI、PDF、全文、原始檔
-raw/doi_pdf/          DOI PDF，使用 paper-based 檔名
-raw/full_text/        可閱讀全文 Markdown，使用 paper-based 檔名
-wiki/literature/      單篇文獻
-wiki/synthesis/       跨文獻研究判斷
-wiki/meetings/        單次會議紀錄
-wiki/project_synthesis/ 跨會議 project 整合
-wiki/seminars/        seminar / talk 紀錄
-maintenance/          修復、release、Obsidian graph 說明
-```
-
-`ResearchWiki.command` 和 `tools/` 只是 core contract 的實作；若 command 與 `core/` 規則衝突，以 `core/` 為準。
-
-## 定期修復
-
-```bash
-python3 tools/wiki_lint.py
-python3 tools/wiki_doctor.py
-python3 tools/generate_repair_plan.py
-```
-
-`generate_repair_plan.py` 只產生建議，不會自動刪除。
-
-如果 doctor / repair plan 列出 `.DS_Store`，那是 release hygiene。先檢查明確路徑，確認安全後一次只刪除一個指定檔案；不要使用 recursive、wildcard 或批量清理命令。
-
-## 測試初始化
-
-`InitializeResearchWiki.command` 可以把本地資料庫重設成乾淨測試狀態。它會要求你輸入 `INIT TEST DATABASE`，然後只在限定範圍內批量清除測試 evidence、生成 raw artifacts 與生成 wiki pages，保留 tools、templates、skills、docs、topic registry 與 Obsidian 設定。它也會重寫各分區 index pages，避免 index 還指向已刪除的生成頁。只有真的要重測流程時才使用。
-
-## 遇到問題
+遇到問題時，不要手動貼一堆本機路徑或 PDF 內容到 issue。先跑：
 
 ```bash
 python3 tools/support_report.py --issue-url
 ```
 
-此工具會寫入 `maintenance/support_report.md`，並開啟預填 GitHub issue URL。它會遮蔽本機路徑、DOI、raw PDF/full_text 路徑與 Codex logs，但送出前仍要人工確認。
+它會做這件事：
+
+```mermaid
+flowchart TD
+    A["你遇到問題"] --> B["support_report.py 跑 install/lint/doctor"]
+    B --> C["產生 maintenance/support_report.md"]
+    C --> D["遮蔽 local path、DOI、raw PDF/full_text、Codex logs"]
+    D --> E["產生 GitHub issue 草稿 URL"]
+    E --> F["你人工檢查"]
+    F --> G["確認沒 private 內容後才送出"]
+```
+
+重點：它只準備 issue 草稿，**不會自動送出**。最後要不要送出，永遠由人確認。
+
+## 測試時不小心動到 AGENTS.md 怎麼辦
+
+先不要直接把測試中的 `AGENTS.md` 改動推進 `main`。
+
+判斷方式：
+
+- 臨時測試想法：寫到 `maintenance/` 或 issue，不改 `AGENTS.md`。
+- 核心規則真的變了：先改 `core/agent_contract.md` 或 `core/data_contract.md`，再讓 `AGENTS.md` 簡短指向它。
+- command 操作細節變了：改 `USER_GUIDE.zh-TW.md` 或 command prompt。
+- 只是你的個人偏好：放到 `personal/chenhau-lan` branch。
+
+`AGENTS.md` 會影響未來 Codex 如何工作，所以它應該走 PR，不要當成測試筆記。
+
+## 什麼時候用 Codex
+
+適合用 Codex：
+
+- 判斷全文來源是否合法、可用。
+- 把 machine-extracted full_text 重排成可讀 Markdown。
+- 檢查 equation/table/section 是否被抽壞。
+- 從 full_text 寫 paper page。
+- 做 synthesis、project discussion、meeting/seminar 脈絡整理。
+
+不適合浪費 Codex token：
+
+- 掃描資料夾。
+- 重建 index。
+- 檢查 dashboard path 是否 stale。
+- 把 PDF 改成 canonical 檔名。
+- 產生 repair plan 的機械診斷。
+
+這些應該交給 `ResearchWiki.command` 和 `tools/`。
+
+## 常用命令
+
+```bash
+python3 tools/check_install.py
+python3 tools/wiki_lint.py
+python3 tools/wiki_doctor.py
+python3 tools/generate_repair_plan.py
+python3 tools/support_report.py --issue-url
+```
+
+`generate_repair_plan.py` 只產生建議，不會自動刪檔。
+
+## 要重測資料庫流程
+
+只有真的要重測時才用：
+
+```text
+InitializeResearchWiki.command
+```
+
+它會要求你輸入：
+
+```text
+INIT TEST DATABASE
+```
+
+然後只清理受限範圍內的測試 evidence、生成 raw artifacts 和生成 wiki pages。它會保留工具、模板、skills、docs、topic registry 和 Obsidian 設定。
+
+## 更多文件
+
+- [使用指南](USER_GUIDE.zh-TW.md)
+- [安裝指南](INSTALL.zh-TW.md)
+- [支援回報](SUPPORT.zh-TW.md)
+- [Agent 規則](AGENTS.md)
+- [目前 GitHub branch 安排](maintenance/github_current_arrangement.md)
+- [Branch strategy](maintenance/branch_strategy.md)

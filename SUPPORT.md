@@ -1,8 +1,29 @@
 # Support
 
-Research Wiki uses privacy-safe issue reporting.
+The support report is not an automatic uploader. It is a safer way to package
+diagnostics into a GitHub issue draft.
 
-## Prepare A Support Issue
+## When To Use It
+
+Use it when:
+
+- installation is unclear;
+- `ResearchWiki.command` does not run;
+- DOI dashboard, full-text index, or wiki doctor output looks wrong;
+- a new user gets stuck while following the README;
+- you want to report a core contract, command UI, or privacy redaction problem.
+
+## What It Does
+
+```mermaid
+flowchart TD
+    A["Run support_report.py"] --> B["Run check_install / wiki_lint / wiki_doctor"]
+    B --> C["Write maintenance/support_report.md"]
+    C --> D["Redact common private details"]
+    D --> E["Open a prefilled GitHub issue URL"]
+    E --> F["Human review"]
+    F --> G["You decide whether to submit"]
+```
 
 Run:
 
@@ -10,21 +31,40 @@ Run:
 python3 tools/support_report.py --issue-url
 ```
 
-The script writes `maintenance/support_report.md` and prints a prefilled GitHub
-issue URL. It does not submit the issue.
+## What It Does Not Do
 
-## Privacy Rules
+- It does not submit a GitHub issue automatically.
+- It does not upload PDFs.
+- It does not paste full article text.
+- It does not publish Codex logs.
+- It does not guarantee that every possible private detail is removed.
 
-Before submitting an issue, check that it does not include:
+## Redaction
 
-- private PDFs
-- full article text
-- local home-directory paths
-- Codex logs
-- sensitive DOI lists or personal research state
+The report attempts to redact:
 
-The report redacts common private data automatically, but human review is still
-required.
+- local paths;
+- DOI values;
+- `raw/doi_pdf/` paths;
+- `raw/full_text/` paths;
+- Codex logs;
+- GitHub account names;
+- detailed git status filenames.
+
+Human review is still required before submitting.
+
+## Before Submitting
+
+Confirm that the issue draft does not include:
+
+- private PDFs or PDF contents;
+- full article text;
+- local home-directory paths;
+- Codex logs;
+- sensitive DOI lists;
+- private project or research state.
+
+If unsure, do not submit yet. Ask Codex to review the draft for privacy first.
 
 ## Labels
 

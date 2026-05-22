@@ -1,8 +1,28 @@
 # 支援與 Issue 回報
 
-Research Wiki 採用 privacy-safe issue 回報。
+Support report 的目的不是「自動把你的資料送上 GitHub」。它只是幫你把錯誤診斷整理成一份比較安全、比較好讀的 issue 草稿。
 
-## 產生 Issue 草稿
+## 什麼時候用
+
+遇到這些情況可以用：
+
+- 不知道安裝少了什麼工具。
+- `ResearchWiki.command` 跑不起來。
+- DOI dashboard、full_text index、wiki doctor 出現錯誤。
+- 新手照 README 做但卡住。
+- 想回報 core contract、command UI、privacy redaction 的問題。
+
+## 它實際做什麼
+
+```mermaid
+flowchart TD
+    A["你執行 support_report.py"] --> B["跑 check_install / wiki_lint / wiki_doctor"]
+    B --> C["產生 maintenance/support_report.md"]
+    C --> D["遮蔽常見 private 資訊"]
+    D --> E["產生 GitHub issue 草稿 URL"]
+    E --> F["你人工檢查"]
+    F --> G["你決定要不要送出"]
+```
 
 執行：
 
@@ -10,19 +30,40 @@ Research Wiki 採用 privacy-safe issue 回報。
 python3 tools/support_report.py --issue-url
 ```
 
-工具會寫入 `maintenance/support_report.md`，並產生 GitHub issue 預填連結。它不會自動送出 issue。
+## 它不會做什麼
+
+- 不會自動送出 GitHub issue。
+- 不會上傳 PDF。
+- 不會貼出 full text。
+- 不會把 Codex log 自動公開。
+- 不會替你判斷所有內容都一定安全。
+
+## 它會遮蔽什麼
+
+工具會盡量遮蔽：
+
+- 本機路徑，例如 home directory 或 repo 絕對路徑。
+- DOI 值。
+- `raw/doi_pdf/` 路徑。
+- `raw/full_text/` 路徑。
+- Codex logs。
+- GitHub 帳號名稱。
+- git status 的檔名細節。
+
+但遮蔽不是魔法。送出 issue 前，仍然要人工檢查。
 
 ## 送出前檢查
 
-請確認 issue 內容沒有：
+請確認 issue 草稿裡沒有：
 
-- private PDF
-- 文章全文
-- 本機 home-directory 路徑
-- Codex logs
-- 敏感 DOI 清單或個人研究狀態
+- private PDF 或 PDF 內容。
+- 文章全文。
+- 本機 home-directory 路徑。
+- Codex logs。
+- 敏感 DOI 清單。
+- 個人研究狀態或尚未公開 project 細節。
 
-工具會自動遮蔽常見私密資料，但最後仍需要人工確認。
+如果不確定，就先不要送出，把草稿貼給 Codex 請它再幫你檢查 privacy。
 
 ## 建議 Labels
 

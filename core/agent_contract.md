@@ -34,8 +34,16 @@ Before changing database rules or workflows, read:
 - Command scripts implement those rules.
 - If command prompts need instructions, they should cite `core/*` and only add
   execution details that are specific to the command.
-- User-facing docs should explain the core model before describing command menu
-  steps.
+- README should stay short: material intake flow, install entrypoint, and
+  support entrypoint only. Put detailed data locations and operation details in
+  USER_GUIDE, durable rules in `core/`, and maintenance history in
+  `maintenance/`.
+- User-facing docs should explain the core material flow before describing
+  command menu steps.
+- Codex install/support prompts in README, USER_GUIDE, INSTALL, and SUPPORT
+  should stay aligned. Prompts may guide setup and prepare issue drafts, but
+  system installs require user confirmation and issue submission must remain a
+  human-confirmed step.
 
 ## Review Feedback Handling
 

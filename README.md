@@ -49,13 +49,16 @@ Recommended:
 - Obsidian for graph browsing.
 - Chrome for authenticated or authorized publisher sessions.
 
-If you are new to GitHub, open Codex and paste:
+If you are new to GitHub, Codex can do most of the install check in one pass. Open Codex and paste:
 
 ```text
-Please help me use this Research Wiki repository. I do not know GitHub well.
-Read README.md, README.zh-TW.md, core/README.md, USER_GUIDE.md, and AGENTS.md.
-Then run python3 tools/check_install.py.
-Tell me what is missing and what I should do next. Do not upload private PDFs, full text, local paths, or Codex logs.
+Please help me install and start Research Wiki. I do not know GitHub well.
+If I do not have the repository yet, help me clone git@github.com:ChenHau-Lan/wiki_research.git. If I am already inside the repo, use the current folder.
+Read README.md, USER_GUIDE.md, INSTALL.md, and AGENTS.md first.
+Check whether Git, Python 3, ripgrep/rg, Poppler/pdftotext, and the Codex CLI are available.
+If a tool is missing, explain what it is for. Ask me before using Homebrew, system installation commands, or permission-requiring steps.
+After installing or confirming tools, run python3 tools/check_install.py --strict.
+When it succeeds, tell me how to open ResearchWiki.command. Do not upload private PDFs, full text, local paths, sensitive DOI lists, or Codex logs.
 ```
 
 Open `ResearchWiki.command` when working manually. It can help add source pointers, open legal source pages, import evidence, create QCed full text, and then turn full text into paper pages. See [USER_GUIDE.md](USER_GUIDE.md) for the command menu.
@@ -66,28 +69,18 @@ Open `ResearchWiki.command` when working manually. It can help add source pointe
 
 The command is the default interface for this data model, not the source of the database rules. It handles source intake, legal source-page opening, PDF/evidence import, staging extraction, Codex full-text QC, wiki ingest, health checks, and support issue drafts. Full menu details live in [USER_GUIDE.md](USER_GUIDE.md).
 
-## Data Layers
-
-```mermaid
-flowchart LR
-    CORE["core/<br/>principles, contracts, skills"] --> CMD["command layer<br/>ResearchWiki.command + tools/"]
-    RAW["raw/<br/>source pointer / PDF / staging / QCed full_text / original files"] --> WIKI["wiki/<br/>paper / synthesis / meeting / seminar"]
-    CMD --> RAW
-    CMD --> WIKI
-    PERSONAL["personal/* branch<br/>private research state"] -. "do not mix into template main" .-> RAW
-```
-
-- `core/` is the source of truth for rules.
-- `raw/` is the evidence layer: source pointers, PDFs, staging text, QCed full text, and original files.
-- `wiki/` is the curated knowledge layer.
-- `maintenance/` stores diagnostics, repair plans, release notes, and branch notes.
-- `personal/*` branches are for private research state.
-
-If command behavior and `core/` disagree, follow `core/`.
-
 ## Support
 
-Run:
+The easiest path is to ask Codex to prepare a redacted issue draft. Paste:
+
+```text
+Research Wiki install or execution failed. Please help me prepare a GitHub issue draft.
+Read SUPPORT.md, then run python3 tools/support_report.py --issue-url.
+Check maintenance/support_report.md and the generated issue URL for local paths, private PDFs, full text, sensitive DOI lists, Codex logs, and personal research state.
+Do not submit the issue automatically. Give me the draft for review.
+```
+
+Manual command:
 
 ```bash
 python3 tools/support_report.py --issue-url

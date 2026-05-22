@@ -13,6 +13,19 @@ Use it when:
 - a new user gets stuck while following the README;
 - you want to report a core contract, command UI, or privacy redaction problem.
 
+## Ask Codex To Help
+
+Paste this into Codex:
+
+```text
+Research Wiki install or execution failed. Please help me prepare a GitHub issue draft.
+Read SUPPORT.md, then run python3 tools/support_report.py --issue-url.
+Check maintenance/support_report.md and the generated issue URL for local paths, private PDFs, full text, sensitive DOI lists, Codex logs, and personal research state.
+Do not submit the issue automatically. Give me the draft for review.
+```
+
+Codex can run checks, read the report, inspect whether redaction looks reasonable, and open the issue draft. A human should still review before submitting.
+
 ## What It Does
 
 ```mermaid
@@ -25,7 +38,7 @@ flowchart TD
     F --> G["You decide whether to submit"]
 ```
 
-Run:
+Manual command:
 
 ```bash
 python3 tools/support_report.py --issue-url

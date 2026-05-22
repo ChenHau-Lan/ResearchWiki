@@ -1,6 +1,6 @@
 ---
 name: research-wiki-fulltext-acquisition
-description: Use this project-local skill when acquiring authorized full text for DOI-driven Research Wiki intake, saving DOI PDFs, cleaning them into readable Markdown, verifying completeness, and updating raw/full_text_index without writing wiki paper pages.
+description: Use this project-local skill when acquiring authorized full text for paper-source Research Wiki intake, saving DOI PDFs, converting extraction staging into QCed readable Markdown, verifying completeness, and updating raw/full_text_index without writing wiki paper pages.
 ---
 
 # Research Wiki Full-Text Acquisition
@@ -9,11 +9,11 @@ Use this skill for DOI or article URL intake when the goal is to obtain legal, c
 
 Canonical command-independent rules live in `core/skills/research-wiki-fulltext-acquisition/SKILL.md`, `core/principles.md`, and `core/data_contract.md`. Treat those files as authoritative if this project-local wrapper drifts.
 
-Default product workflow is PDF-first and semi-automatic: open authorized DOI/publisher pages, let the user download PDFs into `raw/doi_pdf/`, run local PDF import/extraction, then run Codex full-text QC before wiki ingest. Use Codex acquisition as a fallback for open publisher HTML/XML, authorized browser-session capture, or rows where metadata/source judgment is genuinely needed.
+Default product workflow is source-first and semi-automatic: collect DOI/URL/PDF source pointers, open authorized DOI/publisher pages, let the user download PDFs into `raw/doi_pdf/`, run local evidence import and staging extraction, then run Codex reflow/QC before writing `raw/full_text/`. Use Codex source finding as a fallback for open publisher HTML/XML, authorized browser-session capture, or rows where metadata/source judgment is genuinely needed.
 
 This skill stops at full-text acquisition. Wiki paper-page creation is a separate handoff handled by the Research Wiki academic writing workflow.
 
-Recommended Codex reasoning effort: `high` only for fallback acquisition. The task requires source-route judgment, metadata verification, legal access checks, filename decisions, and completeness validation, but it should not spend effort on exhaustive route chasing or cross-paper synthesis.
+Recommended Codex reasoning effort: `high` only for exceptional source/full-text finding. The task requires source-route judgment, metadata verification, legal access checks, filename decisions, and completeness validation, but it should not spend effort on exhaustive route chasing or cross-paper synthesis.
 
 ## Core Rules
 
@@ -25,8 +25,8 @@ Recommended Codex reasoning effort: `high` only for fallback acquisition. The ta
 - When publisher shell requests return 403 but the browser page works, use browser-session PDF download before marking the DOI blocked.
 - If readable full text already exists from HTML/XML/DOM but the DOI PDF is missing, treat the DOI as needing PDF backfill. Save the PDF evidence when the browser PDF button is legally available.
 - Save DOI PDFs, when obtained, to `raw/doi_pdf/<paper_file_key>.pdf`.
-- Output readable Markdown to `raw/full_text/<paper_file_key>.md`.
-- If a PDF is obtained, immediately try to extract readable Markdown from it. Do not leave the task at PDF-only unless extraction fails or the PDF is unreadable.
+- Output final readable Markdown to `raw/full_text/<paper_file_key>.md` only after Codex reflow/QC.
+- If a PDF is obtained, extract machine text to `raw/staging/extracted_text/` first, then convert it into QCed `raw/full_text/`. Do not leave the task at PDF-only unless extraction fails or the PDF is unreadable.
 - If a legal complete source is not obvious after local evidence, publisher landing page, obvious open HTML/XML/PDF, and visible browser PDF controls, stop and update the dashboard with `authorized_browser_or_user_pdf_needed` instead of spending a long session searching.
 - `paper_file_key` is `first_author_last_name_year_journal_abbrev`, all lowercase ASCII, with punctuation removed and spaces changed to underscores. Prefer standard journal abbreviations when known. If there is a collision, append a short DOI slug.
 - Rebuild the index with `python3 tools/build_full_text_index.py`.
@@ -36,7 +36,7 @@ Recommended Codex reasoning effort: `high` only for fallback acquisition. The ta
 ## Acquisition Priority
 
 1. Existing verified Markdown in `raw/full_text/`.
-2. Existing local PDF in `raw/doi_pdf/`, then local PDF-to-Markdown extraction.
+2. Existing local PDF in `raw/doi_pdf/`, then local extraction to staging and Codex reflow/QC.
 3. Missing PDF backfill for entries that already have full text but no `raw/doi_pdf/<paper_file_key>.pdf`.
 4. User-provided full text or local saved publisher HTML/XML.
 5. Publisher XML/HTML when legally accessible.
@@ -81,13 +81,13 @@ Use this order. Stop when a legal complete source is obtained, or when the next 
 
 Use this for normal batches:
 
-1. Run command option 5, `Open authorized PDF pages (recommended first)`.
+1. Run command `Paper intake: sources -> QCed full_text`.
 2. Download legal PDFs from publisher, author, open-access, institutional, or user-provided sources.
 3. Save the PDFs directly in `raw/doi_pdf/`.
-4. Run command option 6, `Import PDFs + extract full_text + rebuild index`.
-5. Run command option 7, `Launch Codex full_text QC + wiki ingest`.
+4. Rerun `Paper intake: sources -> QCed full_text` after saving PDFs.
+5. Run `Ingest QCed full_text to wiki`.
 
-Option 3/4 Codex acquisition is for exceptions: open publisher HTML/XML extraction, authorized browser-session capture, or a small number of rows where metadata and access judgment matter. It should not be the default way to process a long DOI queue.
+Codex source/full-text finding inside Paper intake is for exceptions: open publisher HTML/XML extraction, authorized browser-session capture, or a small number of rows where metadata and access judgment matter. It should not become a long-running route chase for a DOI queue.
 
 ## Browser-Session PDF Download Protocol
 
@@ -155,16 +155,17 @@ Before marking full text as usable, verify:
 - Text is readable top-to-bottom.
 - Equations and tables are flagged if extraction quality is uncertain.
 
-## PDF-to-Markdown Gate
+## PDF-to-Staging-to-Full-Text Gate
 
 When only PDF is available:
 
 1. Save the PDF first under `raw/doi_pdf/<paper_file_key>.pdf`.
 2. Try text extraction with available local tools such as `pdftotext`, PyMuPDF, or another project-approved extractor.
-3. Write machine-extracted Markdown to `raw/full_text/<paper_file_key>.md`.
+3. Write machine-extracted Markdown to `raw/staging/extracted_text/<paper_file_key>.md`.
 4. Preserve page/section order as much as possible.
 5. Mark `extraction_status: machine_extracted_needs_codex_qc`, `readability_status: needs_codex_qc`, `qc_status: pending_codex_qc`, and `equation_quality: not_checked`.
-6. If extraction fails, leave the PDF path in the dashboard Note and set `Next Action` to `convert_pdf_to_full_text_md`.
+6. Run Codex reflow/QC and write final readable Markdown to `raw/full_text/<paper_file_key>.md` only if QC succeeds.
+7. If extraction or QC fails, leave the PDF/staging path in the dashboard Note and set `Next Action` to `codex_convert_to_full_text`.
 
 ## Metadata
 
@@ -186,20 +187,22 @@ Readable full-text Markdown should include frontmatter with:
 
 ## Acquisition Handoff
 
-After full text exists:
+After QCed full text exists:
 
 1. Run `python3 tools/build_full_text_index.py`.
 2. Update `raw/doi_dashboard.md`.
-3. If `raw/full_text/<paper_file_key>.md` exists but is machine-extracted, set DOI dashboard `Status` to `full_text_needed` and `Next Action` to `codex_qc_full_text`.
+3. If only staging text exists, keep DOI dashboard `Status` as `full_text_needed` and `Next Action` as `codex_convert_to_full_text`.
 4. After Codex reflow/QC succeeds, set DOI dashboard `Status` to `full_text_done` and `Next Action` to `ingest_full_text_to_wiki`, or continue to wiki ingest.
-5. If only `raw/doi_pdf/<paper_file_key>.pdf` exists, keep `Status` as `full_text_needed`, set `Next Action` to `convert_pdf_to_full_text_md`, and record the PDF path in `Note`.
+5. If only `raw/doi_pdf/<paper_file_key>.pdf` exists, keep `Status` as `full_text_needed`, set `Next Action` to `codex_convert_to_full_text`, and record the PDF path in `Note`.
 6. Do not mark `wiki_done`; that belongs to the separate wiki ingest step.
 
 ## Repository Paths
 
-- DOI input: `raw/doi_list.md`
+- Paper-source input: `raw/paper_sources.md`
+- Legacy DOI input: `raw/doi_list.md`
 - DOI progress: `raw/doi_dashboard.md`
 - DOI PDFs: `raw/doi_pdf/`
+- Extraction staging: `raw/staging/extracted_text/`
 - Raw user files: `raw/files/`
 - Readable full text: `raw/full_text/`
 - Full-text index: `raw/full_text_index.md`, `raw/full_text_index.json`

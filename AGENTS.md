@@ -3,16 +3,16 @@
 本專案是 GitHub-ready Karpathy-style LLM Wiki 研究資料庫模板。核心原則是：
 
 - `core/` 是 command-independent source of truth，保存資料庫原理、資料契約、agent 契約、skills 與測試契約。
-- `raw/` 是 evidence layer，保存 DOI input、原始檔、可讀全文與索引。
+- `raw/` 是 evidence layer，保存 paper source pointers、DOI dashboard、原始檔、staging extraction、QC 後可讀全文與索引。
 - `wiki/` 是 LLM-curated knowledge layer，保存單篇文獻事實、跨文獻判斷、meeting/project 脈絡與 seminar context。
 - `ResearchWiki.command` 是 core contract 的一個 command/UI implementation，負責低 token / 無 token 的本地操作，也負責把需要理解的任務交接給 Codex。
 - Codex / LLM token 應用在真正需要理解的任務：文獻攝入、全文理解、paper page 萃取、synthesis、project discussion。
 
 與一般 LLM Wiki 不同處：
 
-1. 有客製化 DOI list、DOI dashboard、full text cache 與 full text index。
+1. 有客製化 paper source queue、DOI dashboard、full text cache 與 full text index。
 2. Paper wiki page 對文獻閱讀最佳化，但不複製全文。
-3. Command 讓使用者快速操作，避免把機械檢查浪費在 LLM token；預設 DOI 流程是第 5 項先開合法 PDF 頁面、第 6 項本地匯入 PDF 並抽成 full text、第 7 項才用 Codex ingest wiki。第 3 / 第 4 項 Codex acquisition 只是 fallback，用在 open publisher HTML/XML、授權瀏覽器 session 或真的需要來源判斷時。
+3. Command 讓使用者快速操作，避免把機械檢查浪費在 LLM token；預設論文流程以 `Paper intake: sources -> QCed full_text` 一鍵推進來源、合法 evidence、staging extraction 與 Codex QCed full text，之後才用 `Ingest QCed full_text to wiki` 產生 paper page。Codex source finding 只作為 intake 內的 fallback，用在 open publisher HTML/XML、授權瀏覽器 session 或真的需要來源判斷時。
 4. Obsidian graph 是一級功能，正式頁必須有 explicit wikilinks。
 5. 資料庫要能被定期診斷、產生 repair plan，但不可自動批量刪除。
 
@@ -28,6 +28,9 @@
 - 將 `raw/`、`wiki/`、`maintenance/` 分層清楚：raw 是證據，wiki 是知識，maintenance 是操作與診斷。
 - Command 只放低 token / 無 token 或必要 handoff；LLM token 留給文獻理解、研究判斷與使用者討論。
 - 對高風險功能主動指出限制：不可自動批量刪除，不可自動化未授權全文取得，不讓 dashboard 取代真實檔案證據。
+- README 只放第一眼需要知道的研究材料流程、安裝入口與支援入口；不要把詳細資料分層、branch policy、測試觀察或架構討論塞進 README。資料位置與操作細節放 USER_GUIDE，規則與契約放 `core/`，維護紀錄放 `maintenance/`。
+- 安裝與支援文件若提供 Codex prompt，README、USER_GUIDE、INSTALL、SUPPORT 必須保持一致；prompt 可以協助安裝與開 issue 草稿，但系統工具安裝需使用者確認，issue 不得自動送出。
+- 處理 review comment 或使用者修正時，先抽象成資料模型、workflow、產品原則或契約規則，再整合進既有架構；不可把回饋中的反應式問句、例子或修正文直接變成 README/USER_GUIDE 段落標題。版本變更、PR 回應與測試觀察應留在 PR、release notes 或 `maintenance/`，不要塞進 onboarding 文件。
 - 實作時同步更新 README / USER_GUIDE / AGENTS / command menu，並跑最小必要驗證。
 - 回應風格保持溫和、直接、有判斷力；不只照做，也要指出會讓資料庫長期壞掉的設計。
 
@@ -38,6 +41,16 @@
 - `main` 是 private protected integration branch 的目標狀態，應保持 template-safe。
 - `codex/core-*` 用於 core contract；`codex/command-*` 用於 command/UI；`personal/*` 用於個人研究狀態。
 - Issue 回報採 redacted prefilled URL；不自動送出，也不貼 private raw PDF/full_text/Codex logs。
+
+## Updating AGENTS.md During Tests
+
+`AGENTS.md` 會影響未來 Codex 如何理解與操作整個 repo，因此不要把它當成測試筆記本。
+
+- 臨時測試觀察：寫到 `maintenance/`、test report 或 issue，不直接改 `AGENTS.md`。
+- 核心規則改變：先改 `core/agent_contract.md`、`core/data_contract.md` 或相關 `core/*`，再讓 `AGENTS.md` 保持簡短索引。
+- Command 操作細節改變：改 `USER_GUIDE*` 或 command prompt，不把細節塞進 `AGENTS.md`。
+- 個人偏好或個人研究流程：放到 `personal/*` branch，不進 template `main`。
+- 若確實需要改 `AGENTS.md`，必須走 PR，並同步更新 README / USER_GUIDE 中對使用者有影響的部分。
 
 ## Deletion Safety
 
@@ -74,16 +87,18 @@ Repair tools must never delete files automatically. They may only write a human-
 
 ## Canonical Files
 
-- `raw/doi_list.md`：只用來貼新的 DOI。
+- `raw/paper_sources.md`：主要論文來源入口，可貼 DOI、DOI URL、article URL、PDF URL 或來源註記。
+- `raw/doi_list.md`：legacy DOI-only 入口，保留相容性。
 - `raw/doi_dashboard.md`：DOI 處理狀態看板，不是 evidence source of truth。
 - `raw/doi_pdf/`：DOI 對應 PDF，命名為 `<paper_file_key>.pdf`。
-- `raw/full_text/`：最後可閱讀版全文 Markdown，命名為 `<paper_file_key>.md`。
+- `raw/staging/extracted_text/`：PDF/HTML/XML 機械抽字暫存，不是正式 full text，不進 full_text index。
+- `raw/full_text/`：已重排、已 QC、可供閱讀與 wiki ingest 的全文 Markdown，命名為 `<paper_file_key>.md`。
 - `raw/full_text_index.md` 與 `raw/full_text_index.json`：全文、DOI、paper page 的 dispatch index。
 - `raw/files/`：seminar slides、meeting transcript 或使用者提供的其他原始檔；DOI 論文 PDF 優先放 `raw/doi_pdf/`。
 - `wiki/literature/topic_registry.md`：topics、subtopics 與 graph hub 規則。
 - `references.bib`：後期正式 citation registry。
 
-真正證據永遠是實際存在的 raw/doi_pdf、raw/full_text、wiki/literature、raw/full_text_index.* 與 raw/files。Dashboard 只記錄處理狀態；若 dashboard 指到不存在的檔案，工具必須降級狀態。
+真正證據永遠是實際存在的 raw/doi_pdf、raw/staging、raw/full_text、wiki/literature、raw/full_text_index.* 與 raw/files。Dashboard 只記錄處理狀態；若 dashboard 指到不存在的檔案，工具必須降級狀態。
 
 ## Query Priority
 
@@ -116,24 +131,32 @@ Dashboard 主看板欄位固定為 `Last Name_Year`、`Journal`、`DOI`、`Wiki 
 
 ## Paper Ingest Workflow
 
-本資料庫將 DOI 攝入分成兩段：
+本資料庫將論文攝入分成三段：
 
-### A. Full-Text Acquisition
+### A. Source Resolution And Evidence Import
 
-1. 從 `raw/doi_list.md` 讀取新 DOI，並轉入 `raw/doi_dashboard.md`。
-2. 查重：`raw/doi_dashboard.md`、`raw/doi_pdf/`、`raw/full_text/`、`raw/full_text_index.*`、`raw/files/`。
+1. 從 `raw/paper_sources.md` 讀取 DOI、DOI URL、article URL、PDF URL 或來源註記；legacy `raw/doi_list.md` 仍可讀取 DOI。
+2. 查重：`raw/doi_dashboard.md`、`raw/doi_pdf/`、`raw/staging/`、`raw/full_text/`、`raw/full_text_index.*`、`raw/files/`。
 3. 驗證 citation metadata；不可捏造 title、authors、venue/year、DOI 或 URL。
-4. 優先採用 PDF-first 半自動流程：開啟 DOI/publisher 頁面，讓使用者從 publisher、作者、open-access、institutional access 或使用者已授權來源下載 PDF 到 `raw/doi_pdf/`，再由本地工具抽成 `raw/full_text/`。Codex fallback 才處理 publisher HTML/XML、授權瀏覽器 PDF download、授權瀏覽器 DOM 或特殊來源判斷。不要自動化 shadow-library 或未授權 PDF 下載。
+4. 優先採用 source-first 半自動流程：開啟 DOI/publisher/article/source 頁面，讓使用者從 publisher、作者、open-access、institutional access 或使用者已授權來源下載 PDF 到 `raw/doi_pdf/`，或確認合法 HTML/XML/full text。Codex fallback 才處理 publisher HTML/XML、授權瀏覽器 PDF download、授權瀏覽器 DOM 或特殊來源判斷。不要自動化 shadow-library 或未授權 PDF 下載。
 5. DOI PDF 若能合法取得，統一存到 `raw/doi_pdf/<paper_file_key>.pdf`。PDF 是原始版面 evidence，建議保存，但若 publisher HTML/XML/DOM 已提供完整全文，PDF 缺失不應阻止 wiki ingest；應標為 PDF backfill。
-6. PDF 本地抽字先寫入 `raw/full_text/<paper_file_key>.md`，但必須標記 `extraction_status: machine_extracted_needs_codex_qc`、`readability_status: needs_codex_qc`、`qc_status: pending_codex_qc`。Codex reflow/QC 完成後，才可把它視為 wiki ingest 的可閱讀全文。
-7. 新增或修正文獻全文後，執行 `python3 tools/build_full_text_index.py`。
-8. 若使用者手動下載 PDF，直接放到 `raw/doi_pdf/`。本地 command 應掃描該資料夾中的額外 PDF；若 PDF 內有 DOI 但 dashboard 沒有 row，必須建立 dashboard row，之後改名為 `<paper_file_key>.pdf`，抽成 machine-extracted `raw/full_text/<paper_file_key>.md`，更新 full_text frontmatter 的 `source_pdf`、dashboard 與 index，下一步設為 `codex_qc_full_text`。
-9. 回填 `raw/doi_dashboard.md`：機械抽字完成但尚未 QC 時標 `full_text_needed`，下一步設為 `codex_qc_full_text`；Codex QC 完成後才標 `full_text_done`，下一步設為 `ingest_full_text_to_wiki`。
-10. 這一段不要建立或更新 paper page，也不要寫 synthesis。
+6. PDF/HTML/XML 機械抽字只能寫到 `raw/staging/extracted_text/<paper_file_key>.md`，不得寫入 `raw/full_text/`，也不得進 full_text index。
+7. 若使用者手動下載 PDF，直接放到 `raw/doi_pdf/`。本地 command 應掃描該資料夾中的額外 PDF；若 PDF 內有 DOI 但 dashboard 沒有 row，必須建立 dashboard row，之後改名為 `<paper_file_key>.pdf`，抽成 staging text，下一步設為 `codex_convert_to_full_text`。
+8. 這一段不要建立或更新 paper page，也不要寫 synthesis。
 
-### B. Wiki Ingest
+### B. Full-Text Reflow/QC
 
-1. 只從已存在的 `raw/full_text/<paper_file_key>.md` 讀取全文。
+1. Codex 必須從 `raw/staging/extracted_text/`、合法 HTML/XML/DOM 或使用者提供全文產生可閱讀 Markdown。
+2. 只有完成 reflow/QC 後，才可寫入 `raw/full_text/<paper_file_key>.md`。
+3. 正式 full text frontmatter 必須標記 `extraction_status: codex_qc_done` 與 `qc_status: codex_qc_done`，並設定 `readability_status` 與 `equation_quality`。
+4. QC 失敗時，不建立 `raw/full_text/`，dashboard 保持 `full_text_needed`，下一步設為 `codex_convert_to_full_text`，並記錄 blocker。
+5. 新增或修正文獻全文後，執行 `python3 tools/build_full_text_index.py`。
+6. Codex QC 完成後，回填 `raw/doi_dashboard.md`：標 `full_text_done`，下一步設為 `ingest_full_text_to_wiki`。
+7. 這一段不要建立或更新 paper page，也不要寫 synthesis。
+
+### C. Wiki Ingest
+
+1. 只從已存在且 QC 完成的 `raw/full_text/<paper_file_key>.md` 讀取全文。
 2. 從 full text 萃取 `wiki/literature/<slug>.md`，並設定 `reading_status: full-read`。
 3. 若只有 metadata 或 abstract，也可建立 paper page，但必須設定 `reading_status: metadata-only` 或 `abstract-only`，不可假裝已讀全文。
 4. Paper page 只放該篇論文本身內容與必要來源指標；不要放 template field guide、空欄位、操作紀錄、通用 Zotero boilerplate 或沒有資訊量的維護段落。

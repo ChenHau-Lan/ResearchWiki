@@ -28,6 +28,8 @@ CANONICAL_RAW_ROOT_NAMES = {
     "full_text",
     "full_text_index.json",
     "full_text_index.md",
+    "paper_sources.md",
+    "staging",
 }
 CANONICAL_WIKI_ROOT_NAMES = {
     ".obsidian",
@@ -82,7 +84,7 @@ def clear_unmanaged_children(path: Path, *, keep_names: set[str]) -> list[str]:
 def dashboard_text(rows: list[dict[str, str]]) -> str:
     return f"""# DOI Dashboard
 
-This board tracks where each DOI is in the ingest process.
+This board tracks where each resolved DOI is in the paper-source ingest process.
 
 ## DOI Status Board
 
@@ -93,7 +95,7 @@ This board tracks where each DOI is in the ingest process.
 - `new`: newly added, not processed yet.
 - `metadata_ok`: title/authors/year/venue/DOI checked.
 - `full_text_needed`: metadata exists, readable full text is missing.
-- `full_text_done`: `raw/full_text/<paper_file_key>.md` exists.
+- `full_text_done`: QCed `raw/full_text/<paper_file_key>.md` exists.
 - `wiki_done`: `wiki/literature/<slug>.md` exists.
 - `abstract_only`: only abstract was available; the paper page must say so.
 - `blocked`: DOI/source/access problem needs human decision.
@@ -110,15 +112,16 @@ def sample_rows() -> list[dict[str, str]]:
             "access_legality": "unknown",
             "pdf": "",
             "full_text": "",
-            "next_action": "open_authorized_pdf_page",
+            "next_action": "open_authorized_source_page",
             "updated": TODAY,
-            "note": "sample DOI for testing the PDF-first workflow",
+            "note": "sample DOI for testing the source-first workflow",
         }
     ]
 
 
 def reset_core_files(include_sample: bool) -> None:
     rw.DOI_LIST.write_text(rw.default_doi_list(), encoding="utf-8")
+    rw.PAPER_SOURCES.write_text(rw.default_paper_sources(), encoding="utf-8")
     rw.DOI_DASHBOARD.write_text(dashboard_text(sample_rows() if include_sample else []), encoding="utf-8")
     rw.FULL_TEXT_INDEX_MD.write_text("# Full Text Index\n\nNo full text files indexed yet.\n", encoding="utf-8")
     rw.FULL_TEXT_INDEX_JSON.write_text(
@@ -182,7 +185,7 @@ def reset_wiki_index_files() -> None:
         frontmatter("paper", "[literature_index]")
         + "# Literature\n\n"
         + "Paper reading pages live in this folder.\n\n"
-        + "New papers enter through `raw/doi_list.md`. Processing progress is tracked in `raw/doi_dashboard.md`.\n\n"
+        + "New papers enter through `raw/paper_sources.md`. Processing progress is tracked in `raw/doi_dashboard.md`.\n\n"
         + "Use [[literature/topic_registry|Topic Registry]] for `topics`, `subtopics`, and graph hubs.\n\n"
         + "## Papers\n\n"
         + "- No paper pages have been generated yet.\n\n"
@@ -249,6 +252,7 @@ def main() -> int:
     deleted.extend(clear_dir(rw.DOI_PDF_DIR))
     deleted.extend(clear_dir(rw.FULL_TEXT_DIR))
     deleted.extend(clear_dir(rw.RAW_FILES_DIR))
+    deleted.extend(clear_dir(rw.STAGING_TEXT_DIR))
     deleted.extend(clear_dir(rw.WIKI_LIT, keep_names={".gitkeep", "literature.md", "topic_registry.md"}))
     deleted.extend(clear_dir(rw.WIKI_SYNTHESIS, keep_names={".gitkeep", "synthesis.md"}))
     deleted.extend(clear_dir(rw.WIKI_MEETINGS, keep_names={".gitkeep", "meetings.md"}))
@@ -268,10 +272,10 @@ def main() -> int:
             print(f"- {path}")
     print("")
     print("Next test path:")
-    print("1. Run ResearchWiki.command option 5 to open authorized PDF pages.")
+    print("1. Run ResearchWiki.command Paper intake to open authorized source pages.")
     print("2. Save legal PDFs into raw/doi_pdf/.")
-    print("3. Run option 6 to import PDFs, extract full_text, and rebuild the index.")
-    print("4. Run option 7 to ingest full_text into wiki/literature/.")
+    print("3. Run Paper intake again to import evidence and create QCed raw/full_text.")
+    print("4. Run Ingest QCed full_text to wiki.")
     return 0
 
 

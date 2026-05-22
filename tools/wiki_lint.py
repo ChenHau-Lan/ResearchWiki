@@ -10,9 +10,11 @@ from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[1]
 DOI_LIST = ROOT / "raw" / "doi_list.md"
+PAPER_SOURCES = ROOT / "raw" / "paper_sources.md"
 DOI_DASHBOARD = ROOT / "raw" / "doi_dashboard.md"
 FULL_TEXT_INDEX_MD = ROOT / "raw" / "full_text_index.md"
 FULL_TEXT_INDEX_JSON = ROOT / "raw" / "full_text_index.json"
+FULL_TEXT_DIR = ROOT / "raw" / "full_text"
 WIKI_LIT = ROOT / "wiki" / "literature"
 WIKI_SYNTHESIS = ROOT / "wiki" / "synthesis"
 WIKI_MEETINGS = ROOT / "wiki" / "meetings"
@@ -68,6 +70,13 @@ def split_row(line: str) -> list[str]:
 
 
 def lint_doi_board(errors: list[str]) -> None:
+    if not PAPER_SOURCES.exists():
+        errors.append("raw/paper_sources.md is missing")
+    else:
+        source_text = read(PAPER_SOURCES)
+        if "## Add Sources Here" not in source_text:
+            errors.append("raw/paper_sources.md is missing the '## Add Sources Here' section")
+
     intake_text = ""
     if not DOI_LIST.exists():
         errors.append("raw/doi_list.md is missing")
@@ -123,6 +132,25 @@ def lint_full_text_index(errors: list[str]) -> None:
         errors.append("raw/full_text_index.json is missing")
 
 
+def lint_full_text_qc(errors: list[str]) -> None:
+    if not FULL_TEXT_DIR.exists():
+        return
+    pending_markers = {
+        "machine_extracted_needs_codex_qc",
+        "needs_codex_qc",
+        "pending_codex_qc",
+        "needs-human-review",
+    }
+    for path in sorted(FULL_TEXT_DIR.glob("*.md")):
+        text = read(path)
+        frontmatter = parse_frontmatter(text) or {}
+        status_blob = " ".join(frontmatter.get(key, "") for key in ["extraction_status", "readability_status", "qc_status"]).lower()
+        if any(marker in status_blob for marker in pending_markers):
+            errors.append(
+                f"{path.relative_to(ROOT)}: raw/full_text may only contain QCed readable full text; use raw/staging/extracted_text and Paper intake for Codex conversion"
+            )
+
+
 def lint_wiki_pages(errors: list[str]) -> None:
     required = {"type", "status", "source_status", "topics", "subtopics", "created", "updated", "sources"}
     folders = [
@@ -163,6 +191,7 @@ def main() -> int:
     errors: list[str] = []
     lint_doi_board(errors)
     lint_full_text_index(errors)
+    lint_full_text_qc(errors)
     lint_wiki_pages(errors)
 
     if errors:

@@ -2,10 +2,14 @@
 
 ## Canonical Files
 
-- `raw/doi_list.md`: user DOI input only.
+- `raw/doi_list.md`: legacy DOI-only input, retained for compatibility.
+- `raw/paper_sources.md`: primary paper-source intake for DOI values, DOI URLs,
+  article URLs, PDF URLs, and source notes.
 - `raw/doi_dashboard.md`: processing dashboard, not evidence source of truth.
 - `raw/doi_pdf/`: DOI PDF evidence, named `<paper_file_key>.pdf`.
-- `raw/full_text/`: readable or QC-pending full-text Markdown, named
+- `raw/staging/extracted_text/`: machine-extracted text that is not yet
+  readable full text and must not be indexed as full text.
+- `raw/full_text/`: Codex-reflowed, QCed, readable full-text Markdown, named
   `<paper_file_key>.md`.
 - `raw/full_text_index.md` and `raw/full_text_index.json`: dispatch indexes.
 - `raw/files/`: non-DOI raw sources such as seminar slides or transcripts.
@@ -28,15 +32,25 @@ Only these dashboard statuses are valid:
 - `abstract_only`
 - `blocked`
 
-Machine-extracted PDF text that still needs Codex QC is represented as:
+Machine-extracted PDF text that still needs Codex QC is represented as staging,
+not as full text:
 
 - dashboard status: `full_text_needed`
-- dashboard next action: `codex_qc_full_text`
-- full-text frontmatter:
+- dashboard next action: `codex_convert_to_full_text`
+- staging path: `raw/staging/extracted_text/<paper_file_key>.md`
+- staging frontmatter:
   - `extraction_status: machine_extracted_needs_codex_qc`
   - `readability_status: needs_codex_qc`
   - `qc_status: pending_codex_qc`
   - `equation_quality: not_checked`
+
+Only Codex-reflowed/QCed Markdown may be written to `raw/full_text/`.
+Final full text must use:
+
+- `extraction_status: codex_qc_done`
+- `qc_status: codex_qc_done`
+- `readability_status: readable`, `readable-with-warnings`, or `poor`
+- `equation_quality: good`, `partial`, `poor`, or `not_applicable`
 
 ## Naming
 

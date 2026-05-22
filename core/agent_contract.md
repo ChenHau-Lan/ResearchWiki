@@ -34,8 +34,28 @@ Before changing database rules or workflows, read:
 - Command scripts implement those rules.
 - If command prompts need instructions, they should cite `core/*` and only add
   execution details that are specific to the command.
-- User-facing docs should explain the core model before describing command menu
-  steps.
+- README should stay short: material intake flow, install entrypoint, and
+  support entrypoint only. Put detailed data locations and operation details in
+  USER_GUIDE, durable rules in `core/`, and maintenance history in
+  `maintenance/`.
+- User-facing docs should explain the core material flow before describing
+  command menu steps.
+- Codex install/support prompts in README, USER_GUIDE, INSTALL, and SUPPORT
+  should stay aligned. Prompts may guide setup and prepare issue drafts, but
+  system installs require user confirmation and issue submission must remain a
+  human-confirmed step.
+
+## Review Feedback Handling
+
+- Treat PR comments and user corrections as design signals, not copy-ready
+  documentation.
+- Before editing user-facing docs, translate feedback into a durable source
+  model, workflow, product principle, or contract rule.
+- Do not create README or USER_GUIDE sections that mirror reactive feedback
+  wording, questions, or examples unless that wording is intended product
+  language.
+- Version changes, PR responses, and test observations belong in PR bodies,
+  release notes, or `maintenance/`, not onboarding documents.
 
 ## GitHub And Privacy
 

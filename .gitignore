@@ -20,6 +20,7 @@ raw/**
 !raw/
 !raw/**/
 !raw/**/.gitkeep
+!raw/paper_sources.md
 !raw/doi_list.md
 !raw/doi_dashboard.md
 !raw/full_text_index.md

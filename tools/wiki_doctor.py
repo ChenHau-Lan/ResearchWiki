@@ -15,6 +15,8 @@ ROOT = Path(__file__).resolve().parents[1]
 WIKI = ROOT / "wiki"
 RAW = ROOT / "raw"
 DOI_DASHBOARD = RAW / "doi_dashboard.md"
+PAPER_SOURCES = RAW / "paper_sources.md"
+FULL_TEXT_DIR = RAW / "full_text"
 FULL_TEXT_INDEX_JSON = RAW / "full_text_index.json"
 CORE_REQUIRED = [
     "core/principles.md",
@@ -139,6 +141,11 @@ def collect_issues() -> tuple[list[str], list[str]]:
         if not (ROOT / rel_path).exists():
             errors.append(f"Missing core contract file: {rel_path}")
 
+    if not PAPER_SOURCES.exists():
+        errors.append("Missing paper source intake file: raw/paper_sources.md")
+    elif "## Add Sources Here" not in read(PAPER_SOURCES):
+        errors.append("raw/paper_sources.md is missing the '## Add Sources Here' section")
+
     rows = parse_dashboard()
     seen: set[str] = set()
     for row in rows:
@@ -169,6 +176,20 @@ def collect_issues() -> tuple[list[str], list[str]]:
             errors.append("raw/full_text_index.json is not valid JSON")
     else:
         errors.append("raw/full_text_index.json is missing")
+
+    pending_markers = {
+        "machine_extracted_needs_codex_qc",
+        "needs_codex_qc",
+        "pending_codex_qc",
+        "needs-human-review",
+    }
+    if FULL_TEXT_DIR.exists():
+        for path in sorted(FULL_TEXT_DIR.glob("*.md")):
+            text = read(path).lower()
+            if any(marker in text for marker in pending_markers):
+                warnings.append(
+                    f"Pending QC text in raw/full_text: {rel(path)}; move/recreate it through raw/staging/extracted_text and Paper intake"
+                )
 
     pages = wiki_pages()
     pages_by_repo_rel = {rel(path) for path in pages}

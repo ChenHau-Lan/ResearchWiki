@@ -7,8 +7,16 @@
 打開 Codex，把下面這段貼進去：
 
 ```text
-請幫我從這個 GitHub repository 安裝 Research Wiki。我不熟 GitHub。請 clone 或打開 repo，讀 core/README.md、README.md、USER_GUIDE.md、AGENTS.md，然後執行 python3 tools/check_install.py。請用中文說明缺什麼工具，不要上傳或公開 private files。
+請幫我安裝並啟動 Research Wiki。我不熟 GitHub。
+如果我還沒有 repository，請協助 clone git@github.com:ChenHau-Lan/wiki_research.git；如果已在 repo 中，請直接使用目前目錄。
+請先讀 README.zh-TW.md、USER_GUIDE.zh-TW.md、INSTALL.zh-TW.md、AGENTS.md。
+請檢查 Git、Python 3、ripgrep/rg、Poppler/pdftotext、Codex CLI 是否可用。
+如果缺工具，請先說明用途；需要 Homebrew、系統安裝或權限時先問我再執行。
+安裝或確認後，請執行 python3 tools/check_install.py --strict。
+成功後請告訴我怎麼打開 ResearchWiki.command。不要上傳 private PDF、全文、本機路徑、敏感 DOI 清單或 Codex logs。
 ```
+
+這個 prompt 可以完成大部分安裝流程，但它不應該在沒有你確認的情況下安裝系統工具或送出任何 GitHub issue。
 
 ## 自己操作
 
@@ -23,20 +31,30 @@
 3. 執行安裝檢查：
 
    ```bash
-   python3 tools/check_install.py
+   python3 tools/check_install.py --strict
    ```
 
 4. 打開 `ResearchWiki.command`。
 
-## 三層概念
+## 需要的工具
 
-- `core/`：資料庫規則、原理、skills、測試契約。
-- command：`ResearchWiki.command` 和 `tools/`，只是操作介面。
-- personal：你的個人研究資料，應放在 `personal/*` branch 或 ignored raw files。
+- 必要：Codex、Git、Python 3、ripgrep (`rg`)。
+- 建議：Poppler / `pdftotext`、Obsidian、Chrome。
+
+資料怎麼放、論文怎麼進 wiki，請看 [USER_GUIDE.zh-TW.md](USER_GUIDE.zh-TW.md)。README 只保留最短流程。
 
 ## 遇到問題
 
-執行：
+也可以交給 Codex 產生 issue 草稿：
+
+```text
+Research Wiki 安裝或執行遇到問題，請幫我產生 GitHub issue 草稿。
+請先讀 SUPPORT.zh-TW.md，然後執行 python3 tools/support_report.py --issue-url。
+請檢查 maintenance/support_report.md 和產生的 issue URL 是否已遮蔽本機路徑、private PDF、全文、敏感 DOI 清單、Codex logs 和個人研究狀態。
+不要自動送出 issue；請把草稿交給我確認。
+```
+
+手動執行：
 
 ```bash
 python3 tools/support_report.py --issue-url

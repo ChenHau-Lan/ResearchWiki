@@ -6,22 +6,21 @@ Generated: 2026-05-21
 
 - This repo is a GitHub-ready Karpathy-style LLM Wiki research database.
 - `core/` is now the command-independent source of truth for principles, data contracts, agent contracts, skills, and test contracts.
-- `raw/` is the evidence layer: DOI input, DOI dashboard, PDFs, full-text Markdown, raw files, full-text index.
+- `raw/` is the evidence layer: paper source queue, DOI dashboard, PDFs, extraction staging, QCed full-text Markdown, raw files, full-text index.
 - `wiki/` is the curated knowledge layer: literature, synthesis, meetings, project_synthesis, seminars.
 - `maintenance/` is outside `wiki/`: logs, repair plans, release checklist, Obsidian graph guide, Codex handoff prompts.
 - `ResearchWiki.command` is the main user entrypoint and a command/UI implementation of the core contract. It keeps mechanical tasks local and hands literature-understanding tasks to Codex.
-- DOI workflow is: DOI list -> authorized PDF/page acquisition -> local PDF import/extraction -> Codex full_text QC -> wiki literature page.
+- Paper workflow is: source pointer -> authorized source/page resolution -> evidence import -> staging extraction -> Codex full_text reflow/QC -> wiki literature page.
 - Current template state: clean empty DOI/full-text indexes. Synthetic workflow tests no longer leave ignored raw evidence referenced by tracked dashboard/index files unless `RESEARCHWIKI_LEAVE_SAMPLE_STATE=1` is set.
 
 ## Current Command Menu
 
-1. Add/open DOI list.
+1. Paper intake: sources -> QCed full_text.
 2. Open DOI dashboard.
-3. Launch Codex fallback acquisition by CLI for slow/exception cases.
-4. Generate Codex app fallback acquisition prompt and app-run log.
-5. Open authorized PDF pages for DOI rows missing PDFs. This is now the recommended first acquisition step.
-6. Import DOI PDFs, create missing dashboard rows from PDF DOI metadata, extract machine `raw/full_text/`, mark `codex_qc_full_text`, and rebuild dashboard/full_text index.
-7. Launch Codex full_text QC + wiki ingest from existing full_text.
+2. Ingest QCed full_text into wiki literature pages.
+3. Project / idea conversation.
+4. Topics / graph.
+5. Maintenance / support.
 8. Launch Codex project conversation.
 9. Manage topic/subtopic registry.
 10. Open Obsidian graph guide.
@@ -46,13 +45,13 @@ Additional test helper:
 - Treat `core/*` as authoritative when command behavior and core rules differ.
 - Dashboard is not source of truth; actual files and indexes are.
 - Paper pages must not copy full article text.
-- Use `raw/doi_pdf/<paper_file_key>.pdf` and `raw/full_text/<paper_file_key>.md`.
+- Use `raw/doi_pdf/<paper_file_key>.pdf`, `raw/staging/extracted_text/<paper_file_key>.md`, and QCed `raw/full_text/<paper_file_key>.md`.
 - Use `maintenance/` for logs and repair outputs, not `wiki/maintenance/`.
 - Use Research Wiki Dev Mode when discussing database updates.
 
 ## Key Problems Still Worth Solving
 
-- Next practical DOI work is option 7: reflow/QC the four machine-extracted `raw/full_text/*.md` sample files and only then ingest wiki pages.
+- Next practical DOI work should preserve the new boundary: staging extraction is not full_text; wiki ingest should only use already-QCed `raw/full_text/*.md`.
 - Branch discipline should follow `maintenance/branch_strategy.md`: `main` is private protected integration, `codex/core-*` for core, `codex/command-*` for command/UI, `personal/*` for private research state.
 - Browser-session PDF download may depend on macOS/Codex/Chrome permissions; keep Codex acquisition as fallback, not the default batch route.
 - `ResearchWiki.command` should stay simple; avoid adding many special-case menu items.

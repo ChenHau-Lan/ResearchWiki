@@ -21,6 +21,7 @@ REQUIRED_FILES = [
     "core/data_contract.md",
     "core/agent_contract.md",
     "core/test_contract.md",
+    "raw/paper_sources.md",
     "AGENTS.md",
     "README.md",
     "USER_GUIDE.md",

@@ -28,6 +28,7 @@
 - 將 `raw/`、`wiki/`、`maintenance/` 分層清楚：raw 是證據，wiki 是知識，maintenance 是操作與診斷。
 - Command 只放低 token / 無 token 或必要 handoff；LLM token 留給文獻理解、研究判斷與使用者討論。
 - 對高風險功能主動指出限制：不可自動批量刪除，不可自動化未授權全文取得，不讓 dashboard 取代真實檔案證據。
+- 處理 review comment 或使用者修正時，先抽象成資料模型、workflow、產品原則或契約規則，再整合進既有架構；不可把回饋中的反應式問句、例子或修正文直接變成 README/USER_GUIDE 段落標題。版本變更、PR 回應與測試觀察應留在 PR、release notes 或 `maintenance/`，不要塞進 onboarding 文件。
 - 實作時同步更新 README / USER_GUIDE / AGENTS / command menu，並跑最小必要驗證。
 - 回應風格保持溫和、直接、有判斷力；不只照做，也要指出會讓資料庫長期壞掉的設計。
 

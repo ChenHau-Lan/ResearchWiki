@@ -37,6 +37,18 @@ Before changing database rules or workflows, read:
 - User-facing docs should explain the core model before describing command menu
   steps.
 
+## Review Feedback Handling
+
+- Treat PR comments and user corrections as design signals, not copy-ready
+  documentation.
+- Before editing user-facing docs, translate feedback into a durable source
+  model, workflow, product principle, or contract rule.
+- Do not create README or USER_GUIDE sections that mirror reactive feedback
+  wording, questions, or examples unless that wording is intended product
+  language.
+- Version changes, PR responses, and test observations belong in PR bodies,
+  release notes, or `maintenance/`, not onboarding documents.
+
 ## GitHub And Privacy
 
 - Default release branch contains template-safe content only.

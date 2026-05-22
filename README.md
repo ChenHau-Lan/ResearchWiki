@@ -14,7 +14,7 @@ Research material drifts easily: PDFs sit in folders, DOI lists live in messages
 
 Research Wiki is designed around an evidence chain:
 
-- Sources enter `raw/`: DOI values, legal PDFs, publisher HTML/XML text, meeting transcripts, seminar slides, or other original files.
+- Sources enter `raw/`: DOI/URL/PDF source pointers, legal PDFs, staging extraction, QCed full text, meeting transcripts, seminar slides, or other original files.
 - Understanding enters `wiki/`: paper pages, synthesis pages, meeting notes, project synthesis, and seminar notes.
 - GitHub manages rules and versions: README, core contracts, templates, tools, CI, and issues can all be reviewed.
 - Codex is reserved for understanding-heavy work: full-text QC, reflow, paper pages, synthesis, and project discussion.
@@ -23,19 +23,20 @@ Research Wiki is designed around an evidence chain:
 
 ```mermaid
 flowchart TD
-    DOI["DOI<br/>raw/doi_list.md"] --> OPEN["Command option 5<br/>open authorized source pages"]
-    PDF["Existing legal PDF<br/>raw/doi_pdf/"] --> IMPORT["Command option 6<br/>match DOI / rename / extract full_text"]
-    OTHER["Other raw material<br/>raw/files/"] --> WIKI2["meeting / seminar / project pages"]
-
-    OPEN --> PDF
-    OPEN -. "open HTML/XML or authorized browser session" .-> FT["raw/full_text/"]
-    IMPORT --> FT
-    FT --> QC["Command option 7<br/>Codex QC / reflow / ingest"]
-    QC --> LIT["wiki/literature/"]
+    SOURCE["source pointer<br/>DOI / DOI URL / article URL / PDF URL / local PDF"] --> QUEUE["raw/paper_sources.md<br/>unresolved source queue"]
+    QUEUE --> RESOLVE["legal source resolution<br/>publisher / author / OA / institution / user-provided"]
+    RESOLVE --> PDF["raw/doi_pdf/<br/>original PDF evidence"]
+    RESOLVE --> STAGE["raw/staging/extracted_text/<br/>machine extraction staging"]
+    PDF --> STAGE
+    STAGE --> FT["raw/full_text/<br/>reflowed, QCed, readable full text"]
+    FT --> LIT["wiki/literature/<br/>paper reading page"]
     LIT --> SYN["wiki/synthesis/"]
+    OTHER["Other raw material<br/>raw/files/"] --> WIKI2["meeting / seminar / project pages"]
 ```
 
-A PDF is a source, and an important one. It preserves layout, tables, equations, captions, and publisher formatting. `raw/full_text/*.md` is the readable text extracted from a PDF or another legal full-text source, used for Codex QC and wiki ingest. Paper pages should not copy the whole PDF or full text; they keep source pointers so the evidence can be checked later.
+A paper may start from a DOI, URL, PDF URL, or local PDF. Those are source pointers first; the database resolves them into a legal evidence package, preserves the PDF or original source, and puts machine extraction into staging. Only reflowed and QCed readable Markdown belongs in `raw/full_text/`, and only that full text should feed `wiki/literature/` paper pages.
+
+PDF is an important part of the evidence package because it preserves layout, tables, equations, captions, and publisher formatting. Paper pages should not copy the whole PDF or full text; they keep reading judgment and source pointers so the evidence can be checked later.
 
 ## Install And Start
 
@@ -61,40 +62,27 @@ Then run python3 tools/check_install.py.
 Tell me what is missing and what I should do next. Do not upload private PDFs, full text, local paths, or Codex logs.
 ```
 
-Typical manual workflow:
-
-1. Open `ResearchWiki.command`.
-2. Use option 1 to add DOI values, or put an existing legal PDF in `raw/doi_pdf/`.
-3. Use option 5 to open legal source pages and download PDFs.
-4. Use option 6 to import PDFs, extract full text, and update the dashboard/index.
-5. Use option 7 so Codex can QC full text and create paper pages.
+Open `ResearchWiki.command` when working manually. It can help add source pointers, open legal source pages, import evidence, create QCed full text, and then turn full text into paper pages. See [USER_GUIDE.md](USER_GUIDE.md) for the command menu.
 
 ## What The Command Does
 
 `ResearchWiki.command` is the low-token / no-token entrypoint. It exists so Codex does not spend time scanning folders, renaming files, rebuilding indexes, or running diagnostics.
 
-Common items:
-
-- Option 1: add or open the DOI list.
-- Option 5: open DOI / publisher pages so you can download legal PDFs.
-- Option 6: import PDFs from `raw/doi_pdf/`, rename them canonically, extract `raw/full_text/`, and update dashboard/index files.
-- Option 7: hand QC, reflow, and wiki ingest to Codex.
-- Options 11 / 12: run health checks and repair plans; diagnose only, no automatic deletion.
-- Option 13: prepare a redacted GitHub issue draft.
+The command is the default interface for this data model, not the source of the database rules. It handles source intake, legal source-page opening, PDF/evidence import, staging extraction, Codex full-text QC, wiki ingest, health checks, and support issue drafts. Full menu details live in [USER_GUIDE.md](USER_GUIDE.md).
 
 ## Data Layers
 
 ```mermaid
 flowchart LR
     CORE["core/<br/>principles, contracts, skills"] --> CMD["command layer<br/>ResearchWiki.command + tools/"]
-    RAW["raw/<br/>DOI / PDF / full_text / original files"] --> WIKI["wiki/<br/>paper / synthesis / meeting / seminar"]
+    RAW["raw/<br/>source pointer / PDF / staging / QCed full_text / original files"] --> WIKI["wiki/<br/>paper / synthesis / meeting / seminar"]
     CMD --> RAW
     CMD --> WIKI
     PERSONAL["personal/* branch<br/>private research state"] -. "do not mix into template main" .-> RAW
 ```
 
 - `core/` is the source of truth for rules.
-- `raw/` is the evidence layer: DOI values, PDFs, full text, and original files.
+- `raw/` is the evidence layer: source pointers, PDFs, staging text, QCed full text, and original files.
 - `wiki/` is the curated knowledge layer.
 - `maintenance/` stores diagnostics, repair plans, release notes, and branch notes.
 - `personal/*` branches are for private research state.

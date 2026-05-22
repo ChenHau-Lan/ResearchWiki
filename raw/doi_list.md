@@ -2,7 +2,8 @@
 
 Paste DOI values in the block below, one DOI per line.
 
-This file is only for adding DOI values. Processing progress is tracked in `raw/doi_dashboard.md`.
+This legacy file is still supported for DOI-only intake. New mixed DOI / URL
+source pointers should go in `raw/paper_sources.md`.
 
 ## Add DOI Here
 

@@ -23,9 +23,18 @@ FIXTURES = Path(tempfile.gettempdir()) / "research_wiki_test_fixtures" / "doi_pd
 REPORT = ROOT / "maintenance" / f"workflow_test_report_{datetime.now().date().isoformat()}.md"
 
 
-def run(args: list[str], *, input_text: str = "", timeout: int = 180) -> subprocess.CompletedProcess[str]:
+def run(
+    args: list[str],
+    *,
+    input_text: str = "",
+    timeout: int = 180,
+    extra_env: dict[str, str] | None = None,
+) -> subprocess.CompletedProcess[str]:
     env = os.environ.copy()
     env["RESEARCHWIKI_NO_OPEN"] = "1"
+    env["RESEARCHWIKI_TEST_QC_STUB"] = "1"
+    if extra_env:
+        env.update(extra_env)
     return subprocess.run(
         args,
         cwd=ROOT,
@@ -63,6 +72,17 @@ def option6() -> str:
     return proc.stdout
 
 
+def option6_qc_fail() -> str:
+    proc = run(
+        ["python3", "tools/research_wiki_shortcut.py"],
+        input_text="6\n\n0\n",
+        extra_env={"RESEARCHWIKI_TEST_QC_FAIL": "1"},
+    )
+    if proc.returncode != 0:
+        raise AssertionError(f"option 6 QC-fail run failed:\n{proc.stdout}")
+    return proc.stdout
+
+
 def option5_dry_run() -> str:
     proc = run(["python3", "tools/research_wiki_shortcut.py"], input_text="5\n1\n\n0\n")
     if proc.returncode != 0:
@@ -83,6 +103,10 @@ def read_index() -> dict:
 
 def read_dashboard() -> str:
     return (ROOT / "raw" / "doi_dashboard.md").read_text(encoding="utf-8")
+
+
+def read_paper_sources() -> str:
+    return (ROOT / "raw" / "paper_sources.md").read_text(encoding="utf-8")
 
 
 def pdf_escape(value: str) -> str:
@@ -189,7 +213,7 @@ def copy_fixture(name: str, target_name: str | None = None) -> None:
 
 
 def add_dois(*dois: str) -> None:
-    doi_list = ROOT / "raw" / "doi_list.md"
+    doi_list = ROOT / "raw" / "paper_sources.md"
     text = doi_list.read_text(encoding="utf-8")
     block = "\n".join(dois)
     text = re.sub(r"```text\n.*?\n```", f"```text\n{block}\n```", text, flags=re.DOTALL)
@@ -225,17 +249,19 @@ def scenario_orphan_acp8() -> tuple[str, str]:
     dash = read_dashboard()
     idx = read_index()
     assert_contains(dash, "10.5194/acp-8-15-2008")
-    assert_contains(dash, "codex_qc_full_text")
-    assert idx["summary"]["fulltext_qc_needed"] == 1
+    assert_contains(dash, "ingest_full_text_to_wiki")
+    assert idx["summary"]["fulltext_qc_needed"] == 0
+    assert idx["summary"]["wiki_ingest_needed"] == 1
     assert_file("raw/full_text/altaratz_2008_acp.md")
-    return "orphan ACP PDF creates DOI row and QC-needed full_text", out
+    assert_file("raw/staging/extracted_text/altaratz_2008_acp.md")
+    return "orphan ACP PDF creates DOI row and QCed full_text", out
 
 
 def scenario_doi_list_plus_pdf() -> tuple[str, str]:
     reset_database()
     add_dois("https://doi.org/10.5194/acp-21-9779-2021")
     option5_out = option5_dry_run()
-    assert_contains(option5_out, "Authorized PDF Backfill")
+    assert_contains(option5_out, "Authorized Source Pages")
     assert_contains(option5_out, "10.5194/acp-21-9779-2021")
     assert_contains(option5_out, "Expected PDF: unknown")
     assert_contains(option5_out, "Open skipped because RESEARCHWIKI_NO_OPEN=1.")
@@ -243,8 +269,9 @@ def scenario_doi_list_plus_pdf() -> tuple[str, str]:
     out = option6()
     dash = read_dashboard()
     assert_contains(dash, "10.5194/acp-21-9779-2021")
-    assert_contains(dash, "codex_qc_full_text")
+    assert_contains(dash, "ingest_full_text_to_wiki")
     assert_file("raw/full_text/ansmann_2021_acp.md")
+    assert "10.5194/acp-21-9779-2021" not in read_paper_sources()
     return "option 5 dry-run then DOI PDF synchronizes to canonical paths", option5_out + "\n\n--- option 6 ---\n\n" + out
 
 
@@ -256,7 +283,8 @@ def scenario_multi_batch() -> tuple[str, str]:
     out = option6()
     idx = read_index()
     assert idx["summary"]["primary_entries"] == 3
-    assert idx["summary"]["fulltext_qc_needed"] == 3
+    assert idx["summary"]["fulltext_qc_needed"] == 0
+    assert idx["summary"]["wiki_ingest_needed"] == 3
     dash = read_dashboard()
     assert_contains(dash, "10.1175/waf-d-21-0044.1")
     assert_file("raw/full_text/conrick_2021_waf.md")
@@ -292,6 +320,22 @@ def scenario_valid_pdf_no_doi() -> tuple[str, str]:
     return "valid PDF without DOI is not silently ingested", out
 
 
+def scenario_qc_failure_keeps_staging_out_of_index() -> tuple[str, str]:
+    reset_database()
+    copy_fixture("acp-8-15-2008.pdf")
+    out = option6_qc_fail()
+    dash = read_dashboard()
+    idx = read_index()
+    assert_contains(out, "Test-mode QC failure")
+    assert_contains(dash, "full_text_needed")
+    assert_contains(dash, "codex_convert_to_full_text")
+    if (ROOT / "raw" / "full_text" / "altaratz_2008_acp.md").exists():
+        raise AssertionError("QC failure should not create raw/full_text/altaratz_2008_acp.md")
+    assert_file("raw/staging/extracted_text/altaratz_2008_acp.md")
+    assert idx["summary"]["primary_entries"] == 0
+    return "QC failure keeps staging out of raw/full_text and full_text index", out
+
+
 def scenario_initializer_cleans_legacy() -> tuple[str, str]:
     reset_database()
     (ROOT / "raw" / "legacy_raw").mkdir(parents=True, exist_ok=True)
@@ -324,9 +368,9 @@ def scenario_second_run_idempotent() -> tuple[str, str]:
     out = option6()
     idx = read_index()
     assert idx["summary"]["primary_entries"] == 1
-    assert idx["summary"]["fulltext_qc_needed"] == 1
-    assert_contains(read_dashboard(), "codex_qc_full_text")
-    return "running option 6 twice is idempotent for QC-needed rows", out
+    assert idx["summary"]["fulltext_qc_needed"] == 0
+    assert_contains(read_dashboard(), "ingest_full_text_to_wiki")
+    return "running option 6 twice is idempotent for QCed full_text rows", out
 
 
 def scenario_option7_dry_run() -> tuple[str, str]:
@@ -335,11 +379,25 @@ def scenario_option7_dry_run() -> tuple[str, str]:
     option6()
     out = option7_dry_run()
     assert_contains(out, "Codex launch skipped because RESEARCHWIKI_NO_OPEN=1.")
-    assert_contains(out, "First make machine-extracted raw/full_text Markdown readable")
-    assert_contains(out, "extraction_status: codex_qc_done")
-    assert_contains(out, "readability_status: readable")
-    assert_contains(out, "equation_quality: good")
-    return "option 7 selects QC-needed rows and emits QC-first prompt", out
+    assert_contains(out, "Create, update, or clean wiki/literature paper pages from already QCed raw/full_text Markdown")
+    assert_contains(out, "Do not acquire new PDFs, new sources, or perform full_text reflow/QC")
+    return "option 7 selects QCed full_text rows and emits wiki-only prompt", out
+
+
+def scenario_article_url_stays_in_source_queue() -> tuple[str, str]:
+    reset_database()
+    paper_sources = ROOT / "raw" / "paper_sources.md"
+    paper_sources.write_text(
+        paper_sources.read_text(encoding="utf-8").replace(
+            "```text\n\n```",
+            "```text\nhttps://example.org/articles/no-doi-yet\n```",
+        ),
+        encoding="utf-8",
+    )
+    option5_out = option5_dry_run()
+    assert_contains(option5_out, "https://example.org/articles/no-doi-yet")
+    assert_contains(read_paper_sources(), "https://example.org/articles/no-doi-yet")
+    return "article URL without DOI remains in source queue and option 5 lists it", option5_out
 
 
 SCENARIOS = [
@@ -349,10 +407,12 @@ SCENARIOS = [
     scenario_duplicate_pdf,
     scenario_non_pdf_rejected,
     scenario_valid_pdf_no_doi,
+    scenario_qc_failure_keeps_staging_out_of_index,
     scenario_initializer_cleans_legacy,
     scenario_canonical_pdf_without_row,
     scenario_second_run_idempotent,
     scenario_option7_dry_run,
+    scenario_article_url_stays_in_source_queue,
 ]
 
 

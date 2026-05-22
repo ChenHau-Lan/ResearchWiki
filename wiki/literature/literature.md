@@ -15,7 +15,7 @@ sources: []
 
 Paper reading pages live in this folder.
 
-New papers enter through `raw/doi_list.md`. Processing progress is tracked in `raw/doi_dashboard.md`.
+New papers enter through `raw/paper_sources.md`. Processing progress is tracked in `raw/doi_dashboard.md`.
 
 Use [[literature/topic_registry|Topic Registry]] for `topics`, `subtopics`, and graph hubs.
 

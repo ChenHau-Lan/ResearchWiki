@@ -1,10 +1,10 @@
 #!/usr/bin/env python3
 """Small command helper for Research Wiki.
 
-The helper keeps DOI intake in raw/doi_list.md and progress tracking in
-raw/doi_dashboard.md. It adds DOI lines, refreshes the dashboard from local
-wiki/full-text indexes, starts Codex handoffs, manages topics/subtopics, runs
-local maintenance, and rebuilds the full_text index. It never deletes files.
+The helper keeps paper-source intake in raw/paper_sources.md, preserves DOI
+progress in raw/doi_dashboard.md, imports local evidence, starts Codex
+handoffs, manages topics/subtopics, runs local maintenance, and rebuilds the
+full_text index. It never deletes files.
 """
 
 from __future__ import annotations
@@ -25,12 +25,14 @@ ROOT = Path(__file__).resolve().parents[1]
 TODAY = date.today().isoformat()
 
 DOI_LIST = ROOT / "raw" / "doi_list.md"
+PAPER_SOURCES = ROOT / "raw" / "paper_sources.md"
 DOI_DASHBOARD = ROOT / "raw" / "doi_dashboard.md"
 FULL_TEXT_INDEX_JSON = ROOT / "raw" / "full_text_index.json"
 FULL_TEXT_INDEX_MD = ROOT / "raw" / "full_text_index.md"
 FULL_TEXT_DIR = ROOT / "raw" / "full_text"
 DOI_PDF_DIR = ROOT / "raw" / "doi_pdf"
 RAW_FILES_DIR = ROOT / "raw" / "files"
+STAGING_TEXT_DIR = ROOT / "raw" / "staging" / "extracted_text"
 WIKI_LIT = ROOT / "wiki" / "literature"
 TOPICS = ROOT / "wiki" / "literature" / "topic_registry.md"
 WIKI_SYNTHESIS = ROOT / "wiki" / "synthesis"
@@ -45,6 +47,7 @@ CODEX_APP_HANDOFF_PROMPT = MAINTENANCE_DIR / "codex_app_handoff_prompt.md"
 CODEX_APP_LAST_LOG = MAINTENANCE_DIR / "codex_app_last_run.log"
 
 DOI_RE = re.compile(r"10\.\d{4,9}/[-._;()/:A-Z0-9]+", re.IGNORECASE)
+URL_RE = re.compile(r"https?://[^\s<>)\]]+", re.IGNORECASE)
 OLD_BOARD_HEADER = "| DOI | Status | Title | Full Text | Wiki Page | Next Action | Updated | Note |"
 LEGACY_BOARD_HEADER = "| Paper | Journal | DOI | Wiki Status | Access Legality | PDF | Full Text | Next Action | Updated | Note |"
 LEGACY_DETAIL_BOARD_HEADER = "| Last Name_Year | Journal | DOI | Wiki Status | Access Legality | PDF | Full Text | Next Action | Updated | Note |"
@@ -75,7 +78,10 @@ def pause() -> None:
 
 def prompt(label: str, default: str = "") -> str:
     suffix = f" [{default}]" if default else ""
-    value = input(f"{label}{suffix}: ").strip()
+    try:
+        value = input(f"{label}{suffix}: ").strip()
+    except EOFError:
+        return default
     return value or default
 
 
@@ -409,14 +415,48 @@ def extract_dois(text: str) -> list[str]:
     return dois
 
 
+def normalize_source_line(value: str) -> str:
+    return re.sub(r"\s+", " ", value.strip()).rstrip()
+
+
+def extract_urls(text: str) -> list[str]:
+    seen: set[str] = set()
+    urls: list[str] = []
+    for match in URL_RE.findall(text):
+        url = match.rstrip(".,;")
+        if url and url not in seen:
+            seen.add(url)
+            urls.append(url)
+    return urls
+
+
 def default_doi_list() -> str:
     return """# DOI List
 
 Paste DOI values in the block below, one DOI per line.
 
-This file is only for adding DOI values. Processing progress is tracked in `raw/doi_dashboard.md`.
+This legacy file is still supported for DOI-only intake. New mixed DOI / URL
+source pointers should go in `raw/paper_sources.md`.
 
 ## Add DOI Here
+
+```text
+
+```
+"""
+
+
+def default_paper_sources() -> str:
+    return """# Paper Sources
+
+Paste paper source pointers in the block below, one per line.
+
+Accepted source pointers include DOI values, DOI URLs, article/publisher URLs,
+PDF URLs, or short source notes that help locate a legal full text. Processing
+progress is tracked in `raw/doi_dashboard.md` after a DOI or reliable metadata
+is resolved.
+
+## Add Sources Here
 
 ```text
 
@@ -443,7 +483,7 @@ def default_doi_dashboard() -> str:
     )
     return f"""# DOI Dashboard
 
-This board tracks where each DOI is in the ingest process.
+This board tracks where each resolved DOI is in the paper-source ingest process.
 
 ## DOI Status Board
 
@@ -454,7 +494,7 @@ This board tracks where each DOI is in the ingest process.
 - `new`: newly added, not processed yet.
 - `metadata_ok`: title/authors/year/venue/DOI checked.
 - `full_text_needed`: metadata exists, readable full text is missing.
-- `full_text_done`: `raw/full_text/<paper_file_key>.md` exists.
+- `full_text_done`: QCed `raw/full_text/<paper_file_key>.md` exists.
 - `wiki_done`: `wiki/literature/<slug>.md` exists.
 - `abstract_only`: only abstract was available; the paper page must say so.
 - `blocked`: DOI/source/access problem needs human decision.
@@ -465,14 +505,18 @@ def ensure_core_files() -> None:
     FULL_TEXT_DIR.mkdir(parents=True, exist_ok=True)
     DOI_PDF_DIR.mkdir(parents=True, exist_ok=True)
     RAW_FILES_DIR.mkdir(parents=True, exist_ok=True)
+    STAGING_TEXT_DIR.mkdir(parents=True, exist_ok=True)
     WIKI_LIT.mkdir(parents=True, exist_ok=True)
     WIKI_SYNTHESIS.mkdir(parents=True, exist_ok=True)
     WIKI_MEETINGS.mkdir(parents=True, exist_ok=True)
     WIKI_PROJECT_SYNTHESIS.mkdir(parents=True, exist_ok=True)
     WIKI_SEMINARS.mkdir(parents=True, exist_ok=True)
     MAINTENANCE_DIR.mkdir(parents=True, exist_ok=True)
+    (STAGING_TEXT_DIR / ".gitkeep").touch()
     if not DOI_LIST.exists():
         DOI_LIST.write_text(default_doi_list(), encoding="utf-8")
+    if not PAPER_SOURCES.exists():
+        PAPER_SOURCES.write_text(default_paper_sources(), encoding="utf-8")
     if not DOI_DASHBOARD.exists():
         DOI_DASHBOARD.write_text(default_doi_dashboard(), encoding="utf-8")
 
@@ -488,6 +532,10 @@ def ensure_core_files() -> None:
         DOI_DASHBOARD.write_text(replace_board(dashboard_text, list(rows_by_doi.values())), encoding="utf-8")
         _, _, quick_block = quick_add_block(text)
         DOI_LIST.write_text(replace_quick_add(default_doi_list(), extract_dois(quick_block)), encoding="utf-8")
+
+    source_text = PAPER_SOURCES.read_text(encoding="utf-8")
+    if "## Add Sources Here" not in source_text:
+        PAPER_SOURCES.write_text(default_paper_sources().rstrip() + "\n\n" + source_text.strip() + "\n", encoding="utf-8")
 
 
 def quick_add_block(text: str) -> tuple[int, int, str]:
@@ -511,6 +559,54 @@ def replace_quick_add(text: str, new_dois: list[str]) -> str:
     if start == -1:
         return text.rstrip() + "\n\n## Add DOI Here" + block
     return text[:start] + block + text[end:]
+
+
+def source_add_block(text: str) -> tuple[int, int, str]:
+    heading = re.search(r"(?m)^## (Add Sources Here|Quick Add Sources)[ \t]*$", text)
+    if not heading:
+        return -1, -1, ""
+    next_heading = re.search(r"(?m)^## .+$", text[heading.end() :])
+    end = heading.end() + next_heading.start() if next_heading else len(text)
+    block = text[heading.end() : end]
+    return heading.end(), end, block
+
+
+def parse_source_lines(text: str) -> list[str]:
+    lines: list[str] = []
+    for raw_line in text.splitlines():
+        line = normalize_source_line(raw_line)
+        if not line or line.startswith("#") or line.startswith("```"):
+            continue
+        lines.append(line)
+    return lines
+
+
+def replace_source_add(text: str, sources: list[str]) -> str:
+    start, end, _ = source_add_block(text)
+    unique: list[str] = []
+    seen: set[str] = set()
+    for source in sources:
+        normalized = normalize_source_line(source)
+        key = normalized.lower()
+        if normalized and key not in seen:
+            unique.append(normalized)
+            seen.add(key)
+    block = (
+        "\n\n```text\n"
+        + "\n".join(unique)
+        + ("\n" if unique else "")
+        + "```\n"
+    )
+    if start == -1:
+        return text.rstrip() + "\n\n## Add Sources Here" + block
+    return text[:start] + block + text[end:]
+
+
+def unresolved_source_lines() -> list[str]:
+    ensure_core_files()
+    source_text = PAPER_SOURCES.read_text(encoding="utf-8")
+    _, _, source_block = source_add_block(source_text)
+    return [line for line in parse_source_lines(source_block) if not extract_dois(line)]
 
 
 def parse_board(text: str) -> list[dict[str, str]]:
@@ -628,6 +724,41 @@ def local_path_exists(value: str) -> bool:
     if not path.is_absolute():
         path = ROOT / value
     return path.exists()
+
+
+def parse_simple_frontmatter(text: str) -> dict[str, str]:
+    if not text.startswith("---\n"):
+        return {}
+    end = text.find("\n---", 4)
+    if end == -1:
+        return {}
+    result: dict[str, str] = {}
+    for raw_line in text[4:end].splitlines():
+        if ":" not in raw_line or raw_line.startswith(" "):
+            continue
+        key, value = raw_line.split(":", 1)
+        result[key.strip()] = value.strip().strip('"').strip("'")
+    return result
+
+
+def full_text_is_qced(value: str) -> bool:
+    if not value or not local_path_exists(value):
+        return False
+    path = Path(value)
+    if not path.is_absolute():
+        path = ROOT / value
+    text = path.read_text(encoding="utf-8", errors="replace")
+    fm = parse_simple_frontmatter(text)
+    status_blob = " ".join(
+        [
+            fm.get("extraction_status", ""),
+            fm.get("readability_status", ""),
+            fm.get("qc_status", ""),
+        ]
+    ).lower()
+    if "machine_extracted_needs_codex_qc" in status_blob or "needs_codex_qc" in status_blob or "pending_codex_qc" in status_blob:
+        return False
+    return fm.get("extraction_status") == "codex_qc_done" or fm.get("qc_status") == "codex_qc_done"
 
 
 def paper_page_needs_cleanup(value: str) -> bool:
@@ -927,7 +1058,7 @@ def infer_pdf_key(row: dict[str, str], path: Path, text: str) -> tuple[str, str,
     return paper_fallback, journal, title, fallback
 
 
-def render_full_text_md(row: dict[str, str], pdf_path: Path, text: str, extractor: str) -> str:
+def render_staging_text_md(row: dict[str, str], pdf_path: Path, text: str, extractor: str) -> str:
     title = readable_title(row, pdf_path.stem.replace("_", " ").title())
     journal = row.get("journal", "")
     year = infer_year(row)
@@ -966,8 +1097,8 @@ def render_full_text_md(row: dict[str, str], pdf_path: Path, text: str, extracto
             "## Extraction Notes",
             "",
             "- This Markdown was generated mechanically from an authorized local PDF.",
-            "- It is not yet citation-ready full text. Run the Codex full-text QC/wiki ingest command next.",
-            "- Codex should reflow paragraphs, remove repeated page furniture, verify metadata, and set readability/equation/table QC fields.",
+            "- It is staging text only. It must be reflowed and QCed before it can be copied to raw/full_text/.",
+            "- Codex should reflow paragraphs, remove repeated page furniture, verify metadata, and set readability/equation/table QC fields before producing final full_text.",
             "",
             "## Extracted Full Text",
             "",
@@ -975,6 +1106,24 @@ def render_full_text_md(row: dict[str, str], pdf_path: Path, text: str, extracto
             "",
         ]
     )
+
+
+def render_qced_full_text_from_staging(staging_path: Path, text: str) -> str:
+    """Deterministic test-mode stand-in for Codex reflow/QC."""
+    text = text.replace("extraction_status: machine_extracted_needs_codex_qc", "extraction_status: codex_qc_done")
+    text = text.replace("readability_status: needs_codex_qc", "readability_status: readable")
+    text = text.replace("qc_status: pending_codex_qc", "qc_status: codex_qc_done")
+    text = text.replace("equation_quality: not_checked", "equation_quality: not_applicable")
+    text = re.sub(r"updated: .+", f"updated: {TODAY}", text, count=1)
+    text = text.replace(
+        "- It is staging text only. It must be reflowed and QCed before it can be copied to raw/full_text/.",
+        "- This Markdown has been reflowed and QCed by the deterministic Research Wiki test stub.",
+    )
+    text = text.replace(
+        "- Codex should reflow paragraphs, remove repeated page furniture, verify metadata, and set readability/equation/table QC fields before producing final full_text.",
+        f"- Test-mode QC source: {repo_relative(staging_path)}.",
+    )
+    return text
 
 
 def score_pdf_for_row(path: Path, row: dict[str, str], text: str) -> int:
@@ -1086,7 +1235,7 @@ def import_new_doi_pdfs(rows: list[dict[str, str]]) -> tuple[list[str], list[str
                 "title": "",
                 "full_text": "",
                 "wiki_page": "",
-                "next_action": "import_pdf_and_extract_text",
+                "next_action": "import_evidence_and_create_qced_full_text",
                 "updated": TODAY,
                 "note": f"auto-created from orphan PDF {repo_relative(path)}",
             }
@@ -1119,7 +1268,7 @@ def import_new_doi_pdfs(rows: list[dict[str, str]]) -> tuple[list[str], list[str
             )
             if not scored:
                 warnings.append(
-                    f"Skipped {repo_relative(path)} because no DOI could be extracted and no dashboard row matched it. Add the DOI to raw/doi_list.md, or move non-DOI source files to raw/files/."
+                    f"Skipped {repo_relative(path)} because no DOI could be extracted and no dashboard row matched it. Add a DOI or source note to raw/paper_sources.md, or move non-DOI source files to raw/files/."
                 )
                 continue
             best_score, best_row = scored[0]
@@ -1159,7 +1308,7 @@ def import_new_doi_pdfs(rows: list[dict[str, str]]) -> tuple[list[str], list[str
             update_frontmatter_field(full_text_path, {"source_pdf": source_pdf, "updated": TODAY})
         best_row["pdf"] = source_pdf
         best_row["access_legality"] = best_row.get("access_legality") or "verified_source"
-        best_row["next_action"] = "review_or_ask_question" if best_row.get("full_text") else "convert_pdf_to_full_text_md"
+        best_row["next_action"] = "review_or_ask_question" if best_row.get("full_text") else "codex_convert_to_full_text"
         best_row["note"] = f"imported local PDF {source_pdf}"
         messages.append(f"Imported {repo_relative(path)} -> {source_pdf} for {best_row['doi']}.")
     return messages, warnings
@@ -1173,7 +1322,7 @@ def print_pdf_import_report(messages: list[str], warnings: list[str]) -> None:
         print(f"- Warning: {warning}")
 
 
-def extract_full_text_from_doi_pdfs(rows: list[dict[str, str]]) -> tuple[list[str], list[str]]:
+def extract_staging_text_from_doi_pdfs(rows: list[dict[str, str]]) -> tuple[list[str], list[str]]:
     messages: list[str] = []
     warnings: list[str] = []
     for row in rows:
@@ -1183,48 +1332,202 @@ def extract_full_text_from_doi_pdfs(rows: list[dict[str, str]]) -> tuple[list[st
         if row.get("full_text") and local_path_exists(row["full_text"]):
             continue
         pdf_path = ROOT / pdf_ref if not Path(pdf_ref).is_absolute() else Path(pdf_ref)
-        target = FULL_TEXT_DIR / f"{pdf_path.stem}.md"
+        target = STAGING_TEXT_DIR / f"{pdf_path.stem}.md"
         if target.exists():
-            row["full_text"] = repo_relative(target)
             if row.get("status") != "wiki_done":
                 row["status"] = "full_text_needed"
-            row["next_action"] = "codex_qc_full_text"
+            row["next_action"] = "codex_convert_to_full_text"
             row["updated"] = TODAY
-            row["note"] = row.get("note") or f"existing machine-extracted full text found at {repo_relative(target)}; Codex QC needed"
-            messages.append(f"Linked existing full text {repo_relative(target)} for {row['doi']}.")
+            row["note"] = row.get("note") or f"staging extraction found at {repo_relative(target)}; Codex conversion/QC needed"
+            messages.append(f"Linked existing staging text {repo_relative(target)} for {row['doi']}.")
             continue
 
         text, extractor = pdf_text_extract(pdf_path)
         if not text:
             warnings.append(f"Could not extract text from {repo_relative(pdf_path)} because no PDF text extractor was available or extraction returned empty text.")
-            row["next_action"] = "convert_pdf_to_full_text_md"
+            row["next_action"] = "codex_convert_to_full_text"
             row["note"] = f"PDF found at {repo_relative(pdf_path)}, but local text extraction failed."
             row["updated"] = TODAY
             continue
         if len(text.strip()) < 1000:
-            warnings.append(f"Skipped full_text write for {repo_relative(pdf_path)} because extracted text was very short; inspect the PDF manually.")
+            warnings.append(f"Skipped staging write for {repo_relative(pdf_path)} because extracted text was very short; inspect the PDF manually.")
             row["next_action"] = "inspect_pdf_or_convert_manually"
-            row["note"] = f"PDF found at {repo_relative(pdf_path)}, but extracted text was too short for reliable full_text."
+            row["note"] = f"PDF found at {repo_relative(pdf_path)}, but extracted text was too short for reliable full_text conversion."
             row["updated"] = TODAY
             continue
 
-        target.write_text(render_full_text_md(row, pdf_path, text, extractor), encoding="utf-8")
-        full_text_ref = repo_relative(target)
-        row["full_text"] = full_text_ref
+        target.write_text(render_staging_text_md(row, pdf_path, text, extractor), encoding="utf-8")
+        staging_ref = repo_relative(target)
         if row.get("status") != "wiki_done":
             row["status"] = "full_text_needed"
-        row["next_action"] = "codex_qc_full_text"
+        row["next_action"] = "codex_convert_to_full_text"
         row["updated"] = TODAY
-        row["note"] = f"machine-extracted local PDF to {full_text_ref}; Codex QC/reflow needed before wiki ingest"
+        row["note"] = f"machine-extracted local PDF to staging {staging_ref}; Codex conversion/QC needed before full_text is created"
         row["access_legality"] = row.get("access_legality") or "verified_source"
-        messages.append(f"Extracted {repo_relative(pdf_path)} -> {full_text_ref} for {row['doi']} (Codex QC needed).")
+        messages.append(f"Extracted {repo_relative(pdf_path)} -> {staging_ref} for {row['doi']} (not indexed until Codex QC creates raw/full_text).")
     if not messages and not warnings:
-        messages.append("No DOI PDFs needed local full_text extraction.")
+        messages.append("No DOI PDFs needed staging extraction.")
     return messages, warnings
 
 
 def print_pdf_extraction_report(messages: list[str], warnings: list[str]) -> None:
-    print("\n== PDF to Full Text ==")
+    print("\n== PDF to Staging Text ==")
+    for message in messages:
+        print(f"- {message}")
+    for warning in warnings:
+        print(f"- Warning: {warning}")
+
+
+def staging_path_for_row(row: dict[str, str]) -> Path | None:
+    pdf_ref = row.get("pdf", "")
+    if not pdf_ref or not local_path_exists(pdf_ref):
+        return None
+    pdf_path = ROOT / pdf_ref if not Path(pdf_ref).is_absolute() else Path(pdf_ref)
+    candidate = STAGING_TEXT_DIR / f"{pdf_path.stem}.md"
+    return candidate if candidate.exists() else None
+
+
+def rows_needing_full_text_conversion(rows: list[dict[str, str]]) -> list[dict[str, str]]:
+    active: list[dict[str, str]] = []
+    for row in rows:
+        if row.get("full_text") and local_path_exists(row["full_text"]):
+            continue
+        staging = staging_path_for_row(row)
+        if staging:
+            active.append(row)
+    return active
+
+
+def test_stub_create_qced_full_text(rows: list[dict[str, str]]) -> tuple[list[str], list[str]]:
+    messages: list[str] = []
+    warnings: list[str] = []
+    for row in rows_needing_full_text_conversion(rows):
+        staging = staging_path_for_row(row)
+        if not staging:
+            continue
+        target = FULL_TEXT_DIR / f"{staging.stem}.md"
+        if target.exists():
+            row["full_text"] = repo_relative(target)
+            row["status"] = "full_text_done" if row.get("status") != "wiki_done" else row["status"]
+            row["next_action"] = "ingest_full_text_to_wiki"
+            row["updated"] = TODAY
+            row["note"] = f"existing QCed full_text found at {repo_relative(target)}"
+            messages.append(f"Linked existing QCed full_text {repo_relative(target)} for {row['doi']}.")
+            continue
+        staging_text = staging.read_text(encoding="utf-8", errors="replace")
+        target.write_text(render_qced_full_text_from_staging(staging, staging_text), encoding="utf-8")
+        row["full_text"] = repo_relative(target)
+        if row.get("status") != "wiki_done":
+            row["status"] = "full_text_done"
+        row["next_action"] = "ingest_full_text_to_wiki"
+        row["updated"] = TODAY
+        row["note"] = f"created QCed full_text from staging {repo_relative(staging)} using deterministic test stub"
+        row["access_legality"] = row.get("access_legality") or "verified_source"
+        messages.append(f"Created QCed full_text {repo_relative(target)} for {row['doi']}.")
+    if not messages and not warnings:
+        messages.append("No staging text needed full_text conversion.")
+    return messages, warnings
+
+
+def build_full_text_conversion_prompt(rows: list[dict[str, str]]) -> str:
+    items: list[str] = []
+    for row in rows:
+        staging = staging_path_for_row(row)
+        if not staging:
+            continue
+        target = FULL_TEXT_DIR / f"{staging.stem}.md"
+        items.append(
+            "\n".join(
+                [
+                    f"- DOI: {row['doi']}",
+                    f"  Title: {row.get('title') or 'unknown'}",
+                    f"  Paper: {row.get('paper') or 'unknown'}",
+                    f"  Journal: {row.get('journal') or 'unknown'}",
+                    f"  PDF: {row.get('pdf') or 'missing'}",
+                    f"  Staging text: {repo_relative(staging)}",
+                    f"  Target full_text: {repo_relative(target)}",
+                ]
+            )
+        )
+    target_lines = "\n".join(items)
+    return f"""You are working inside this Research Wiki project.
+
+First read and follow the command-independent core contract:
+- core/principles.md
+- core/data_contract.md
+- core/agent_contract.md
+- core/skills/research-wiki-fulltext-acquisition/SKILL.md
+
+Goal:
+Convert staging machine extraction into QCed readable full text. Do not create or update wiki/literature pages in this task.
+
+Target staging files:
+{target_lines}
+
+Rules:
+0. Core contract is authoritative. If these command instructions conflict with core/*, follow core/* and report the mismatch.
+1. Read each staging text and source PDF listed above.
+2. Reflow broken line wraps and hyphenation where clear.
+3. Remove repeated page headers/footers, page numbers, duplicated publisher furniture, and extraction boilerplate when safe.
+4. Preserve the complete article body, section order, figure/table captions, references, appendices, and important limitations. Do not summarize or omit body sections.
+5. Verify DOI/title/metadata against the staging text and PDF. If staging text and PDF disagree, do not write final full_text for that DOI; update the dashboard note with the blocker.
+6. Write final readable Markdown only to raw/full_text/<paper_file_key>.md. Do not put pending machine extraction in raw/full_text/.
+7. Final full_text frontmatter must use:
+   - extraction_status: codex_qc_done
+   - readability_status: readable, readable-with-warnings, or poor
+   - qc_status: codex_qc_done
+   - equation_quality: good, partial, poor, or not_applicable
+8. If conversion succeeds, update raw/doi_dashboard.md for that DOI: Status = full_text_done, Full Text = raw/full_text/<paper_file_key>.md, Next Action = ingest_full_text_to_wiki.
+9. If conversion fails, keep Status = full_text_needed, keep Full Text empty, set Next Action = codex_convert_to_full_text, and record a concise blocker.
+10. Run python3 tools/build_full_text_index.py after writing final full_text.
+
+Console output protocol:
+- Emit concise progress lines only with these exact prefixes:
+  - RW_STATUS|<doi>|<paper title>
+  - RW_ATTEMPT|<doi>|convert_staging_to_qced_full_text|<staging_path>
+  - RW_RESULT|<doi>|success|<reason>
+  - RW_RESULT|<doi>|failed|<reason>
+  - RW_FILE|<doi>|<pdf_path_or_none>|<full_text_path_or_none>
+  - RW_DASHBOARD|<doi>|<wiki_status>|<access_legality>|<next_action>
+- Do not emit the example protocol lines themselves. Never emit angle-bracket placeholders as real progress.
+"""
+
+
+def create_qced_full_text(rows: list[dict[str, str]]) -> tuple[list[str], list[str], bool]:
+    active = rows_needing_full_text_conversion(rows)
+    if not active:
+        return ["No staging text needed full_text conversion."], [], False
+    if os.environ.get("RESEARCHWIKI_TEST_QC_FAIL") == "1":
+        for row in active:
+            staging = staging_path_for_row(row)
+            row["status"] = "full_text_needed"
+            row["full_text"] = ""
+            row["next_action"] = "codex_convert_to_full_text"
+            row["updated"] = TODAY
+            row["note"] = f"test-mode QC failure for staging {repo_relative(staging) if staging else 'missing'}"
+        return [], ["Test-mode QC failure; no raw/full_text files were created."], True
+    if os.environ.get("RESEARCHWIKI_TEST_QC_STUB") == "1":
+        messages, warnings = test_stub_create_qced_full_text(rows)
+        return messages, warnings, True
+    prompt_text = build_full_text_conversion_prompt(active)
+    return_code, failure_hint = run_codex_prompt_foreground(
+        prompt_text,
+        "full_text conversion and QC",
+        reasoning_effort="high",
+    )
+    if return_code != 0:
+        warning = failure_hint or "Codex full_text conversion did not complete."
+        for row in active:
+            row["status"] = "full_text_needed"
+            row["next_action"] = "codex_convert_to_full_text"
+            row["updated"] = TODAY
+            row["note"] = warning
+        return [], [warning], False
+    return ["Codex full_text conversion completed or prompt was emitted; refresh the dashboard/index for final status."], [], False
+
+
+def print_full_text_conversion_report(messages: list[str], warnings: list[str]) -> None:
+    print("\n== Staging to QCed Full Text ==")
     for message in messages:
         print(f"- {message}")
     for warning in warnings:
@@ -1371,7 +1674,8 @@ def refreshed_row(row: dict[str, str], index: dict[str, dict[str, str]], wiki: d
     index_entry = index.get(doi, {})
     wiki_entry = wiki.get(doi, {})
     title = index_entry.get("title") or wiki_entry.get("title") or row.get("title", "")
-    full_text = index_entry.get("readable_md") or (row.get("full_text", "") if local_path_exists(row.get("full_text", "")) else "")
+    row_full_text = row.get("full_text", "") if full_text_is_qced(row.get("full_text", "")) else ""
+    full_text = index_entry.get("readable_md") or row_full_text
     pdf = row.get("pdf", "") if local_path_exists(row.get("pdf", "")) else ""
     if not pdf and local_path_exists(str(index_entry.get("source_pdf") or "")):
         pdf = str(index_entry.get("source_pdf") or "")
@@ -1384,6 +1688,8 @@ def refreshed_row(row: dict[str, str], index: dict[str, dict[str, str]], wiki: d
     full_text_needs_qc = (
         "needs_codex_qc" in fulltext_status
         or "needs_codex_qc" in readability_status
+        or "pending_codex_qc" in fulltext_status
+        or "pending_codex_qc" in readability_status
         or "needs-human-review" in readability_status
         or index_entry.get("dispatch_status") == "fulltext_qc_needed"
     )
@@ -1391,12 +1697,13 @@ def refreshed_row(row: dict[str, str], index: dict[str, dict[str, str]], wiki: d
     if not pdf:
         pdf = find_named_artifact(DOI_PDF_DIR, paper, journal, ".pdf")
     if not full_text:
-        full_text = find_named_artifact(FULL_TEXT_DIR, paper, journal, ".md")
+        candidate_full_text = find_named_artifact(FULL_TEXT_DIR, paper, journal, ".md")
+        full_text = candidate_full_text if full_text_is_qced(candidate_full_text) else ""
 
     if full_text and full_text_needs_qc:
         status = "full_text_needed"
-        next_action = "codex_qc_full_text"
-        note = "machine-extracted full text found; Codex QC/reflow needed before wiki ingest"
+        next_action = "codex_convert_to_full_text"
+        note = "pending full_text found outside contract; Codex conversion/QC needed before indexing"
     elif full_text and wiki_page and ("full-read" in reading_status or "reproduced" in reading_status):
         status = "wiki_done"
         if pdf:
@@ -1411,12 +1718,16 @@ def refreshed_row(row: dict[str, str], index: dict[str, dict[str, str]], wiki: d
         note = "full text found; paper page needs full-read ingest"
     elif full_text:
         status = "full_text_done"
-        next_action = "create_or_check_wiki_page"
+        next_action = "ingest_full_text_to_wiki"
         note = "full text found"
     elif pdf:
         status = "full_text_needed"
-        next_action = "convert_pdf_to_full_text_md"
-        note = "PDF found; readable full text Markdown missing"
+        next_action = "codex_convert_to_full_text"
+        staging = staging_path_for_row({**row, "pdf": pdf})
+        if staging:
+            note = f"staging extraction found at {repo_relative(staging)}; QCed full_text Markdown missing"
+        else:
+            note = "PDF found; readable full text Markdown missing"
     elif wiki_page and "abstract-only" in reading_status:
         status = "abstract_only"
         next_action = row.get("next_action") or "acquire_full_text"
@@ -1467,9 +1778,14 @@ def refreshed_row(row: dict[str, str], index: dict[str, dict[str, str]], wiki: d
 def sync_doi_board() -> list[dict[str, str]]:
     ensure_core_files()
     doi_text = DOI_LIST.read_text(encoding="utf-8")
+    source_text = PAPER_SOURCES.read_text(encoding="utf-8")
     dashboard_text = DOI_DASHBOARD.read_text(encoding="utf-8")
     _, _, quick_block = quick_add_block(doi_text)
     quick_dois = extract_dois(quick_block)
+    _, _, source_block = source_add_block(source_text)
+    source_lines = parse_source_lines(source_block)
+    source_dois = extract_dois("\n".join(source_lines))
+    unresolved_sources = [line for line in source_lines if not extract_dois(line)]
     existing_rows = parse_board(dashboard_text)
 
     rows_by_doi: dict[str, dict[str, str]] = {}
@@ -1479,7 +1795,7 @@ def sync_doi_board() -> list[dict[str, str]]:
         if doi and doi not in rows_by_doi:
             rows_by_doi[doi] = row
             order.append(doi)
-    for doi in quick_dois:
+    for doi in quick_dois + source_dois:
         if doi not in rows_by_doi:
             rows_by_doi[doi] = {
                 "paper": "",
@@ -1493,7 +1809,7 @@ def sync_doi_board() -> list[dict[str, str]]:
                 "wiki_page": "",
                 "next_action": "acquire_full_text",
                 "updated": TODAY,
-                "note": "from doi_list",
+                "note": "from paper_sources" if doi in source_dois else "from doi_list",
             }
             order.append(doi)
 
@@ -1502,34 +1818,42 @@ def sync_doi_board() -> list[dict[str, str]]:
     rows = [refreshed_row(rows_by_doi[doi], index, wiki) for doi in order]
 
     DOI_LIST.write_text(replace_quick_add(doi_text, []), encoding="utf-8")
+    PAPER_SOURCES.write_text(replace_source_add(source_text, unresolved_sources), encoding="utf-8")
     DOI_DASHBOARD.write_text(replace_board(dashboard_text, rows), encoding="utf-8")
     return rows
 
 
-def add_or_open_doi_list() -> None:
+def add_or_open_paper_sources() -> None:
     ensure_core_files()
-    value = prompt("Paste DOI(s), or press Enter to open raw/doi_list.md")
+    value = prompt("Paste DOI / DOI URL / article URL / PDF URL, or press Enter to open raw/paper_sources.md")
     if not value:
-        open_path(DOI_LIST)
+        open_path(PAPER_SOURCES)
         return
-    incoming = extract_dois(value)
-    if not incoming:
-        print("No DOI-like strings found.")
-        return
-
-    text = DOI_LIST.read_text(encoding="utf-8")
-    existing = set(extract_dois(text + "\n" + DOI_DASHBOARD.read_text(encoding="utf-8")))
-    new_dois = [doi for doi in incoming if doi not in existing]
-    if not new_dois:
-        print("All DOI values already exist in raw/doi_list.md or raw/doi_dashboard.md.")
+    incoming_lines = [normalize_source_line(line) for line in value.splitlines() if normalize_source_line(line)]
+    if not incoming_lines:
+        print("No source pointers found.")
         return
 
-    _, _, quick_block = quick_add_block(text)
-    quick_dois = extract_dois(quick_block)
-    text = replace_quick_add(text, quick_dois + new_dois)
-    DOI_LIST.write_text(text, encoding="utf-8")
-    print(f"Added {len(new_dois)} DOI(s) to raw/doi_list.md.")
-    print("Progress will appear in raw/doi_dashboard.md after launching full-text acquisition.")
+    source_text = PAPER_SOURCES.read_text(encoding="utf-8")
+    existing_sources = {line.lower() for line in parse_source_lines(source_text)}
+    existing_dois = set(extract_dois(source_text + "\n" + DOI_LIST.read_text(encoding="utf-8") + "\n" + DOI_DASHBOARD.read_text(encoding="utf-8")))
+    new_sources: list[str] = []
+    for source in incoming_lines:
+        source_dois = extract_dois(source)
+        if source_dois and all(doi in existing_dois for doi in source_dois):
+            continue
+        if source.lower() in existing_sources:
+            continue
+        new_sources.append(source)
+    if not new_sources:
+        print("All source pointers already exist in raw/paper_sources.md or raw/doi_dashboard.md.")
+        return
+
+    _, _, source_block = source_add_block(source_text)
+    current_sources = parse_source_lines(source_block)
+    PAPER_SOURCES.write_text(replace_source_add(source_text, current_sources + new_sources), encoding="utf-8")
+    print(f"Added {len(new_sources)} source pointer(s) to raw/paper_sources.md.")
+    print("Progress will appear in raw/doi_dashboard.md after source resolution or DOI sync.")
 
 
 def active_acquisition_rows(rows: list[dict[str, str]]) -> list[dict[str, str]]:
@@ -1575,7 +1899,7 @@ Target DOI rows:
 {app_log_rule}
 
 Goal:
-Fallback acquisition for rows that were not handled by the recommended PDF-first path. Acquire missing authorized evidence only: PDF, readable full text, or both. Do not create or update wiki/literature paper pages in this task. Wiki-page ingest is a separate command option.
+Source/full-text finding for rows that need authorized evidence. Acquire or identify missing authorized evidence only: PDF, publisher HTML/XML, readable full text, or a clear legal source route. Do not create or update wiki/literature paper pages in this task. Wiki-page ingest is a separate command option.
 
 Rules:
 0. Core contract is authoritative. If these command instructions conflict with core/*, follow core/* and report the mismatch.
@@ -1585,9 +1909,9 @@ Rules:
 4. If metadata is incomplete, temporarily use `<first_author_last_name>_<year>_<short_journal_slug>` and revise it after verification. If two papers collide, append a short DOI slug such as `_waf_d_21_0044_1`.
 5. If Full Text already exists but PDF is missing, treat this as PDF backfill. Do not redo the full text unless it is incomplete or mismatched.
 6. If a PDF is obtained, save it as raw/doi_pdf/<paper_file_key>.pdf.
-7. If complete readable full text is obtained or extracted, save it as raw/full_text/<paper_file_key>.md.
-8. Full-text Markdown frontmatter must include doi, title, authors, journal, journal_abbrev, year, source_type, source_pdf or source_path, extraction_status, readability_status, equation_quality, language, created, and updated.
-9. This command is not the default high-volume DOI path. For routine rows, prefer the semi-automatic flow: option 5 opens authorized DOI/PDF pages, the user saves PDFs into raw/doi_pdf/, option 6 imports PDFs and extracts raw/full_text locally, and option 7 ingests wiki pages.
+7. Do not write pending machine extraction to raw/full_text/. If you capture machine text, put it in raw/staging/extracted_text/ or leave instructions for option 6.
+8. Only write raw/full_text/<paper_file_key>.md if the text has already been reflowed, QCed, and frontmatter says extraction_status: codex_qc_done and qc_status: codex_qc_done.
+9. This command is not the default high-volume DOI path. For routine rows, prefer the semi-automatic flow: option 5 opens authorized source pages, the user saves PDFs into raw/doi_pdf/, option 6 imports evidence and creates QCed raw/full_text, and option 7 ingests wiki pages.
 10. Spend reasoning on legal source selection, metadata verification, filename correctness, and completeness checks. Do not spend time on exhaustive publisher-route chasing, broad web searches, or research synthesis.
 11. For each DOI, try existing local evidence, obvious open publisher HTML/XML/PDF, and visible authorized browser PDF controls. If those do not work promptly, update the dashboard to `full_text_needed`, set Next Action to `authorized_browser_or_user_pdf_needed`, and move on.
 12. If the user/browser can view the article page and click the PDF button, treat that as authorized browser-session access. Do not mark blocked only because shell curl/wget/programmatic fetch returns 403.
@@ -1598,11 +1922,11 @@ Rules:
    If direct fetch returns CloudFront 403, switch to browser-session PDF download: open the DOI/article page in an authorized browser session, click the visible PDF/Download PDF control, save or import the resulting PDF to raw/doi_pdf/<paper_file_key>.pdf, then verify title/DOI.
 14. For AMS / AMETSOC papers, do not bypass CloudFront, CAPTCHA, robots, or access controls. AMS says WAF and other technical journals are free to read after 12 months, so prefer normal AMS Journals Online article/PDF pages and visible browser PDF controls.
 15. If browser automation is available, use it to download the visible publisher PDF automatically. If automation cannot access the browser session, open the page for the user and ask for manual click/download only as the fallback.
-16. If a PDF is obtained, immediately attempt to extract readable Markdown from it using available local tools such as pdftotext, pymupdf, or another project-approved extractor. Do not stop at PDF-only unless extraction fails or the PDF is unreadable.
+16. If a PDF is obtained, save/import it and let option 6 perform staging extraction plus Codex reflow/QC into final raw/full_text. Do not stop at PDF-only unless source access or extraction is blocked.
 17. Run python3 tools/build_full_text_index.py after adding or changing full text/PDF metadata.
 18. Update raw/doi_dashboard.md only for acquisition state:
     - full text Markdown exists: Status = full_text_done, Full Text = raw/full_text/<paper_file_key>.md, Next Action = ingest_full_text_to_wiki.
-    - PDF exists but Markdown extraction is not complete: keep Status = full_text_needed, Full Text empty, Next Action = convert_pdf_to_full_text_md, Note includes raw/doi_pdf/<paper_file_key>.pdf.
+    - PDF exists but QCed Markdown is not complete: keep Status = full_text_needed, Full Text empty, Next Action = codex_convert_to_full_text, Note includes raw/doi_pdf/<paper_file_key>.pdf.
     - full text and wiki page already exist, and this task only backfilled PDF: keep Status = wiki_done, set PDF = raw/doi_pdf/<paper_file_key>.pdf, update the full-text Markdown frontmatter `source_pdf` to that path, and set Next Action = review_or_ask_question.
     - access is still blocked: Status = blocked or full_text_needed with a clear Note.
 19. Do not newly mark wiki_done in this task. Do not write synthesis.
@@ -1709,10 +2033,14 @@ def launch_full_text_acquisition_prompt() -> None:
     return_code, failure_hint = run_codex_prompt_foreground(prompt_text, "DOI full-text acquisition", reasoning_effort="high")
     rows = sync_doi_board()
     messages, warnings = import_new_doi_pdfs(rows)
-    extraction_messages, extraction_warnings = extract_full_text_from_doi_pdfs(rows)
+    extraction_messages, extraction_warnings = extract_staging_text_from_doi_pdfs(rows)
     write_dashboard_rows(rows)
     print_pdf_import_report(messages, warnings)
     print_pdf_extraction_report(extraction_messages, extraction_warnings)
+    conversion_messages, conversion_warnings, rows_mutated = create_qced_full_text(rows)
+    if rows_mutated:
+        write_dashboard_rows(rows)
+    print_full_text_conversion_report(conversion_messages, conversion_warnings)
     build_full_text_index_quiet()
     rows = sync_doi_board()
     print_acquisition_result(rows, {row["doi"] for row in active}, failure_hint if return_code else "")
@@ -1724,14 +2052,15 @@ def launch_wiki_ingest_prompt() -> None:
         row
         for row in rows
         if row.get("full_text")
+        and full_text_is_qced(row.get("full_text", ""))
         and (
-            row["status"] in {"full_text_done", "full_text_needed"}
-            or row.get("next_action") == "codex_qc_full_text"
+            row["status"] == "full_text_done"
+            or row.get("next_action") == "ingest_full_text_to_wiki"
             or paper_page_needs_cleanup(row.get("wiki_page", ""))
         )
     ]
     if not active:
-        print("\nNo DOI rows currently have full text waiting for Codex QC, wiki ingest, or cleanup.")
+        print("\nNo DOI rows currently have QCed full_text waiting for wiki ingest or cleanup.")
         return
 
     doi_lines = "\n".join(
@@ -1752,35 +2081,25 @@ Target DOI rows ready for full-text QC and/or wiki ingest:
 {doi_lines}
 
 Goal:
-First make machine-extracted raw/full_text Markdown readable and QC-labeled when needed, then create, update, or clean wiki/literature paper pages from QCed full text. Do not acquire new PDFs or new sources in this task.
+Create, update, or clean wiki/literature paper pages from already QCed raw/full_text Markdown. Do not acquire new PDFs, new sources, or perform full_text reflow/QC in this task.
 
 Rules:
 0. Core contract is authoritative. If these command instructions conflict with core/*, follow core/* and report the mismatch.
 1. Read raw/full_text_index.json and the Full Text paths listed above.
 2. Verify the full_text DOI/title against the dashboard row and source PDF before writing. If the PDF and full_text disagree, stop for that DOI and record the blocker.
-3. If full_text frontmatter says `machine_extracted_needs_codex_qc`, `needs_codex_qc`, `pending_codex_qc`, or `needs-human-review`, rewrite the raw/full_text file in place before wiki ingest:
-   - preserve the complete article text; do not summarize or omit body sections;
-   - reflow broken line wraps and hyphenation where clear;
-   - remove repeated page headers/footers, page numbers, copyright boilerplate, and duplicated publisher furniture when safe;
-   - keep section order, figure/table captions, references, and appendices when present;
-   - mark equations/tables honestly if PDF extraction damaged them.
-4. After QC, set raw/full_text frontmatter fields using your judgment:
-   - `extraction_status: codex_qc_done` if the Markdown is usable for reading; otherwise keep `machine_extracted_needs_codex_qc` and explain the blocker.
-   - `readability_status: readable`, `readable-with-warnings`, or `poor`.
-   - `equation_quality: good`, `partial`, `poor`, or `not_applicable`.
-   - add or correct `title`, `authors`, `journal`, `journal_abbrev`, `year`, `source_pdf`, `language`, and `updated`.
-5. Only create/update wiki/literature after full_text QC is good enough for reading. Use templates/paper.md. If an existing page contains old verbose sections, replace them with the concise structure.
-6. Set paper-page `reading_status: full-read` only if the body text, methods, results, limitations, and conclusion/summary were actually read from QCed raw/full_text.
-7. Keep full paper text out of wiki/literature. The wiki page should be a reading note, not a copy.
-8. The generated wiki page should contain only this paper's content plus necessary source pointers. Do not copy template field guides, placeholder text, empty fields, long operational explanations, generic Zotero boilerplate, user-trigger boilerplate, or unnecessary synthesis sections.
-9. Keep metadata concise: title, authors, venue/year, DOI, reading status, full_text path, and PDF path if available.
-10. Preserve abstract-only warnings only if full text is still incomplete; otherwise replace them with full-read evidence notes.
-11. Put cross-paper interpretation in wiki/synthesis only if explicitly necessary and evidence-labeled. For this command, prefer not to update synthesis.
-12. Update raw/doi_dashboard.md:
-    - if full_text QC succeeded but wiki page was not created: Status = full_text_done, Next Action = ingest_full_text_to_wiki.
+3. If any full_text frontmatter still says `machine_extracted_needs_codex_qc`, `needs_codex_qc`, `pending_codex_qc`, or `needs-human-review`, do not ingest it; update the dashboard with Next Action = codex_convert_to_full_text.
+4. Use templates/paper.md. If an existing page contains old verbose sections, replace them with the concise structure.
+5. Set paper-page `reading_status: full-read` only if the body text, methods, results, limitations, and conclusion/summary were actually read from QCed raw/full_text.
+6. Keep full paper text out of wiki/literature. The wiki page should be a reading note, not a copy.
+7. The generated wiki page should contain only this paper's content plus necessary source pointers. Do not copy template field guides, placeholder text, empty fields, long operational explanations, generic Zotero boilerplate, user-trigger boilerplate, or unnecessary synthesis sections.
+8. Keep metadata concise: title, authors, venue/year, DOI, reading status, full_text path, and PDF path if available.
+9. Preserve abstract-only warnings only if full text is still incomplete; otherwise replace them with full-read evidence notes.
+10. Put cross-paper interpretation in wiki/synthesis only if explicitly necessary and evidence-labeled. For this command, prefer not to update synthesis.
+11. Update raw/doi_dashboard.md:
     - if wiki page was created from QCed full_text: Status = wiki_done, Wiki Page = path, Next Action = review_or_ask_question.
-    - if QC failed: keep Status = full_text_needed, Next Action = codex_qc_full_text, Note = blocker.
-13. Run python3 tools/build_full_text_index.py after changing full_text or paper pages.
+    - if wiki ingest did not happen but QCed full_text remains usable: Status = full_text_done, Next Action = ingest_full_text_to_wiki.
+    - if full_text is not actually QCed: Status = full_text_needed, Full Text empty, Next Action = codex_convert_to_full_text, Note = blocker.
+12. Run python3 tools/build_full_text_index.py after changing paper pages.
 
 Console output protocol:
 - Emit concise progress lines only with these exact prefixes so ResearchWiki.command can show the important parts:
@@ -1847,7 +2166,7 @@ Start by discussing with me to clarify the research question. Do not ask me to c
 
 After the conversation is clear enough, infer suitable topics, subtopics, and keywords. Check wiki/synthesis, wiki/literature, wiki/seminars, wiki/project_synthesis, raw/full_text_index.md, and raw/doi_dashboard.md for related material.
 
-List DOI values that should be added, and add ingest candidates to raw/doi_list.md when appropriate. Do not create code or inbox pages. Use only the paper, synthesis, meeting, project_synthesis, seminar, DOI list, DOI dashboard, and maintenance workflows.
+List DOI values or source pointers that should be added, and add ingest candidates to raw/paper_sources.md when appropriate. Do not create code or inbox pages. Use only the paper, synthesis, meeting, project_synthesis, seminar, paper source queue, DOI dashboard, and maintenance workflows.
 """
     start_codex_prompt(prompt_text, "a project conversation")
 
@@ -1893,25 +2212,31 @@ def print_dashboard_summary(rows: list[dict[str, str]]) -> None:
     print(f"Output: {DOI_DASHBOARD.relative_to(ROOT)}")
 
 
-def open_authorized_pdf_backfill_pages() -> None:
+def open_authorized_source_pages() -> None:
     ensure_core_files()
     rows = sync_doi_board()
     missing = [row for row in rows if row.get("doi") and not row.get("pdf")]
-    if not missing:
-        print("\nNo DOI rows are missing PDFs.")
+    unresolved_sources = unresolved_source_lines()
+    if not missing and not unresolved_sources:
+        print("\nNo DOI rows are missing PDFs, and no unresolved source pointers are queued.")
         return
 
-    print("\n== Authorized PDF Backfill ==")
-    print("This helper opens DOI landing pages only. Use publisher, author, open-access, institutional, or user-provided PDFs.")
+    print("\n== Authorized Source Pages ==")
+    print("This helper opens DOI/article/source pages only. Use publisher, author, open-access, institutional, or user-provided full text/PDFs.")
     print("Unauthorized shadow-library downloads are not automated by this project.")
     print("")
-    for index, row in enumerate(missing, start=1):
-        expected = expected_pdf_path(row)
-        print(f"{index}. {row['doi']}")
-        print(f"   Title: {row.get('title') or 'unknown'}")
-        print(f"   Expected PDF: {repo_relative(expected) if expected else 'unknown'}")
+    source_urls = [url for line in unresolved_sources for url in extract_urls(line)]
+    for index, source in enumerate(unresolved_sources, start=1):
+        print(f"Source {index}: {source}")
+    if missing:
+        print("")
+        for index, row in enumerate(missing, start=1):
+            expected = expected_pdf_path(row)
+            print(f"DOI {index}: {row['doi']}")
+            print(f"   Title: {row.get('title') or 'unknown'}")
+            print(f"   Expected PDF: {repo_relative(expected) if expected else 'unknown'}")
 
-    max_to_open_text = prompt("Max DOI landing pages to open now", "5")
+    max_to_open_text = prompt("Max source/DOI pages to open now", "5")
     try:
         max_to_open = max(0, int(max_to_open_text))
     except ValueError:
@@ -1922,13 +2247,19 @@ def open_authorized_pdf_backfill_pages() -> None:
         max_to_open = 0
 
     if max_to_open:
-        for row in missing[:max_to_open]:
+        opened = 0
+        for url in source_urls[:max_to_open]:
+            subprocess.run(["open", url], cwd=ROOT)
+            opened += 1
+        remaining = max_to_open - opened
+        for row in missing[:remaining]:
             doi_url = f"https://doi.org/{quote(row['doi'], safe='/')}"
             subprocess.run(["open", doi_url], cwd=ROOT)
+            opened += 1
         subprocess.run(["open", str(DOI_PDF_DIR)], cwd=ROOT)
-        print(f"\nOpened {min(max_to_open, len(missing))} DOI landing page(s) and raw/doi_pdf/.")
+        print(f"\nOpened {opened} source/DOI page(s) and raw/doi_pdf/.")
 
-    print("\nAfter downloading authorized PDFs, place them in raw/doi_pdf/ and run option 6.")
+    print("\nAfter downloading authorized PDFs or confirming full text, place evidence in raw/doi_pdf/ or source notes, then run option 6.")
 
 
 def rebuild_full_text_index() -> None:
@@ -1936,10 +2267,14 @@ def rebuild_full_text_index() -> None:
     print("\nChecking raw/doi_pdf for newly added PDF files...")
     rows = sync_doi_board()
     messages, warnings = import_new_doi_pdfs(rows)
-    extraction_messages, extraction_warnings = extract_full_text_from_doi_pdfs(rows)
+    extraction_messages, extraction_warnings = extract_staging_text_from_doi_pdfs(rows)
     write_dashboard_rows(rows)
     print_pdf_import_report(messages, warnings)
     print_pdf_extraction_report(extraction_messages, extraction_warnings)
+    conversion_messages, conversion_warnings, rows_mutated = create_qced_full_text(rows)
+    if rows_mutated:
+        write_dashboard_rows(rows)
+    print_full_text_conversion_report(conversion_messages, conversion_warnings)
 
     print("\nRebuilding local full_text index...")
     proc = subprocess.run(
@@ -2003,13 +2338,13 @@ def open_graph_guide() -> None:
 
 def menu() -> None:
     actions = {
-        "1": ("Open/add DOI to raw/doi_list.md", add_or_open_doi_list),
+        "1": ("Add/open paper sources", add_or_open_paper_sources),
         "2": ("Open/manage DOI dashboard", lambda: open_path(DOI_DASHBOARD)),
-        "3": ("Launch Codex fallback acquisition (slow)", launch_full_text_acquisition_prompt),
-        "4": ("Generate Codex app fallback acquisition prompt", prepare_codex_app_acquisition_prompt),
-        "5": ("Open authorized PDF pages (recommended first)", open_authorized_pdf_backfill_pages),
-        "6": ("Import PDFs + extract full_text + rebuild index", rebuild_full_text_index),
-        "7": ("Launch Codex full_text QC + wiki ingest", launch_wiki_ingest_prompt),
+        "3": ("Codex-assisted source/full-text finding", launch_full_text_acquisition_prompt),
+        "4": ("Prepare Codex app source/full-text finding prompt", prepare_codex_app_acquisition_prompt),
+        "5": ("Open authorized source pages", open_authorized_source_pages),
+        "6": ("Import evidence + create QCed full_text", rebuild_full_text_index),
+        "7": ("Ingest QCed full_text to wiki", launch_wiki_ingest_prompt),
         "8": ("Launch Codex project conversation", project_prompt),
         "9": ("Manage topic/subtopic registry", manage_topics),
         "10": ("Open Obsidian graph guide", open_graph_guide),
@@ -2022,7 +2357,7 @@ def menu() -> None:
         print_header()
         for key, (label, _) in actions.items():
             print(f"{key}. {label}")
-        choice = prompt("Choose")
+        choice = prompt("Choose", "0" if not sys.stdin.isatty() else "")
         if choice == "0":
             print("Bye.")
             return

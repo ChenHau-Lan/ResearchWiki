@@ -14,18 +14,25 @@ Any command or UI implementation must satisfy these scenarios.
 
 - DOI list input creates or refreshes dashboard rows without fabricating
   metadata.
-- Authorized PDF-page workflow opens source pages or explains what the user
+- Paper-source intake accepts DOI values, DOI URLs, article URLs, and PDF URLs;
+  unresolved non-DOI source pointers remain queued until a DOI or reliable
+  metadata is resolved.
+- Authorized source-page workflow opens source pages or explains what the user
   should do without downloading unauthorized files.
 - Local PDF import can:
   - reject non-PDF files;
   - reject valid PDFs that have no DOI and no matching dashboard row;
   - create a dashboard row from a PDF DOI;
   - rename matched PDFs to `<paper_file_key>.pdf`;
-  - create machine-extracted `raw/full_text/<paper_file_key>.md`;
-  - mark the row as `full_text_needed` with next action `codex_qc_full_text`.
-- Running local PDF import twice is idempotent for already imported rows.
-- Wiki ingest prompts must first require full-text QC when the source Markdown
-  is machine extracted.
+  - create machine-extracted staging text under `raw/staging/extracted_text/`;
+  - create `raw/full_text/<paper_file_key>.md` only after Codex reflow/QC.
+- QC failure leaves `raw/full_text/` empty for that paper, does not index the
+  staging text, and marks the row `full_text_needed` with next action
+  `codex_convert_to_full_text`.
+- Running local PDF import twice is idempotent for already imported and QCed
+  rows.
+- Wiki ingest prompts select only QCed full text and must not acquire sources
+  or perform full-text reflow/QC.
 - Initializer/reset commands must require explicit confirmation and must only
   delete scoped test evidence and generated pages.
 

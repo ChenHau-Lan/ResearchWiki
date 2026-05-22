@@ -144,6 +144,22 @@ def normalized_status(fm: dict[str, Any]) -> str:
     return "unknown"
 
 
+def is_pending_qc(fm: dict[str, Any]) -> bool:
+    status_blob = " ".join(
+        str(fm.get(key) or "")
+        for key in ["status", "extraction_status", "readability_status", "qc_status"]
+    ).lower()
+    return any(
+        marker in status_blob
+        for marker in [
+            "machine_extracted_needs_codex_qc",
+            "needs_codex_qc",
+            "pending_codex_qc",
+            "needs-human-review",
+        ]
+    )
+
+
 def find_translation(package_dir: Path, slug: str, folder: str) -> str:
     candidate = package_dir / folder / f"{slug}.zh.md"
     return rel(candidate) if candidate.exists() else ""
@@ -225,6 +241,8 @@ def build_index() -> dict[str, Any]:
     for path in iter_text_sources():
         text = path.read_text(encoding="utf-8", errors="replace")
         fm = parse_frontmatter(text)
+        if is_pending_qc(fm):
+            continue
         slug = slug_from_md(path)
         package_dir = RAW / path.relative_to(RAW).parts[0]
         doi = str(fm.get("doi") or "").strip()

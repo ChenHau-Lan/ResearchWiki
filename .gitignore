@@ -8,6 +8,9 @@ venv/
 maintenance/codex_last_run.log
 maintenance/codex_app_last_run.log
 maintenance/codex_app_handoff_prompt.md
+maintenance/codex_first_feedback_issue_prompt.md
+maintenance/codex_first_synthesis_prompt.md
+maintenance/external_sandbox_sync_prompt.md
 maintenance/support_report.md
 maintenance/repair_plan_*.md
 maintenance/workflow_test_report_*.md

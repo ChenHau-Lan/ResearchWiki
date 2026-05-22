@@ -5,7 +5,7 @@ Thanks for improving Research Wiki.
 ## Development Rules
 
 - Treat `core/` as the source of truth for database rules and acceptance criteria.
-- Treat `ResearchWiki.command` and `tools/` as command/UI implementations of the core contract.
+- Treat `ResearchWikiCodex.command` and `tools/` as command/UI implementations of the core contract.
 - Use `codex/core-*` branches for core changes, `codex/command-*` branches for command/UI changes, and `personal/*` branches for private research state.
 - Keep the active workflow focused on papers, synthesis, meetings, project synthesis, seminars, DOI intake, maintenance, and Obsidian graph navigation.
 - Do not add code wiki, inbox, Notion, sync, or sub-database workflows back into the active path.
@@ -24,10 +24,10 @@ python3 tools/check_install.py --strict
 python3 tools/wiki_lint.py
 python3 tools/wiki_doctor.py
 python3 tools/generate_repair_plan.py
-python3 tools/test_research_wiki_workflow.py
-printf '0\n' | python3 tools/research_wiki_shortcut.py
-printf '2\n\n0\n' | python3 tools/research_wiki_shortcut.py
-printf '6\n\n0\n' | python3 tools/research_wiki_shortcut.py
+python3 tools/test_codex_first_command.py
+printf '0\n' | python3 tools/research_wiki_codex_shortcut.py
+printf '2\n\n0\n' | python3 tools/research_wiki_codex_shortcut.py
+printf '6\nissue title\n\n0\n' | python3 tools/research_wiki_codex_shortcut.py
 ```
 
 ## Documentation

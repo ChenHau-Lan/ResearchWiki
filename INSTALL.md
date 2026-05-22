@@ -13,7 +13,7 @@ Read README.md, USER_GUIDE.md, INSTALL.md, and AGENTS.md first.
 Check whether Git, Python 3, ripgrep/rg, Poppler/pdftotext, and the Codex CLI are available.
 If a tool is missing, explain what it is for. Ask me before using Homebrew, system installation commands, or permission-requiring steps.
 After installing or confirming tools, run python3 tools/check_install.py --strict.
-When it succeeds, tell me how to open ResearchWiki.command. Do not upload private PDFs, full text, local paths, sensitive DOI lists, or Codex logs.
+When it succeeds, tell me how to open ResearchWikiCodex.command. Do not upload private PDFs, full text, local paths, sensitive DOI lists, or Codex logs.
 ```
 
 This prompt can complete most of the install flow, but it should still ask before installing system tools or submitting any GitHub issue.
@@ -34,7 +34,8 @@ This prompt can complete most of the install flow, but it should still ask befor
    python3 tools/check_install.py --strict
    ```
 
-4. Open `ResearchWiki.command`.
+4. Open `ResearchWikiCodex.command` on macOS, or `ResearchWikiCodex.cmd` on Windows.
+5. Optionally open `InitializeResearchWiki.command` or `InitializeResearchWiki.cmd` to set initial topics.
 
 ## Tools
 

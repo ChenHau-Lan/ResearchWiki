@@ -32,6 +32,17 @@ Only these dashboard statuses are valid:
 - `abstract_only`
 - `blocked`
 
+Dashboard main board columns are:
+
+```text
+Last Name_Year | Journal | DOI | Wiki Status | PDF | Full Text
+```
+
+`PDF` and `Full Text` are checkboxes that indicate whether evidence is present.
+Longer next actions, blockers, source routes, and path details belong in the
+`DOI Notes` section or are derived from actual files and `raw/full_text_index.*`.
+The main board no longer tracks `Access Legality` as a separate column.
+
 Machine-extracted PDF text that still needs Codex QC is represented as staging,
 not as full text:
 
@@ -44,6 +55,11 @@ not as full text:
   - `qc_status: pending_codex_qc`
   - `equation_quality: not_checked`
 
+The canonical `ResearchWikiCodex.command` must not create new persistent
+un-QCed staging full text. Staging remains a supported evidence layer for
+legacy imports, existing files, and tools that explicitly label machine
+extraction as not ready for wiki ingest.
+
 Only Codex-reflowed/QCed Markdown may be written to `raw/full_text/`.
 Final full text must use:
 
@@ -51,6 +67,16 @@ Final full text must use:
 - `qc_status: codex_qc_done`
 - `readability_status: readable`, `readable-with-warnings`, or `poor`
 - `equation_quality: good`, `partial`, `poor`, or `not_applicable`
+- `table_quality: good`, `partial`, `poor`, or `not_applicable`
+
+`table_quality` separates prose readability from table reliability. Wide,
+continued, or numeric tables may be preserved as fenced text with an explicit
+warning; numeric table reuse requires checking the PDF, HTML/XML table, or
+supplement when `table_quality` is `partial` or `poor`.
+
+DOI comparisons are canonicalized before dashboard work. Duplicate PDF filename
+suffixes from publisher downloads, such as Copernicus `...-2005-2.pdf`, must not
+create additional DOI rows.
 
 ## Naming
 

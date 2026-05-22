@@ -25,9 +25,13 @@ REQUIRED_FILES = [
     "AGENTS.md",
     "README.md",
     "USER_GUIDE.md",
-    "ResearchWiki.command",
+    "ResearchWikiCodex.command",
+    "ResearchWikiCodex.cmd",
     "InitializeResearchWiki.command",
+    "InitializeResearchWiki.cmd",
+    "tools/research_wiki_codex_shortcut.py",
     "tools/research_wiki_shortcut.py",
+    "tools/check_full_text_tables.py",
     "tools/wiki_lint.py",
     "tools/wiki_doctor.py",
     "tools/generate_repair_plan.py",
@@ -73,7 +77,9 @@ def main() -> int:
         failures.append("Git repository was not detected.")
         print_line("FAIL", "Git repository was not detected.")
 
-    for command in ["git", "python3", "rg"]:
+    print_line("PASS", f"Python interpreter running this script: {sys.executable}")
+
+    for command in ["git", "rg"]:
         if command_exists(command):
             print_line("PASS", f"Required command found: {command}")
         else:

@@ -23,6 +23,7 @@ OUT_MD = RAW / "full_text_index.md"
 
 READABLE_DIR_NAMES = {"full_text", "readable_md", "literature_texts_md"}
 SOURCE_DIR_NAMES = {"original_text_md", "clean_original_text_md", "clean_original_text_en_md"}
+COPERNICUS_FILENAME_COPY_DOI_RE = re.compile(r"^(10\.5194/[a-z][a-z0-9]*-\d+-\d+-(?:19|20)\d{2})-\d+$")
 
 
 def rel(path: Path) -> str:
@@ -46,6 +47,14 @@ def normalize_source_ref(value: str) -> str:
         return rel(candidate)
 
     return value
+
+
+def normalize_doi(value: str) -> str:
+    value = value.strip().rstrip(".,;")
+    value = re.sub(r"^https?://(dx\.)?doi\.org/", "", value, flags=re.IGNORECASE)
+    value = re.sub(r"^doi:\s*", "", value, flags=re.IGNORECASE).lower()
+    copy_suffix = COPERNICUS_FILENAME_COPY_DOI_RE.fullmatch(value)
+    return copy_suffix.group(1) if copy_suffix else value
 
 
 def parse_frontmatter(text: str) -> dict[str, Any]:
@@ -87,7 +96,7 @@ def scan_wiki_pages() -> tuple[dict[str, dict[str, str]], list[dict[str, str]]]:
         fm = parse_frontmatter(text)
         if fm.get("type") != "paper":
             continue
-        doi = extract_line(r"^- DOI:\s*(.+)$", text)
+        doi = normalize_doi(extract_line(r"^- DOI:\s*(.+)$", text))
         citation_key = extract_line(r"^- Citation Key:\s*(.+)$", text)
         title = extract_line(r"^- Title:\s*(.+)$", text)
         page = {
@@ -99,7 +108,7 @@ def scan_wiki_pages() -> tuple[dict[str, dict[str, str]], list[dict[str, str]]]:
         }
         pages.append(page)
         if doi:
-            by_doi[doi.lower()] = page
+            by_doi[doi] = page
     return by_doi, pages
 
 
@@ -176,8 +185,9 @@ def find_wiki_for_entry(
     for page in wiki_pages:
         if rel_path in page["text"] or basename in page["text"]:
             return page
-    if doi and doi.lower() in by_doi:
-        return by_doi[doi.lower()]
+    doi = normalize_doi(doi)
+    if doi and doi in by_doi:
+        return by_doi[doi]
     return {}
 
 
@@ -245,7 +255,7 @@ def build_index() -> dict[str, Any]:
             continue
         slug = slug_from_md(path)
         package_dir = RAW / path.relative_to(RAW).parts[0]
-        doi = str(fm.get("doi") or "").strip()
+        doi = normalize_doi(str(fm.get("doi") or ""))
         wiki = find_wiki_for_entry(path, doi, by_doi, wiki_pages)
         layer = cache_layer(path)
         fulltext_status = normalized_status(fm)
@@ -271,6 +281,7 @@ def build_index() -> dict[str, Any]:
                 "fulltext_status": fulltext_status,
                 "readability_status": readability_status,
                 "equation_quality": str(fm.get("equation_quality") or "").strip(),
+                "table_quality": str(fm.get("table_quality") or "").strip(),
                 "updated": str(fm.get("updated") or "").strip(),
                 "dispatch_status": dispatch_status(fulltext_status, readability_status, wiki.get("wiki_page", ""), layer),
                 "translation_status": "zh_full_available" if zh_full else "zh_full_pending",

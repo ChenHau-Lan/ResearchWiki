@@ -13,7 +13,7 @@
 請檢查 Git、Python 3、ripgrep/rg、Poppler/pdftotext、Codex CLI 是否可用。
 如果缺工具，請先說明用途；需要 Homebrew、系統安裝或權限時先問我再執行。
 安裝或確認後，請執行 python3 tools/check_install.py --strict。
-成功後請告訴我怎麼打開 ResearchWiki.command。不要上傳 private PDF、全文、本機路徑、敏感 DOI 清單或 Codex logs。
+成功後請告訴我怎麼打開 ResearchWikiCodex.command。不要上傳 private PDF、全文、本機路徑、敏感 DOI 清單或 Codex logs。
 ```
 
 這個 prompt 可以完成大部分安裝流程，但它不應該在沒有你確認的情況下安裝系統工具或送出任何 GitHub issue。
@@ -34,7 +34,8 @@
    python3 tools/check_install.py --strict
    ```
 
-4. 打開 `ResearchWiki.command`。
+4. macOS 打開 `ResearchWikiCodex.command`，Windows 打開 `ResearchWikiCodex.cmd`。
+5. 需要初始 topic 時，打開 `InitializeResearchWiki.command` 或 `InitializeResearchWiki.cmd`。
 
 ## 需要的工具
 

@@ -58,16 +58,18 @@ Read README.md, USER_GUIDE.md, INSTALL.md, and AGENTS.md first.
 Check whether Git, Python 3, ripgrep/rg, Poppler/pdftotext, and the Codex CLI are available.
 If a tool is missing, explain what it is for. Ask me before using Homebrew, system installation commands, or permission-requiring steps.
 After installing or confirming tools, run python3 tools/check_install.py --strict.
-When it succeeds, tell me how to open ResearchWiki.command. Do not upload private PDFs, full text, local paths, sensitive DOI lists, or Codex logs.
+When it succeeds, tell me how to open ResearchWikiCodex.command. Do not upload private PDFs, full text, local paths, sensitive DOI lists, or Codex logs.
 ```
 
-Open `ResearchWiki.command` when working manually. Its `Paper intake` separates local/no-token steps from Codex steps: add source pointers, open legal source pages, import PDF/evidence, extract staging text, and rebuild indexes first; then explicitly hand staging text to Codex reflow/QC before `raw/full_text/` is created. Wiki ingest comes after QCed full text exists. See [USER_GUIDE.md](USER_GUIDE.md) for the command menu.
+Open `ResearchWikiCodex.command` on macOS, or `ResearchWikiCodex.cmd` on Windows, when working manually. It is the canonical Codex-first launcher: local/no-token steps refresh the dashboard, scan PDFs, open source files, rebuild indexes, and prepare prompts; Codex handles source judgment, full-text QC, paper pages, synthesis, and issue discussion. See [USER_GUIDE.md](USER_GUIDE.md) for the command menu.
+
+Use `InitializeResearchWiki.command` on macOS, or `InitializeResearchWiki.cmd` on Windows, for first-time topic setup or an explicitly confirmed local reset.
 
 ## What The Command Does
 
-`ResearchWiki.command` is the low-token / no-token entrypoint. It exists so Codex does not spend time scanning folders, renaming files, rebuilding indexes, or running diagnostics.
+`ResearchWikiCodex.command` is the low-token / no-token entrypoint. It exists so Codex does not spend time scanning folders, renaming files, rebuilding indexes, or running diagnostics.
 
-The command is the default interface for this data model, not the source of the database rules. It handles source intake, legal source-page opening, PDF/evidence import, staging extraction, index rebuilds, Codex full-text QC, wiki ingest, health checks, and support issue drafts. Local/no-token steps must not secretly launch Codex; Codex is for source judgment, full-text reflow/QC, paper pages, synthesis, and project discussion. Full menu details live in [USER_GUIDE.md](USER_GUIDE.md).
+The command is the default interface for this data model, not the source of the database rules. It can refresh and open the dashboard, scan PDFs, hand full-text QC directly to Codex, prepare synthesis discussion pages/prompts, prepare same-computer external sandbox prompts, and prepare a Codex issue-reporting prompt. Local/no-token steps must not secretly launch Codex; Codex is for source judgment, full-text reflow/QC, paper pages, synthesis, and project discussion. Full menu details live in [USER_GUIDE.md](USER_GUIDE.md).
 
 ## Support
 

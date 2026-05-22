@@ -6,6 +6,7 @@ This script reports issues only. It does not edit or delete files.
 
 from __future__ import annotations
 
+import hashlib
 import json
 import re
 from pathlib import Path
@@ -16,6 +17,7 @@ WIKI = ROOT / "wiki"
 RAW = ROOT / "raw"
 DOI_DASHBOARD = RAW / "doi_dashboard.md"
 PAPER_SOURCES = RAW / "paper_sources.md"
+DOI_PDF_DIR = RAW / "doi_pdf"
 FULL_TEXT_DIR = RAW / "full_text"
 FULL_TEXT_INDEX_JSON = RAW / "full_text_index.json"
 CORE_REQUIRED = [
@@ -29,8 +31,10 @@ CORE_REQUIRED = [
 OLD_BOARD_HEADER = "| DOI | Status | Title | Full Text | Wiki Page | Next Action | Updated | Note |"
 LEGACY_BOARD_HEADER = "| Paper | Journal | DOI | Wiki Status | Access Legality | PDF | Full Text | Next Action | Updated | Note |"
 LEGACY_DETAIL_BOARD_HEADER = "| Last Name_Year | Journal | DOI | Wiki Status | Access Legality | PDF | Full Text | Next Action | Updated | Note |"
-BOARD_HEADER = "| Last Name_Year | Journal | DOI | Wiki Status | Access Legality | PDF | Full Text |"
+LEGACY_COMPACT_BOARD_HEADER = "| Last Name_Year | Journal | DOI | Wiki Status | Access Legality | PDF | Full Text |"
+BOARD_HEADER = "| Last Name_Year | Journal | DOI | Wiki Status | PDF | Full Text |"
 DOI_RE = re.compile(r"10\.\d{4,9}/[-._;()/:A-Z0-9]+", re.IGNORECASE)
+COPERNICUS_FILENAME_COPY_DOI_RE = re.compile(r"^(10\.5194/[a-z][a-z0-9]*-\d+-\d+-(?:19|20)\d{2})-\d+$")
 WIKILINK_RE = re.compile(r"\[\[([^\]|#]+)(?:#[^\]|]+)?(?:\|[^\]]+)?\]\]")
 VIRTUAL_LINK_PREFIXES = ("topic_", "subtopic_")
 
@@ -47,7 +51,17 @@ def normalize_doi(value: str) -> str:
     value = value.strip().rstrip(".,;")
     value = re.sub(r"^https?://(dx\.)?doi\.org/", "", value, flags=re.IGNORECASE)
     value = re.sub(r"^doi:\s*", "", value, flags=re.IGNORECASE)
-    return value.lower()
+    value = value.lower()
+    copy_suffix = COPERNICUS_FILENAME_COPY_DOI_RE.fullmatch(value)
+    return copy_suffix.group(1) if copy_suffix else value
+
+
+def file_digest(path: Path) -> str:
+    digest = hashlib.sha256()
+    with path.open("rb") as handle:
+        for chunk in iter(lambda: handle.read(1024 * 1024), b""):
+            digest.update(chunk)
+    return digest.hexdigest()
 
 
 def split_row(line: str) -> list[str]:
@@ -72,8 +86,11 @@ def parse_dashboard() -> list[dict[str, str]]:
     rows: list[dict[str, str]] = []
     in_board = ""
     for line in read(DOI_DASHBOARD).splitlines():
-        if line.strip() in {BOARD_HEADER, LEGACY_BOARD_HEADER, LEGACY_DETAIL_BOARD_HEADER}:
+        if line.strip() == BOARD_HEADER:
             in_board = "new"
+            continue
+        if line.strip() in {LEGACY_BOARD_HEADER, LEGACY_DETAIL_BOARD_HEADER, LEGACY_COMPACT_BOARD_HEADER}:
+            in_board = "legacy"
             continue
         if line.strip() == OLD_BOARD_HEADER:
             in_board = "old"
@@ -81,7 +98,21 @@ def parse_dashboard() -> list[dict[str, str]]:
         if not in_board or line.strip().startswith("|---") or not line.startswith("|"):
             continue
         parts = split_row(line)
-        if in_board == "new" and len(parts) in {7, 10}:
+        if in_board == "new" and len(parts) == 6:
+            rows.append(
+                {
+                    "doi": normalize_doi(parts[2]),
+                    "status": parts[3],
+                    "access_legality": "",
+                    "pdf": "",
+                    "full_text": "",
+                    "wiki_page": "",
+                    "next_action": "",
+                    "updated": "",
+                    "note": "",
+                }
+            )
+        elif in_board == "legacy" and len(parts) in {7, 10}:
             rows.append(
                 {
                     "doi": normalize_doi(parts[2]),
@@ -189,6 +220,33 @@ def collect_issues() -> tuple[list[str], list[str]]:
             if any(marker in text for marker in pending_markers):
                 warnings.append(
                     f"Pending QC text in raw/full_text: {rel(path)}; move/recreate it through raw/staging/extracted_text and Paper intake"
+                )
+            if "extraction_status: codex_qc_done" in text and "table_quality:" not in text:
+                warnings.append(f"Missing table_quality in QCed full_text: {rel(path)}")
+
+    if DOI_PDF_DIR.exists():
+        pdfs = sorted(path for path in DOI_PDF_DIR.glob("*.pdf") if path.is_file() and not path.name.startswith("."))
+        by_size: dict[int, list[Path]] = {}
+        for path in pdfs:
+            try:
+                by_size.setdefault(path.stat().st_size, []).append(path)
+            except OSError:
+                warnings.append(f"Could not stat PDF while checking duplicates: {rel(path)}")
+        by_digest: dict[str, list[Path]] = {}
+        for same_size in by_size.values():
+            if len(same_size) < 2:
+                continue
+            for path in same_size:
+                try:
+                    by_digest.setdefault(file_digest(path), []).append(path)
+                except OSError:
+                    warnings.append(f"Could not read PDF while checking duplicates: {rel(path)}")
+        for duplicates in by_digest.values():
+            if len(duplicates) > 1:
+                warnings.append(
+                    "Duplicate PDF content in raw/doi_pdf: "
+                    + ", ".join(rel(path) for path in duplicates)
+                    + "; keep the canonical DOI PDF and use ResearchWikiCodex option 2 for confirmed cleanup if desired"
                 )
 
     pages = wiki_pages()

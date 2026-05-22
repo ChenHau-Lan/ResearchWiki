@@ -28,18 +28,11 @@ Use this minimal registry to keep research classification precise without creati
 
 | Topic | Graph Hub | Use When |
 |---|---|---|
-| `aerosol` | [[topic_aerosol]] | Aerosol properties, emissions, transport, aging, or aerosol-cloud interaction. |
-| `microphysics` | [[topic_microphysics]] | Cloud or precipitation microphysics. |
-| `cloud_physics` | [[topic_cloud_physics]] | Cloud formation, cloud lifetime, cloud radiative effects, or boundary-layer cloud behavior. |
-| `modeling` | [[topic_modeling]] | Numerical models, parameterizations, simulations, or sensitivity tests. |
-| `wildfire` | [[topic_wildfire]] | Wildfire emissions, smoke, plume transport, or fire-weather interaction. |
 
 ## Active Subtopics
 
 | Subtopic | Graph Hub | Use When |
 |---|---|---|
-| `aerosol_cloud_interaction` | [[subtopic_aerosol_cloud_interaction]] | Aerosol effects on cloud properties, precipitation, or radiative response. |
-| `wildfire_smoke_microphysics` | [[subtopic_wildfire_smoke_microphysics]] | Wildfire smoke effects on cloud or precipitation microphysics. |
 
 ## Candidate Subtopics
 

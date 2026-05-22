@@ -1,9 +1,10 @@
 #!/usr/bin/env python3
-"""Reset-first workflow tests for ResearchWiki.command.
+"""Reset-first intake-matrix tests for ResearchWiki.command.
 
-This test runner is intentionally integration-heavy: each scenario resets the
-local test database, lays down a small fixture state, runs the command helper,
-and records what happened. It uses only scoped project reset behavior.
+Each scenario resets the local test database, lays down one intake entry
+condition, runs the relevant command branch, and records what happened. The
+matrix is designed to debug source/DOI/PDF intake before exercising the full
+workflow.
 """
 
 from __future__ import annotations
@@ -65,26 +66,58 @@ def reset_database() -> str:
     return proc.stdout
 
 
-def option1_paper_intake(input_text: str = "1\n\n\n\n0\n", *, extra_env: dict[str, str] | None = None) -> str:
-    proc = run(["python3", "tools/research_wiki_shortcut.py"], input_text=input_text, extra_env=extra_env)
+def run_post_scenario_checks() -> str:
+    checks = [
+        ["python3", "tools/wiki_lint.py"],
+        ["python3", "tools/wiki_doctor.py"],
+        ["python3", "tools/check_install.py", "--strict"],
+    ]
+    outputs: list[str] = []
+    for command in checks:
+        proc = run(command, timeout=180)
+        label = " ".join(command)
+        outputs.append(f"$ {label}\n{proc.stdout.strip()}")
+        if proc.returncode != 0:
+            raise AssertionError(f"{label} failed:\n{proc.stdout}")
+    index = read_index()
+    if "summary" not in index or "entries" not in index:
+        raise AssertionError("raw/full_text_index.json is missing summary or entries")
+    outputs.append(
+        "$ inspect raw/full_text_index.*\n"
+        f"primary_entries={index['summary'].get('primary_entries')}; "
+        f"wiki_ingest_needed={index['summary'].get('wiki_ingest_needed')}; "
+        f"fulltext_qc_needed={index['summary'].get('fulltext_qc_needed')}"
+    )
+    rows = main_board_rows()
+    outputs.append("$ inspect raw/doi_dashboard.md\n" + "\n".join(rows or ["<no DOI rows>"]))
+    return "\n\n".join(outputs)
+
+
+def run_command(input_text: str, *, extra_env: dict[str, str] | None = None, timeout: int = 240) -> str:
+    proc = run(["python3", "tools/research_wiki_shortcut.py"], input_text=input_text, extra_env=extra_env, timeout=timeout)
     if proc.returncode != 0:
-        raise AssertionError(f"paper intake failed:\n{proc.stdout}")
+        raise AssertionError(f"ResearchWiki.command failed:\n{proc.stdout}")
     return proc.stdout
 
 
-def option6() -> str:
-    return option1_paper_intake()
+def paper_intake_add_source(value: str) -> str:
+    return run_command(f"1\n1\n{value}\n\n0\n\n0\n")
 
 
-def option6_qc_fail() -> str:
-    return option1_paper_intake(extra_env={"RESEARCHWIKI_TEST_QC_FAIL": "1"})
+def paper_intake_open_sources() -> str:
+    return run_command("1\n2\n\n\n0\n\n0\n")
 
 
-def option5_dry_run() -> str:
-    proc = run(["python3", "tools/research_wiki_shortcut.py"], input_text="1\n\n1\n\n0\n")
-    if proc.returncode != 0:
-        raise AssertionError(f"paper intake source-page dry run failed:\n{proc.stdout}")
-    return proc.stdout
+def paper_intake_local_import(*, extra_env: dict[str, str] | None = None) -> str:
+    return run_command("1\n3\n\n0\n\n0\n", extra_env=extra_env)
+
+
+def paper_intake_codex_qc(*, extra_env: dict[str, str] | None = None) -> str:
+    return run_command("1\n4\n\n0\n\n0\n", extra_env=extra_env)
+
+
+def paper_intake_source_fallback() -> str:
+    return run_command("1\n5\n\n0\n\n0\n")
 
 
 def option7_dry_run() -> str:
@@ -210,11 +243,43 @@ def copy_fixture(name: str, target_name: str | None = None) -> None:
 
 
 def add_dois(*dois: str) -> None:
-    doi_list = ROOT / "raw" / "paper_sources.md"
+    source_file = ROOT / "raw" / "paper_sources.md"
+    text = source_file.read_text(encoding="utf-8")
+    block = "\n".join(dois)
+    text = re.sub(r"```text\n.*?\n```", f"```text\n{block}\n```", text, flags=re.DOTALL)
+    source_file.write_text(text, encoding="utf-8")
+
+
+def add_to_legacy_doi_list(*dois: str) -> None:
+    doi_list = ROOT / "raw" / "doi_list.md"
     text = doi_list.read_text(encoding="utf-8")
     block = "\n".join(dois)
     text = re.sub(r"```text\n.*?\n```", f"```text\n{block}\n```", text, flags=re.DOTALL)
     doi_list.write_text(text, encoding="utf-8")
+
+
+def write_qced_full_text(path: str, doi: str, title: str) -> None:
+    target = ROOT / path
+    target.parent.mkdir(parents=True, exist_ok=True)
+    target.write_text(
+        f"""---
+title: "{title}"
+doi: {doi}
+language: en
+source_pdf: ""
+extraction_status: codex_qc_done
+readability_status: readable
+qc_status: codex_qc_done
+---
+
+# {title}
+
+This synthetic QCed full text represents a readable Markdown article that is
+already suitable for wiki ingest. It contains methods, results, discussion, and
+limitations in compact fixture prose without using real publisher text.
+""",
+        encoding="utf-8",
+    )
 
 
 def assert_contains(text: str, needle: str) -> None:
@@ -222,9 +287,50 @@ def assert_contains(text: str, needle: str) -> None:
         raise AssertionError(f"missing expected text: {needle}")
 
 
+def assert_not_contains(text: str, needle: str) -> None:
+    if needle in text:
+        raise AssertionError(f"unexpected text present: {needle}")
+
+
 def assert_file(path: str) -> None:
     if not (ROOT / path).exists():
         raise AssertionError(f"missing expected file: {path}")
+
+
+def assert_no_file(path: str) -> None:
+    if (ROOT / path).exists():
+        raise AssertionError(f"unexpected file exists: {path}")
+
+
+def assert_no_generated_files(directory: str) -> None:
+    root = ROOT / directory
+    generated = [path for path in root.iterdir() if path.name != ".gitkeep"]
+    if generated:
+        raise AssertionError(f"unexpected generated files in {directory}: {[path.name for path in generated]}")
+
+
+def main_board_rows() -> list[str]:
+    dashboard = read_dashboard()
+    match = re.search(r"## DOI Status Board\n\n(.*?)\n\n## DOI Notes", dashboard, flags=re.DOTALL)
+    if not match:
+        return []
+    return [
+        line
+        for line in match.group(1).splitlines()
+        if line.startswith("| ") and "|---" not in line and "Last Name_Year" not in line
+    ]
+
+
+def assert_one_dashboard_row_for(doi: str) -> None:
+    rows = [line for line in main_board_rows() if doi.lower() in line.lower()]
+    if len(rows) != 1:
+        raise AssertionError(f"expected exactly one main dashboard row for {doi}, found {len(rows)}: {rows}")
+
+
+def assert_no_codex_launch(output: str) -> None:
+    assert_not_contains(output, "Codex launch skipped")
+    assert_not_contains(output, "Starting Codex")
+    assert_not_contains(output, "Prompt that would be sent to Codex")
 
 
 def make_no_doi_pdf() -> None:
@@ -239,88 +345,262 @@ def make_no_doi_pdf() -> None:
     )
 
 
-def scenario_orphan_acp8() -> tuple[str, str]:
+def scenario_only_doi_in_legacy_list_creates_row_only() -> tuple[str, str]:
     reset_database()
-    copy_fixture("acp-8-15-2008.pdf")
-    out = option6()
+    add_to_legacy_doi_list("10.5194/acp-8-15-2008")
+    out = paper_intake_local_import()
     dash = read_dashboard()
     idx = read_index()
     assert_contains(dash, "10.5194/acp-8-15-2008")
-    assert_contains(dash, "ingest_full_text_to_wiki")
-    assert idx["summary"]["fulltext_qc_needed"] == 0
-    assert idx["summary"]["wiki_ingest_needed"] == 1
-    assert_file("raw/full_text/altaratz_2008_acp.md")
-    assert_file("raw/staging/extracted_text/altaratz_2008_acp.md")
-    return "orphan ACP PDF creates DOI row and QCed full_text", out
+    assert_contains(dash, "authorized_source_or_pdf_needed")
+    assert_one_dashboard_row_for("10.5194/acp-8-15-2008")
+    assert idx["summary"]["primary_entries"] == 0
+    assert_no_file("raw/doi_pdf/altaratz_2008_acp.pdf")
+    assert_no_file("raw/staging/extracted_text/altaratz_2008_acp.md")
+    assert_no_file("raw/full_text/altaratz_2008_acp.md")
+    assert_no_codex_launch(out)
+    return "only DOI in legacy list creates dashboard row and no evidence artifacts", out
 
 
-def scenario_doi_list_plus_pdf() -> tuple[str, str]:
+def scenario_command_add_source_doi_then_local_import() -> tuple[str, str]:
     reset_database()
-    add_dois("https://doi.org/10.5194/acp-21-9779-2021")
-    option5_out = option5_dry_run()
-    assert_contains(option5_out, "Authorized Source Pages")
-    assert_contains(option5_out, "10.5194/acp-21-9779-2021")
-    assert_contains(option5_out, "Expected PDF: unknown")
-    assert_contains(option5_out, "Open skipped because RESEARCHWIKI_NO_OPEN=1.")
-    copy_fixture("acp-21-9779-2021.pdf")
-    out = option6()
+    add_out = paper_intake_add_source("10.1002/2013jd019860")
+    assert_contains(add_out, "Added 1 source pointer")
+    assert_contains(read_paper_sources(), "10.1002/2013jd019860")
+    assert_no_codex_launch(add_out)
+
+    import_out = paper_intake_local_import()
+    dash = read_dashboard()
+    assert_contains(dash, "10.1002/2013jd019860")
+    assert_contains(dash, "authorized_source_or_pdf_needed")
+    assert_one_dashboard_row_for("10.1002/2013jd019860")
+    assert read_index()["summary"]["primary_entries"] == 0
+    assert_no_generated_files("raw/doi_pdf")
+    assert_no_generated_files("raw/staging/extracted_text")
+    assert_no_generated_files("raw/full_text")
+    assert_no_codex_launch(import_out)
+    return "command Add/open paper sources accepts DOI and local import creates row only", add_out + "\n\n--- local import ---\n\n" + import_out
+
+
+def scenario_doi_and_url_sources_dedupe_without_codex() -> tuple[str, str]:
+    reset_database()
+    article_url = "https://acp.copernicus.org/articles/21/9779/2021/"
+    pdf_url = "https://acp.copernicus.org/articles/21/9779/2021/acp-21-9779-2021.pdf"
+    add_dois(
+        "10.5194/acp-21-9779-2021",
+        "https://doi.org/10.5194/acp-21-9779-2021",
+        article_url,
+        pdf_url,
+    )
+    out = paper_intake_local_import()
     dash = read_dashboard()
     assert_contains(dash, "10.5194/acp-21-9779-2021")
+    assert_one_dashboard_row_for("10.5194/acp-21-9779-2021")
+    assert_contains(read_paper_sources(), article_url)
+    assert_contains(read_paper_sources(), pdf_url)
+    assert "https://doi.org/10.5194/acp-21-9779-2021" not in read_paper_sources()
+    assert read_index()["summary"]["primary_entries"] == 0
+    assert_no_codex_launch(out)
+    return "DOI plus DOI URL/article URL/PDF URL dedupe without Codex", out
+
+
+def scenario_duplicate_doi_across_queues_creates_one_row() -> tuple[str, str]:
+    reset_database()
+    doi = "10.5194/acp-21-9779-2021"
+    add_to_legacy_doi_list(doi)
+    add_dois(doi, f"https://doi.org/{doi}")
+    out = paper_intake_local_import()
+    dash = read_dashboard()
+    assert_contains(dash, doi)
+    assert_one_dashboard_row_for(doi)
+    assert_contains(dash, "authorized_source_or_pdf_needed")
+    assert "https://doi.org/10.5194/acp-21-9779-2021" not in read_paper_sources()
+    assert read_index()["summary"]["primary_entries"] == 0
+    assert_no_generated_files("raw/doi_pdf")
+    assert_no_generated_files("raw/staging/extracted_text")
+    assert_no_generated_files("raw/full_text")
+    assert_no_codex_launch(out)
+    return "duplicate DOI across legacy list and source queue creates one dashboard row", out
+
+
+def scenario_open_authorized_sources_is_local_no_token() -> tuple[str, str]:
+    reset_database()
+    add_dois(
+        "10.5194/acp-21-9779-2021",
+        "https://acp.copernicus.org/articles/21/9779/2021/",
+    )
+    out = paper_intake_open_sources()
+    dash = read_dashboard()
+    assert_contains(out, "Authorized Source Pages")
+    assert_contains(out, "Open skipped because RESEARCHWIKI_NO_OPEN=1.")
+    assert_contains(dash, "10.5194/acp-21-9779-2021")
+    assert_contains(dash, "authorized_source_or_pdf_needed")
+    assert_no_generated_files("raw/doi_pdf")
+    assert_no_generated_files("raw/staging/extracted_text")
+    assert_no_generated_files("raw/full_text")
+    assert_no_codex_launch(out)
+    return "open authorized source pages is local/no-token and never falls through to Codex", out
+
+
+def scenario_pdf_only_imports_to_staging_not_full_text() -> tuple[str, str]:
+    reset_database()
+    copy_fixture("acp-8-15-2008.pdf", "downloaded_article.pdf")
+    out = paper_intake_local_import()
+    dash = read_dashboard()
+    idx = read_index()
+    assert_contains(dash, "10.5194/acp-8-15-2008")
+    assert_contains(dash, "full_text_needed")
+    assert_contains(dash, "codex_convert_to_full_text")
+    assert_file("raw/doi_pdf/altaratz_2008_acp.pdf")
+    assert_file("raw/staging/extracted_text/altaratz_2008_acp.md")
+    assert_no_file("raw/full_text/altaratz_2008_acp.md")
+    assert idx["summary"]["primary_entries"] == 0
+    assert_no_codex_launch(out)
+    return "orphan PDF creates DOI row, canonical PDF, and staging only", out
+
+
+def scenario_uppercase_pdf_extension_imports_to_canonical_lowercase() -> tuple[str, str]:
+    reset_database()
+    copy_fixture("acp-8-15-2008.pdf", "Downloaded_Article.PDF")
+    out = paper_intake_local_import()
+    dash = read_dashboard()
+    assert_contains(dash, "10.5194/acp-8-15-2008")
+    assert_contains(dash, "codex_convert_to_full_text")
+    assert_file("raw/doi_pdf/altaratz_2008_acp.pdf")
+    assert_no_file("raw/doi_pdf/Downloaded_Article.PDF")
+    assert_file("raw/staging/extracted_text/altaratz_2008_acp.md")
+    assert_no_file("raw/full_text/altaratz_2008_acp.md")
+    assert read_index()["summary"]["primary_entries"] == 0
+    assert_no_codex_launch(out)
+    return "uppercase .PDF upload imports and renames to canonical lowercase .pdf", out
+
+
+def scenario_pdf_import_without_text_extractor_keeps_pdf_only() -> tuple[str, str]:
+    reset_database()
+    add_dois("10.5194/acp-21-9779-2021")
+    copy_fixture("acp-21-9779-2021.pdf", "acp-21-9779-2021.pdf")
+    out = paper_intake_local_import(extra_env={"RESEARCHWIKI_DISABLE_PDF_TEXT": "1"})
+    dash = read_dashboard()
+    assert_contains(out, "Could not extract text")
+    assert_contains(dash, "10.5194/acp-21-9779-2021")
+    assert_contains(dash, "full_text_needed")
+    assert_contains(dash, "codex_convert_to_full_text")
+    assert_file("raw/doi_pdf/acp_21_9779_2021.pdf")
+    assert_no_generated_files("raw/staging/extracted_text")
+    assert_no_generated_files("raw/full_text")
+    assert read_index()["summary"]["primary_entries"] == 0
+    assert_no_codex_launch(out)
+    return "PDF import without a local text extractor keeps PDF evidence only and does not create staging", out
+
+
+def scenario_doi_list_plus_pdf_pairs_then_qc_stub() -> tuple[str, str]:
+    reset_database()
+    add_dois("10.5194/acp-21-9779-2021")
+    copy_fixture("acp-21-9779-2021.pdf", "manual-download.pdf")
+    local_out = paper_intake_local_import()
+    dash = read_dashboard()
+    assert_contains(dash, "codex_convert_to_full_text")
+    assert_file("raw/doi_pdf/ansmann_2021_acp.pdf")
+    assert_file("raw/staging/extracted_text/ansmann_2021_acp.md")
+    assert_no_file("raw/full_text/ansmann_2021_acp.md")
+    assert_no_codex_launch(local_out)
+
+    qc_out = paper_intake_codex_qc()
+    dash = read_dashboard()
+    idx = read_index()
+    assert_contains(dash, "full_text_done")
     assert_contains(dash, "ingest_full_text_to_wiki")
     assert_file("raw/full_text/ansmann_2021_acp.md")
-    assert "10.5194/acp-21-9779-2021" not in read_paper_sources()
-    return "paper intake opens sources then DOI PDF synchronizes to canonical paths", option5_out + "\n\n--- intake with PDF ---\n\n" + out
+    assert idx["summary"]["primary_entries"] == 1
+    assert idx["summary"]["wiki_ingest_needed"] == 1
+    return "DOI row plus PDF pairs locally; QC stub creates final full_text", local_out + "\n\n--- QC stub ---\n\n" + qc_out
 
 
-def scenario_multi_batch() -> tuple[str, str]:
+def scenario_pdf_backfill_updates_existing_full_text_without_staging() -> tuple[str, str]:
     reset_database()
-    copy_fixture("acp-8-15-2008.pdf")
-    copy_fixture("acp-12-7285-2012.pdf")
-    copy_fixture("conrick_2021_waf.pdf", "wefo-WAF-D-21-0044.1.pdf")
-    out = option6()
-    idx = read_index()
-    assert idx["summary"]["primary_entries"] == 3
-    assert idx["summary"]["fulltext_qc_needed"] == 0
-    assert idx["summary"]["wiki_ingest_needed"] == 3
+    doi = "10.5194/acp-21-9779-2021"
+    add_dois(doi)
+    write_qced_full_text(
+        "raw/full_text/ansmann_2021_acp.md",
+        doi,
+        "Tropospheric and stratospheric wildfire smoke profiling with lidar",
+    )
+    index_out = run(["python3", "tools/build_full_text_index.py"]).stdout
+    copy_fixture("acp-21-9779-2021.pdf", "manual-backfill.pdf")
+    out = paper_intake_local_import()
     dash = read_dashboard()
-    assert_contains(dash, "10.1175/waf-d-21-0044.1")
-    assert_file("raw/full_text/conrick_2021_waf.md")
-    return "multiple orphan PDFs batch-import together", out
+    full_text = (ROOT / "raw" / "full_text" / "ansmann_2021_acp.md").read_text(encoding="utf-8")
+    idx = read_index()
+    assert_contains(dash, doi)
+    assert_contains(dash, "full_text_done")
+    assert_contains(dash, "ingest_full_text_to_wiki")
+    assert_contains(dash, "raw/doi_pdf/ansmann_2021_acp.pdf")
+    assert_contains(full_text, "source_pdf: raw/doi_pdf/ansmann_2021_acp.pdf")
+    assert_file("raw/doi_pdf/ansmann_2021_acp.pdf")
+    assert_no_generated_files("raw/staging/extracted_text")
+    assert idx["summary"]["primary_entries"] == 1
+    assert_no_codex_launch(out)
+    return "PDF backfill updates an existing QCed full_text without staging or Codex", index_out + "\n\n--- PDF backfill ---\n\n" + out
 
 
 def scenario_duplicate_pdf() -> tuple[str, str]:
     reset_database()
     copy_fixture("acp-21-9779-2021.pdf")
     copy_fixture("acp-21-9779-2021.pdf", "copy-acp-21-9779-2021.pdf")
-    out = option6()
+    out = paper_intake_local_import()
     idx = read_index()
-    assert idx["summary"]["primary_entries"] == 1
+    assert idx["summary"]["primary_entries"] == 0
     assert_contains(out, "duplicate-looking PDF")
-    return "duplicate PDF is warned but canonical evidence stays intact", out
+    assert_file("raw/staging/extracted_text/ansmann_2021_acp.md")
+    assert_no_file("raw/full_text/ansmann_2021_acp.md")
+    assert_no_codex_launch(out)
+    return "duplicate PDF warns while local staging evidence stays canonical", out
 
 
 def scenario_non_pdf_rejected() -> tuple[str, str]:
     reset_database()
     (ROOT / "raw" / "doi_pdf" / "not_a_pdf.pdf").write_text("<html>not a pdf</html>", encoding="utf-8")
-    out = option6()
+    out = paper_intake_local_import()
     assert_contains(out, "does not look like a PDF")
     assert read_index()["summary"]["primary_entries"] == 0
+    assert_no_codex_launch(out)
     return "HTML/error file in doi_pdf is rejected", out
 
 
 def scenario_valid_pdf_no_doi() -> tuple[str, str]:
     reset_database()
     make_no_doi_pdf()
-    out = option6()
+    out = paper_intake_local_import()
     assert_contains(out, "no DOI could be extracted")
     assert read_index()["summary"]["primary_entries"] == 0
+    assert_no_codex_launch(out)
     return "valid PDF without DOI is not silently ingested", out
+
+
+def scenario_pdf_doi_mismatch_creates_separate_row() -> tuple[str, str]:
+    reset_database()
+    add_dois("10.5194/acp-21-9779-2021")
+    copy_fixture("acp-8-15-2008.pdf", "wrong-paper.pdf")
+    out = paper_intake_local_import()
+    dash = read_dashboard()
+    assert_one_dashboard_row_for("10.5194/acp-21-9779-2021")
+    assert_one_dashboard_row_for("10.5194/acp-8-15-2008")
+    rows = main_board_rows()
+    acp21 = next(row for row in rows if "10.5194/acp-21-9779-2021" in row)
+    acp8 = next(row for row in rows if "10.5194/acp-8-15-2008" in row)
+    if "raw/doi_pdf/" in acp21:
+        raise AssertionError("mismatched PDF should not be attached to queued DOI")
+    assert_contains(acp8, "raw/doi_pdf/altaratz_2008_acp.pdf")
+    assert_file("raw/staging/extracted_text/altaratz_2008_acp.md")
+    assert_no_codex_launch(out)
+    return "PDF DOI mismatch creates a separate DOI row instead of forcing a bad match", out
 
 
 def scenario_qc_failure_keeps_staging_out_of_index() -> tuple[str, str]:
     reset_database()
     copy_fixture("acp-8-15-2008.pdf")
-    out = option6_qc_fail()
+    local_out = paper_intake_local_import()
+    out = paper_intake_codex_qc(extra_env={"RESEARCHWIKI_TEST_QC_FAIL": "1"})
     dash = read_dashboard()
     idx = read_index()
     assert_contains(out, "Test-mode QC failure")
@@ -330,7 +610,52 @@ def scenario_qc_failure_keeps_staging_out_of_index() -> tuple[str, str]:
         raise AssertionError("QC failure should not create raw/full_text/altaratz_2008_acp.md")
     assert_file("raw/staging/extracted_text/altaratz_2008_acp.md")
     assert idx["summary"]["primary_entries"] == 0
-    return "QC failure keeps staging out of raw/full_text and full_text index", out
+    assert_no_codex_launch(local_out)
+    return "QC failure keeps staging out of raw/full_text and full_text index", local_out + "\n\n--- QC failure ---\n\n" + out
+
+
+def scenario_pending_full_text_is_rejected_then_cleaned() -> tuple[str, str]:
+    reset_database()
+    add_dois("10.5194/acp-21-9779-2021")
+    local_out = paper_intake_local_import()
+    pending_path = ROOT / "raw" / "full_text" / "ansmann_2021_acp.md"
+    pending_path.write_text(
+        """---
+title: Synthetic pending full text fixture
+doi: 10.5194/acp-21-9779-2021
+extraction_status: machine_extracted_needs_codex_qc
+readability_status: needs_codex_qc
+qc_status: pending_codex_qc
+---
+
+This file intentionally imitates a bad machine extraction in raw/full_text.
+It must be rejected by lint and skipped by the full_text index.
+""",
+        encoding="utf-8",
+    )
+    build_out = run(["python3", "tools/build_full_text_index.py"]).stdout
+    idx = read_index()
+    assert idx["summary"]["primary_entries"] == 0
+    assert idx["summary"]["fulltext_qc_needed"] == 0
+    ingest_out = option7_dry_run()
+    assert_contains(ingest_out, "No DOI rows currently have QCed full_text waiting for wiki ingest or cleanup.")
+    lint_proc = run(["python3", "tools/wiki_lint.py"])
+    if lint_proc.returncode == 0:
+        raise AssertionError("wiki_lint should reject pending QC text in raw/full_text")
+    assert_contains(lint_proc.stdout, "raw/full_text may only contain QCed readable full text")
+    cleanup_out = reset_database()
+    return (
+        "pending machine-extracted full_text is rejected by lint, skipped by index, and ignored by wiki ingest",
+        local_out
+        + "\n\n--- pending full_text index ---\n\n"
+        + build_out
+        + "\n\n--- wiki ingest before cleanup ---\n\n"
+        + ingest_out
+        + "\n\n--- lint rejection ---\n\n"
+        + lint_proc.stdout
+        + "\n\n--- cleanup reset ---\n\n"
+        + cleanup_out,
+    )
 
 
 def scenario_initializer_cleans_legacy() -> tuple[str, str]:
@@ -350,35 +675,42 @@ def scenario_initializer_cleans_legacy() -> tuple[str, str]:
 def scenario_canonical_pdf_without_row() -> tuple[str, str]:
     reset_database()
     copy_fixture("conrick_2021_waf.pdf")
-    out = option6()
+    out = paper_intake_local_import()
     dash = read_dashboard()
     assert_contains(dash, "10.1175/waf-d-21-0044.1")
     assert_contains(dash, "raw/doi_pdf/conrick_2021_waf.pdf")
-    assert_file("raw/full_text/conrick_2021_waf.md")
-    return "canonical-named orphan PDF still creates DOI row", out
+    assert_file("raw/staging/extracted_text/conrick_2021_waf.md")
+    assert_no_file("raw/full_text/conrick_2021_waf.md")
+    assert_no_codex_launch(out)
+    return "canonical-named orphan PDF still creates DOI row and staging only", out
 
 
 def scenario_second_run_idempotent() -> tuple[str, str]:
     reset_database()
     copy_fixture("acp-8-15-2008.pdf")
-    option6()
-    out = option6()
+    paper_intake_local_import()
+    out = paper_intake_local_import()
     idx = read_index()
-    assert idx["summary"]["primary_entries"] == 1
-    assert idx["summary"]["fulltext_qc_needed"] == 0
-    assert_contains(read_dashboard(), "ingest_full_text_to_wiki")
-    return "running paper intake twice is idempotent for QCed full_text rows", out
+    assert idx["summary"]["primary_entries"] == 0
+    assert_contains(read_dashboard(), "codex_convert_to_full_text")
+    assert_file("raw/staging/extracted_text/altaratz_2008_acp.md")
+    assert_no_file("raw/full_text/altaratz_2008_acp.md")
+    assert_no_codex_launch(out)
+    return "running local import twice is idempotent before Codex QC", out
 
 
 def scenario_option7_dry_run() -> tuple[str, str]:
     reset_database()
     copy_fixture("acp-12-7285-2012.pdf")
-    option6()
+    paper_intake_local_import()
+    no_qc_out = option7_dry_run()
+    assert_contains(no_qc_out, "No DOI rows currently have QCed full_text waiting for wiki ingest or cleanup.")
+    paper_intake_codex_qc()
     out = option7_dry_run()
     assert_contains(out, "Codex launch skipped because RESEARCHWIKI_NO_OPEN=1.")
     assert_contains(out, "Create, update, or clean wiki/literature paper pages from already QCed raw/full_text Markdown")
     assert_contains(out, "Do not acquire new PDFs, new sources, or perform full_text reflow/QC")
-    return "wiki ingest selects QCed full_text rows and emits wiki-only prompt", out
+    return "wiki ingest ignores staging and selects only QCed full_text rows", no_qc_out + "\n\n--- after QC ---\n\n" + out
 
 
 def scenario_article_url_stays_in_source_queue() -> tuple[str, str]:
@@ -391,25 +723,53 @@ def scenario_article_url_stays_in_source_queue() -> tuple[str, str]:
         ),
         encoding="utf-8",
     )
-    option5_out = option5_dry_run()
+    option5_out = paper_intake_open_sources()
     assert_contains(option5_out, "https://example.org/articles/no-doi-yet")
     assert_contains(read_paper_sources(), "https://example.org/articles/no-doi-yet")
     return "article URL without DOI remains in source queue and intake lists it", option5_out
 
 
+def scenario_explicit_source_fallback_is_llm_only_exception() -> tuple[str, str]:
+    reset_database()
+    paper_sources = ROOT / "raw" / "paper_sources.md"
+    paper_sources.write_text(
+        paper_sources.read_text(encoding="utf-8").replace(
+            "```text\n\n```",
+            "```text\nhttps://example.org/articles/no-doi-yet\n```",
+        ),
+        encoding="utf-8",
+    )
+    local_out = paper_intake_open_sources()
+    assert_no_codex_launch(local_out)
+    fallback_out = paper_intake_source_fallback()
+    assert_contains(fallback_out, "Codex Source-Resolution Fallback")
+    assert_contains(fallback_out, "Prompt that would be sent to Codex")
+    return "source-resolution fallback is explicit LLM path, not local intake", local_out + "\n\n--- fallback ---\n\n" + fallback_out
+
+
 SCENARIOS = [
-    scenario_orphan_acp8,
-    scenario_doi_list_plus_pdf,
-    scenario_multi_batch,
+    scenario_only_doi_in_legacy_list_creates_row_only,
+    scenario_command_add_source_doi_then_local_import,
+    scenario_doi_and_url_sources_dedupe_without_codex,
+    scenario_duplicate_doi_across_queues_creates_one_row,
+    scenario_open_authorized_sources_is_local_no_token,
+    scenario_pdf_only_imports_to_staging_not_full_text,
+    scenario_uppercase_pdf_extension_imports_to_canonical_lowercase,
+    scenario_pdf_import_without_text_extractor_keeps_pdf_only,
+    scenario_doi_list_plus_pdf_pairs_then_qc_stub,
+    scenario_pdf_backfill_updates_existing_full_text_without_staging,
     scenario_duplicate_pdf,
     scenario_non_pdf_rejected,
     scenario_valid_pdf_no_doi,
+    scenario_pdf_doi_mismatch_creates_separate_row,
     scenario_qc_failure_keeps_staging_out_of_index,
+    scenario_pending_full_text_is_rejected_then_cleaned,
     scenario_initializer_cleans_legacy,
     scenario_canonical_pdf_without_row,
     scenario_second_run_idempotent,
     scenario_option7_dry_run,
     scenario_article_url_stays_in_source_queue,
+    scenario_explicit_source_fallback_is_llm_only_exception,
 ]
 
 
@@ -422,7 +782,9 @@ def build_final_sample_state() -> str:
         "conrick_2021_waf.pdf",
     ]:
         copy_fixture(name)
-    return option6()
+    local_out = paper_intake_local_import()
+    qc_out = paper_intake_codex_qc()
+    return local_out + "\n\n--- QC stub ---\n\n" + qc_out
 
 
 def finish_state() -> tuple[str, str]:
@@ -438,7 +800,8 @@ def main() -> int:
         name = scenario.__name__
         try:
             description, output = scenario()
-            results.append({"index": str(index), "name": name, "description": description, "status": "PASS", "output": output})
+            validation = run_post_scenario_checks()
+            results.append({"index": str(index), "name": name, "description": description, "status": "PASS", "output": output + "\n\n--- post-scenario checks ---\n\n" + validation})
             print(f"PASS {index}: {description}")
         except Exception as exc:
             results.append({"index": str(index), "name": name, "description": name, "status": "FAIL", "output": str(exc)})

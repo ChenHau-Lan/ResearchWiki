@@ -61,13 +61,13 @@ After installing or confirming tools, run python3 tools/check_install.py --stric
 When it succeeds, tell me how to open ResearchWiki.command. Do not upload private PDFs, full text, local paths, sensitive DOI lists, or Codex logs.
 ```
 
-Open `ResearchWiki.command` when working manually. It can help add source pointers, open legal source pages, import evidence, create QCed full text, and then turn full text into paper pages. See [USER_GUIDE.md](USER_GUIDE.md) for the command menu.
+Open `ResearchWiki.command` when working manually. Its `Paper intake` separates local/no-token steps from Codex steps: add source pointers, open legal source pages, import PDF/evidence, extract staging text, and rebuild indexes first; then explicitly hand staging text to Codex reflow/QC before `raw/full_text/` is created. Wiki ingest comes after QCed full text exists. See [USER_GUIDE.md](USER_GUIDE.md) for the command menu.
 
 ## What The Command Does
 
 `ResearchWiki.command` is the low-token / no-token entrypoint. It exists so Codex does not spend time scanning folders, renaming files, rebuilding indexes, or running diagnostics.
 
-The command is the default interface for this data model, not the source of the database rules. It handles source intake, legal source-page opening, PDF/evidence import, staging extraction, Codex full-text QC, wiki ingest, health checks, and support issue drafts. Full menu details live in [USER_GUIDE.md](USER_GUIDE.md).
+The command is the default interface for this data model, not the source of the database rules. It handles source intake, legal source-page opening, PDF/evidence import, staging extraction, index rebuilds, Codex full-text QC, wiki ingest, health checks, and support issue drafts. Local/no-token steps must not secretly launch Codex; Codex is for source judgment, full-text reflow/QC, paper pages, synthesis, and project discussion. Full menu details live in [USER_GUIDE.md](USER_GUIDE.md).
 
 ## Support
 

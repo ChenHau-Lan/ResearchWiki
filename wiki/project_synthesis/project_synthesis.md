@@ -1,23 +1,23 @@
 ---
-type: synthesis
+type: project-synthesis
 status: draft
 source_status: personal-note
 reading_status: mixed
 review_stage: discussed
 topics: []
 subtopics: []
-keywords: [synthesis_index]
+keywords: [project_synthesis_index]
 created: 2026-05-21
 updated: 2026-05-21
 sources: []
 ---
-# Synthesis
+# Project Synthesis
 
-Cross-literature research judgment pages live in this folder.
+Cross-meeting project evolution, decision history, and project links live in this folder.
 
 ## Pages
 
-- No synthesis pages have been generated yet.
+- No project synthesis pages have been generated yet.
 
 ## Graph Links
 
@@ -26,4 +26,4 @@ Cross-literature research judgment pages live in this folder.
 - Related literature:
 - Related synthesis:
 - Related seminars:
-- Related projects: [[project_synthesis/project_synthesis]]
+- Related projects:

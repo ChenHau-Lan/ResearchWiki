@@ -1,23 +1,23 @@
 ---
-type: synthesis
+type: seminar
 status: draft
 source_status: personal-note
 reading_status: mixed
 review_stage: discussed
 topics: []
 subtopics: []
-keywords: [synthesis_index]
+keywords: [seminar_index]
 created: 2026-05-21
 updated: 2026-05-21
 sources: []
 ---
-# Synthesis
+# Seminars
 
-Cross-literature research judgment pages live in this folder.
+Seminar and talk records live in this folder.
 
 ## Pages
 
-- No synthesis pages have been generated yet.
+- No seminar pages have been generated yet.
 
 ## Graph Links
 

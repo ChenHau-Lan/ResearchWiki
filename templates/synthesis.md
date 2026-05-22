@@ -5,6 +5,7 @@ source_status: personal-note
 reading_status: mixed
 review_stage: discussed
 topics: []
+subtopics: []
 keywords: []
 created: YYYY-MM-DD
 updated: YYYY-MM-DD
@@ -13,50 +14,52 @@ sources: []
 
 # Synthesis Title
 
+## Template Field Guide
+
+- `type`: use `synthesis` for cross-paper research judgment.
+- `status`: `draft`, `reviewed`, `needs-verification`, or `deprecated`.
+- `source_status`: usually `personal-note` because this page is your synthesis; evidence items below keep their own source status.
+- `reading_status`: `mixed` unless all linked papers are full-read.
+- `review_stage`: `ai-extracted`, `human-checked`, `discussed`, `integrated`, or `cited`.
+- `topics` / `subtopics`: use [[literature/topic_registry|Topic Registry]].
+- Evidence priority: peer-reviewed full-read literature first, abstract-only literature second, seminars as low-priority context only.
+- Do not turn seminar claims into paper-backed conclusions unless verified through literature.
+
 ## Research Question
 
-What cross-paper, cross-code, or cross-dataset question does this page answer?
+What cross-paper question does this page answer?
 
-## Current Working Answer
-
-State the current interpretation. Mark uncertain parts as hypothesis.
-
-## Evidence Supporting
+## Current Synthesis
 
 - Claim:
-  Evidence:
-  Source:
+  - Evidence tier: peer-reviewed full-read / abstract-only / seminar-context / hypothesis
+  - Evidence links:
+  - Confidence:
 
-## Evidence Against / Complications
+## Evidence Map
 
-- Claim:
-  Evidence:
-  Source:
+| Evidence | Type | Reading Status | Supports | Limits |
+|---|---|---|---|---|
+|  | literature / seminar / raw |  |  |  |
 
-## Methodological Differences
+## Tensions / Contradictions
 
-- Study/code/dataset:
-  Difference:
-  Why it matters:
-
-## Code / Model Connections
-
-- Code page:
-  Implementation relevance:
-
-## My Interpretation
-
-- Research judgment:
-- Confidence:
-- What would change this view:
+- Tension:
+  - Source A:
+  - Source B:
+  - Current interpretation:
 
 ## Open Questions
 
 - Question:
-  Next source or test:
+  - Needed evidence:
+  - Next DOI or search:
 
-## Links
+## Graph Links
 
-- Related paper pages:
-- Related code pages:
-- Related concept pages:
+- Topics:
+- Subtopics:
+- Related literature:
+- Related synthesis:
+- Related seminars:
+- Related projects:

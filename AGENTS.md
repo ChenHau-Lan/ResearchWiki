@@ -1,11 +1,49 @@
 # Research Wiki Agent Instructions
 
-本專案是研究知識庫，用來整理文獻、程式碼邏輯、繪圖邏輯、演講素材、影片紀錄與日常想法。核心模式採用 Karpathy LLM Wiki：原始資料不可變，wiki 是可累積的整理層，`AGENTS.md` 是維護規則。
+本專案是 GitHub-ready Karpathy-style LLM Wiki 研究資料庫模板。核心原則是：
+
+- `core/` 是 command-independent source of truth，保存資料庫原理、資料契約、agent 契約、skills 與測試契約。
+- `raw/` 是 evidence layer，保存 DOI input、原始檔、可讀全文與索引。
+- `wiki/` 是 LLM-curated knowledge layer，保存單篇文獻事實、跨文獻判斷、meeting/project 脈絡與 seminar context。
+- `ResearchWiki.command` 是 core contract 的一個 command/UI implementation，負責低 token / 無 token 的本地操作，也負責把需要理解的任務交接給 Codex。
+- Codex / LLM token 應用在真正需要理解的任務：文獻攝入、全文理解、paper page 萃取、synthesis、project discussion。
+
+與一般 LLM Wiki 不同處：
+
+1. 有客製化 DOI list、DOI dashboard、full text cache 與 full text index。
+2. Paper wiki page 對文獻閱讀最佳化，但不複製全文。
+3. Command 讓使用者快速操作，避免把機械檢查浪費在 LLM token；預設 DOI 流程是第 5 項先開合法 PDF 頁面、第 6 項本地匯入 PDF 並抽成 full text、第 7 項才用 Codex ingest wiki。第 3 / 第 4 項 Codex acquisition 只是 fallback，用在 open publisher HTML/XML、授權瀏覽器 session 或真的需要來源判斷時。
+4. Obsidian graph 是一級功能，正式頁必須有 explicit wikilinks。
+5. 資料庫要能被定期診斷、產生 repair plan，但不可自動批量刪除。
+
+## Research Wiki Dev Mode
+
+當使用者討論「資料庫要如何更新、目錄/command/DOI workflow/maintenance/Obsidian graph/skills/templates 要如何修改」時，啟用 Research Wiki Dev Mode。
+
+此 mode 的角色：
+
+- 以資深研究資料庫架構師與產品工程師的角度協作。
+- 先保護 evidence chain，再追求自動化與便利性。
+- 偏好更少目錄、更少概念、更清楚流程；新增功能前先判斷是否真的必要。
+- 將 `raw/`、`wiki/`、`maintenance/` 分層清楚：raw 是證據，wiki 是知識，maintenance 是操作與診斷。
+- Command 只放低 token / 無 token 或必要 handoff；LLM token 留給文獻理解、研究判斷與使用者討論。
+- 對高風險功能主動指出限制：不可自動批量刪除，不可自動化未授權全文取得，不讓 dashboard 取代真實檔案證據。
+- 實作時同步更新 README / USER_GUIDE / AGENTS / command menu，並跑最小必要驗證。
+- 回應風格保持溫和、直接、有判斷力；不只照做，也要指出會讓資料庫長期壞掉的設計。
+
+## Core / Command / Personal Boundary
+
+- 核心規則優先讀 `core/principles.md`、`core/data_contract.md`、`core/agent_contract.md`、`core/test_contract.md` 與 `core/skills/`。
+- Command prompt 或工具若需要規則，必須引用 `core/*`；不要讓 `ResearchWiki.command` 成為唯一規則來源。
+- `main` 是 private protected integration branch 的目標狀態，應保持 template-safe。
+- `codex/core-*` 用於 core contract；`codex/command-*` 用於 command/UI；`personal/*` 用於個人研究狀態。
+- Issue 回報採 redacted prefilled URL；不自動送出，也不貼 private raw PDF/full_text/Codex logs。
 
 ## Deletion Safety
 
 禁止批量刪除文件或目錄。
 不要使用：
+
 - `del /s`
 - `rd /s`
 - `rmdir /s`
@@ -14,61 +52,109 @@
 
 需要刪除文件時，只能一次刪除一個明確路徑的文件。若需要批量刪除文件，停止操作並請使用者手動刪除。
 
-## Canonical Layers
+Repair tools must never delete files automatically. They may only write a human-readable repair plan.
 
-- `raw/` 是原始來源層，保存 PDF、Zotero 匯出、照片、影片、逐字稿、網頁剪輯、程式碼片段與資料檔。LLM 可讀取，但不應修改原始內容。
-- `inbox/` 是未整理素材層，保存演講照片、影片筆記、口頭想法、靈感與未驗證觀察。預設狀態是 `needs-verification`。
-- `wiki/` 是正式知識層，由 LLM 維護 Markdown 頁面，適合 Obsidian 瀏覽與 Git 追蹤。
-- `references.bib` 是正式文獻 citation 的唯一 BibTeX 來源。
-- `templates/` 保存新頁模板。建立新頁時優先沿用模板，而不是臨時發明格式。
-- `notion/` 保存 Notion dashboard/mirror 的規劃或匯出內容。本地 Markdown repo 是 source of truth。
+如果 `wiki_doctor.py` 或 repair plan 回報 `.DS_Store`，只把它當作 release hygiene。工具可以列出明確路徑與人工建議，但不可自動清理；若要處理，必須由人確認後一次只刪除一個指定檔案，不可使用 recursive、wildcard 或批量清理命令。
 
-## Knowledge Boundaries
+例外：`InitializeResearchWiki.command` 是本地測試用初始化工具，使用者已明確允許它在受限範圍內批量刪除測試資料。它必須要求互動式確認，只能清理 generated raw artifacts、`raw/doi_pdf/`、`raw/full_text/`、`raw/files/` 與正式 wiki 分區中的生成頁，並保留 tools、templates、skills、docs、topic registry 與 Obsidian 設定。它也應重寫各分區 index pages，避免 index 指向已刪除的生成頁。
 
-本 wiki 採用三種正式知識頁分工：
+## Active Scope
 
-- Paper page 是單篇文獻事實，放在 `wiki/literature/`。內容應忠實記錄該文獻的研究問題、方法、結果、限制、可引用 claims，以及針對該單篇文章的個人評論。
-- Code page 是實作事實，放在 `wiki/code/`。內容應記錄程式碼、資料流、參數、繪圖邏輯、輸出與限制；不要把整個 codebase 複製進 wiki。
-- Synthesis page 是研究判斷，放在 `wiki/synthesis/`。跨文獻比較、跨程式碼解讀、研究假說、矛盾證據與工作中的結論都應放在 synthesis page。
+正式主流程只維護：
 
-Paper、code、synthesis 應分開存放，但用 wiki links 互相連接。不要把跨文獻推論寫成單篇 paper 的作者結論。
+- Paper page：單篇論文閱讀頁，放在 `wiki/literature/`。
+- Synthesis page：跨文獻研究判斷，放在 `wiki/synthesis/`。
+- Meeting page：單次會議紀錄，放在 `wiki/meetings/`。
+- Project synthesis page：跨會議、project evolution、decision history、project 間關聯，放在 `wiki/project_synthesis/`。
+- Seminar page：seminar / talk 紀錄，放在 `wiki/seminars/`。
 
-## Research Integrity
+操作維護層不屬於正式 wiki：repair plan、release checklist、Codex logs、Obsidian graph 說明放在 repo 根目錄的 `maintenance/`。
 
-- 不捏造 citation。引用前必須確認 title、authors、venue/year、DOI 或 canonical URL。
-- 必須標記來源狀態：`peer-reviewed`、`preprint`、`dataset`、`software`、`talk`、`personal-note`、`non-academic`。
-- 非平凡學術主張需有 citation、明確原始來源，或清楚標記為假說/想法。
-- 每個非平凡研究主張應在同段或同 bullet 內標註 citation key、raw path、code path，或明確標記為 hypothesis。
-- `references.bib` 與文獻頁 metadata 必須一致。
-- 只讀摘要或二手資料時，必須明確標註閱讀限制，不可假裝已讀全文。
+不要恢復 code wiki、inbox、Notion mirror、同步腳本或副資料庫流程。若被提到，只記錄到 `DEFERRED_FEATURES.md`。
 
-## Taxonomy
+## Canonical Files
 
-正式 wiki 以頁面角色分區，但 frontmatter 的 `topics` 仍以研究主題分類。
+- `raw/doi_list.md`：只用來貼新的 DOI。
+- `raw/doi_dashboard.md`：DOI 處理狀態看板，不是 evidence source of truth。
+- `raw/doi_pdf/`：DOI 對應 PDF，命名為 `<paper_file_key>.pdf`。
+- `raw/full_text/`：最後可閱讀版全文 Markdown，命名為 `<paper_file_key>.md`。
+- `raw/full_text_index.md` 與 `raw/full_text_index.json`：全文、DOI、paper page 的 dispatch index。
+- `raw/files/`：seminar slides、meeting transcript 或使用者提供的其他原始檔；DOI 論文 PDF 優先放 `raw/doi_pdf/`。
+- `wiki/literature/topic_registry.md`：topics、subtopics 與 graph hub 規則。
+- `references.bib`：後期正式 citation registry。
 
-Top-level wiki folders:
+真正證據永遠是實際存在的 raw/doi_pdf、raw/full_text、wiki/literature、raw/full_text_index.* 與 raw/files。Dashboard 只記錄處理狀態；若 dashboard 指到不存在的檔案，工具必須降級狀態。
 
-- `wiki/literature/`：單篇文獻頁、文獻 keyword pages、文獻佇列。
-- `wiki/code/`：程式碼、資料流、演算法、繪圖邏輯、實驗實作。
-- `wiki/synthesis/`：跨文獻、跨程式碼、跨資料的研究判斷。
-- `wiki/concepts/`：穩定概念、定義、術語與背景知識。
+## Query Priority
 
-`topics` 是少量、穩定、高層研究領域。Paper page 的 `topics:` 必須優先從 `wiki/literature/paper_topics.md` 的 active list 選取，例如 `aerosol`、`microphysics`、`cloud_physics`、`remote_sensing`、`modeling`、`instrumentation`、`tropical_cyclone`、`precipitation`、`wildfire`、`radar_meteorology`、`field_campaign`、`climate_change`。
+一般研究問題預設查詢順序：
 
-`keywords` 是較細的研究概念、方法、資料集、機制或現象，用來建立 Obsidian graph，例如 `aerosol_cloud_interaction`、`drop_size_distribution`、`microphysics_scheme`。只有當某個 keyword 預期會連到多篇 paper、code page 或 synthesis page，才建立 `keyword_*` 或 concept page。
+1. `wiki/synthesis/`
+2. `wiki/literature/`
+3. `wiki/seminars/`
 
-## Wiki Page Frontmatter
+只有使用者問 project history、meeting decision、action tracking、跨 project 關聯時，才優先查：
 
-每個正式 wiki page 必須使用 YAML frontmatter：
+1. `wiki/project_synthesis/`
+2. `wiki/meetings/`
+
+Seminar 可作為 synthesis 的討論材料，但 evidence tier 低於 peer-reviewed literature。Abstract-only paper 不可當成 full-read evidence。
+
+## DOI Status Board
+
+`raw/doi_dashboard.md` 的狀態只使用：
+
+- `new`：剛加入，尚未處理。
+- `metadata_ok`：已確認 title/authors/year/venue/DOI。
+- `full_text_needed`：metadata 有了，但還沒有可讀全文。
+- `full_text_done`：已生成 `raw/full_text/<paper_file_key>.md`。
+- `wiki_done`：已生成 `wiki/literature/<slug>.md`。
+- `abstract_only`：只能取得摘要，paper page 必須標明限制。
+- `blocked`：DOI 錯誤、來源不可用、權限不足或需要人工處理。
+
+Dashboard 主看板欄位固定為 `Last Name_Year`、`Journal`、`DOI`、`Wiki Status`、`Access Legality`、`PDF`、`Full Text`。較長的 `Next Action`、`Updated`、`Note` 放在同檔案的 `DOI Notes` 區塊，避免主看板太難讀。每次處理 DOI 後，至少更新 wiki status、論文取得合法性、PDF、Full Text、Next Action、Updated 與 Note。
+
+## Paper Ingest Workflow
+
+本資料庫將 DOI 攝入分成兩段：
+
+### A. Full-Text Acquisition
+
+1. 從 `raw/doi_list.md` 讀取新 DOI，並轉入 `raw/doi_dashboard.md`。
+2. 查重：`raw/doi_dashboard.md`、`raw/doi_pdf/`、`raw/full_text/`、`raw/full_text_index.*`、`raw/files/`。
+3. 驗證 citation metadata；不可捏造 title、authors、venue/year、DOI 或 URL。
+4. 優先採用 PDF-first 半自動流程：開啟 DOI/publisher 頁面，讓使用者從 publisher、作者、open-access、institutional access 或使用者已授權來源下載 PDF 到 `raw/doi_pdf/`，再由本地工具抽成 `raw/full_text/`。Codex fallback 才處理 publisher HTML/XML、授權瀏覽器 PDF download、授權瀏覽器 DOM 或特殊來源判斷。不要自動化 shadow-library 或未授權 PDF 下載。
+5. DOI PDF 若能合法取得，統一存到 `raw/doi_pdf/<paper_file_key>.pdf`。PDF 是原始版面 evidence，建議保存，但若 publisher HTML/XML/DOM 已提供完整全文，PDF 缺失不應阻止 wiki ingest；應標為 PDF backfill。
+6. PDF 本地抽字先寫入 `raw/full_text/<paper_file_key>.md`，但必須標記 `extraction_status: machine_extracted_needs_codex_qc`、`readability_status: needs_codex_qc`、`qc_status: pending_codex_qc`。Codex reflow/QC 完成後，才可把它視為 wiki ingest 的可閱讀全文。
+7. 新增或修正文獻全文後，執行 `python3 tools/build_full_text_index.py`。
+8. 若使用者手動下載 PDF，直接放到 `raw/doi_pdf/`。本地 command 應掃描該資料夾中的額外 PDF；若 PDF 內有 DOI 但 dashboard 沒有 row，必須建立 dashboard row，之後改名為 `<paper_file_key>.pdf`，抽成 machine-extracted `raw/full_text/<paper_file_key>.md`，更新 full_text frontmatter 的 `source_pdf`、dashboard 與 index，下一步設為 `codex_qc_full_text`。
+9. 回填 `raw/doi_dashboard.md`：機械抽字完成但尚未 QC 時標 `full_text_needed`，下一步設為 `codex_qc_full_text`；Codex QC 完成後才標 `full_text_done`，下一步設為 `ingest_full_text_to_wiki`。
+10. 這一段不要建立或更新 paper page，也不要寫 synthesis。
+
+### B. Wiki Ingest
+
+1. 只從已存在的 `raw/full_text/<paper_file_key>.md` 讀取全文。
+2. 從 full text 萃取 `wiki/literature/<slug>.md`，並設定 `reading_status: full-read`。
+3. 若只有 metadata 或 abstract，也可建立 paper page，但必須設定 `reading_status: metadata-only` 或 `abstract-only`，不可假裝已讀全文。
+4. Paper page 只放該篇論文本身內容與必要來源指標；不要放 template field guide、空欄位、操作紀錄、通用 Zotero boilerplate 或沒有資訊量的維護段落。
+5. 回填 `raw/doi_dashboard.md`：paper page 完成且 full-read 時標 `wiki_done`。
+6. 若跨文獻判斷改變，更新 `wiki/synthesis/`，不是塞進單篇 paper page。
+
+`paper_file_key` 規則：`first_author_last_name_year_journal_abbrev`，全部小寫 ASCII，空白與標點改為 `_`。期刊有常見縮寫時使用縮寫；例如 `Weather and Forecasting` 可用 `waf`，`Atmospheric Chemistry and Physics` 可用 `acp`。若同名衝突，追加短 DOI slug，例如 `_waf_d_21_0044_1`。
+
+## Frontmatter
+
+正式 wiki page 必須使用 YAML frontmatter：
 
 ```yaml
 ---
-type: paper | concept | method | code | dataset | talk | idea | synthesis
+type: paper | synthesis | meeting | project-synthesis | seminar
 status: draft | reviewed | needs-verification | deprecated
 source_status: peer-reviewed | preprint | dataset | software | talk | personal-note | non-academic
 reading_status: metadata-only | abstract-only | skimmed | full-read | reproduced | mixed
 review_stage: ai-extracted | human-checked | discussed | integrated | cited
 topics: []
+subtopics: []
 keywords: []
 created: YYYY-MM-DD
 updated: YYYY-MM-DD
@@ -76,84 +162,53 @@ sources: []
 ---
 ```
 
-## Standard Workflows
+Navigation/support pages may keep support metadata, but they must not introduce new content categories.
 
-### research-session
+## Topics, Subtopics, Keywords
 
-1. 將使用者問題拆成主題；若一個請求包含多個主題，必須分別建立問題紀錄。
-2. 使用 `templates/question-record.md` 在 `wiki/research_records/` 建立 `questions_<topic>_<YYYY-MM-DD>.md`。
-3. 若有搜尋或新增文獻，使用 `templates/search-ingest.md` 建立 `search_ingest_<topic>_<YYYY-MM-DD>.md`。
-4. 原始搜尋紀錄、網頁剪輯、PDF 或 metadata export 放入 `raw/`。
-5. 單篇文獻寫入 `wiki/literature/`，跨文獻回答寫入 `wiki/synthesis/`。
-6. 更新 `wiki/research_records/research_records.md` 與 `wiki/log.md`。
+- `topics`：少量、穩定、高層研究領域。
+- `subtopics`：更精準的檢索分類，只有反覆使用才提升為 active。
+- `keywords`：自由但可控的細節詞，不一定建立 graph node。
 
-每次完整研究回答至少留下三種痕跡：問了什麼、搜了什麼或注入了什麼、哪個 synthesis 被更新。
+優先使用 `wiki/literature/topic_registry.md`。不要把每個 keyword 都升級成 subtopic。
 
-### ingest-paper
+## Obsidian Graph Links
 
-1. 讀取 PDF、Zotero item、DOI、URL 或使用者提供的 metadata。
-2. 驗證 citation metadata；若無法驗證，標記為 `needs-verification`。
-3. 更新或建立 `references.bib` entry。
-4. 使用 `templates/paper.md` 建立文獻頁。
-5. 單篇文獻事實寫入 paper page；跨文獻判斷只寫入 `wiki/synthesis/`。
-6. 更新相關 keyword/concept pages 與 synthesis pages。
-7. 更新 `wiki/index.md`。
-8. 在 `wiki/log.md` 追加一筆 `ingest-paper` 紀錄。
+每個正式頁都要包含：
 
-### ingest-code
+```md
+## Graph Links
 
-1. 讀取相關程式碼、README、notebook 或 commit context。
-2. 摘要目的、資料流、核心函式、參數選擇、繪圖邏輯與輸出解讀。
-3. 使用 `templates/code.md` 建立或更新 code knowledge page。
-4. 引用來源檔案、commit 或 raw code path；不要把整個 codebase 重寫進 wiki。
-5. 若需要解釋此實作如何影響研究判斷，更新對應 synthesis page，而不是塞進 code page。
-6. 更新 `wiki/index.md` 與 `wiki/log.md`。
+- Topics:
+- Subtopics:
+- Related literature:
+- Related synthesis:
+- Related seminars:
+- Related projects:
+```
 
-### capture-inbox
+使用 explicit wikilinks，例如 `[[topic_aerosol]]`、`[[subtopic_wildfire_smoke_microphysics]]`、`[[synthesis/synthesis]]`。不要只依賴 YAML，因為 Obsidian graph 對明確 wikilinks 最友善。
 
-1. 將照片、影片、逐字稿或臨時想法放入 `raw/` 或 `inbox/`。
-2. 使用 `templates/inbox.md` 建立 inbox 條目。
-3. 標記可信度與下一步：查文獻、問人、實作測試或丟棄。
-4. 不把 inbox 內容寫成正式結論。
-5. 更新 `wiki/log.md`。
+## Maintenance And Repair
 
-### lint-wiki
+定期執行：
 
-檢查：
-- 缺 citation 或 citation key 不存在於 `references.bib`。
-- Paper page 的 title/year/authors/DOI 是否與 `references.bib` 一致。
-- Synthesis claim 是否至少連到一個 paper page、code page 或 raw source。
-- 孤兒頁或未被 `wiki/index.md` 收錄的正式頁。
-- 互相矛盾或過時的 claims。
-- `inbox/` 中可升級為正式 wiki 的條目。
-- topic pages 中缺少 cross-reference 的概念。
+```bash
+python3 tools/wiki_lint.py
+python3 tools/wiki_doctor.py
+python3 tools/generate_repair_plan.py
+```
 
-Lint 後需在 `wiki/log.md` 追加 `lint-wiki` 紀錄。
+修復檢查重點：
 
-### scheduled-search
+- DOI dashboard duplicate / invalid DOI / stale paths。
+- full_text index 是否與實際檔案一致。
+- paper page 是否缺 DOI、reading_status、source_status、full text evidence。
+- synthesis 是否至少引用 paper / seminar / raw source。
+- seminar 是否標明 `talk` / non-peer-reviewed context。
+- project_synthesis 是否連回 meetings 或 project sources。
+- Obsidian unresolved links、orphan pages、missing Graph Links。
+- GitHub release 前檢查本機路徑、`.DS_Store`、private raw data、workspace noise。
+- `.DS_Store` 修復只列明確路徑與安全清理建議，不自動刪除；禁止用批量清理讓 release checklist 變乾淨。
 
-定時搜尋用於補充知識庫，不應無差別匯入所有結果。
-
-建議頻率：
-
-- Weekly：針對 1-3 個 active synthesis pages 搜尋新文獻，建立 search ingest record 與 candidate queue。
-- Monthly：將高優先候選文獻升級成 paper pages，更新 synthesis。
-- Quarterly：檢查 citation、template、synthesis evidence、keyword/concept 是否需要重整。
-
-定時搜尋需使用 tier 判定：
-
-- Tier 1：直接回答 active research question，建立 paper page 並更新 synthesis。
-- Tier 2：重要背景或方法，加入 queue 或 keyword page。
-- Tier 3：周邊但暫不處理，只記錄在 search ingest。
-- Reject：不相關、弱來源、重複或不可驗證，記錄拒絕理由。
-
-## Query Behavior
-
-回答問題時先讀 `wiki/index.md`，再讀相關 topic/page。回答需區分：
-
-- 已驗證 peer-reviewed 文獻。
-- preprint 或非同行審查來源。
-- 程式碼實作經驗。
-- inbox 或 personal-note 中的未驗證觀察。
-
-若 wiki 不足以回答，說明缺口並建議應補充的來源或下一步搜尋策略。
+Repair plan 只產生建議，不自動刪除。

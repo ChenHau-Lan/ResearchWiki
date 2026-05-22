@@ -1,10 +1,32 @@
 .DS_Store
-.obsidian/workspace.json
-.obsidian/workspace-mobile.json
+__pycache__/
+*.py[cod]
+.venv/
+venv/
+**/.obsidian/workspace.json
+**/.obsidian/workspace-mobile.json
+maintenance/codex_last_run.log
+maintenance/codex_app_last_run.log
+maintenance/codex_app_handoff_prompt.md
+maintenance/support_report.md
+maintenance/repair_plan_*.md
+maintenance/workflow_test_report_*.md
+maintenance/test_fixtures/doi_pdf/*.pdf
+references_old.bib
 
-# Keep raw source folders local by default. These may contain large PDFs,
-# photos, videos, transcripts, or downloaded source material.
+# Keep raw/evidence data out of Git. Sync it through the chosen data-sync
+# provider instead.
 raw/**
 !raw/
 !raw/**/
 !raw/**/.gitkeep
+!raw/doi_list.md
+!raw/doi_dashboard.md
+!raw/full_text_index.md
+!raw/full_text_index.json
+!raw/files/
+!raw/files/.gitkeep
+!raw/doi_pdf/
+!raw/doi_pdf/.gitkeep
+!raw/full_text/
+!raw/full_text/.gitkeep

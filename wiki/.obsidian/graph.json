@@ -1,13 +1,56 @@
 {
-  "collapse-filter": true,
-  "search": "path:literature -full_text: false -file:legacy -file:curated -file:external_search_queue -file:citation_chasing_queue -file:zotero_library_inventory -file:main_",
+  "collapse-filter": false,
+  "search": "path:wiki -path:.obsidian -file:workspace",
   "showTags": false,
   "showAttachments": false,
   "hideUnresolved": true,
   "showOrphans": false,
   "collapse-color-groups": true,
-  "colorGroups": [],
-  "collapse-display": true,
+  "colorGroups": [
+    {
+      "query": "path:wiki/literature",
+      "color": {
+        "a": 1,
+        "rgb": 5482495
+      }
+    },
+    {
+      "query": "path:wiki/synthesis",
+      "color": {
+        "a": 1,
+        "rgb": 16629816
+      }
+    },
+    {
+      "query": "path:wiki/seminars",
+      "color": {
+        "a": 1,
+        "rgb": 11560336
+      }
+    },
+    {
+      "query": "path:wiki/meetings",
+      "color": {
+        "a": 1,
+        "rgb": 39219
+      }
+    },
+    {
+      "query": "path:wiki/project_synthesis",
+      "color": {
+        "a": 1,
+        "rgb": 12843690
+      }
+    },
+    {
+      "query": "file:topic_ OR file:subtopic_",
+      "color": {
+        "a": 1,
+        "rgb": 14255152
+      }
+    }
+  ],
+  "collapse-display": false,
   "showArrow": false,
   "textFadeMultiplier": 0,
   "nodeSizeMultiplier": 1,
@@ -18,5 +61,5 @@
   "linkStrength": 1,
   "linkDistance": 250,
   "scale": 0.2588386562181616,
-  "close": false
+  "close": true
 }

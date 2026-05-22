@@ -5,31 +5,24 @@ source_status: peer-reviewed
 reading_status: metadata-only
 review_stage: ai-extracted
 topics: []
+subtopics: []
 keywords: []
 created: YYYY-MM-DD
 updated: YYYY-MM-DD
-sources: [citation-key]
+sources: []
 ---
 
 # Paper Title
 
-## Bibliographic Metadata
+## Metadata
 
-- Citation Key:
 - Title:
 - Authors:
 - Venue/Year:
-- Status: peer-reviewed / preprint / dataset / software / non-academic
 - DOI:
-- URL:
-- Raw Source:
-- Reading Status: metadata-only / abstract-only / skimmed / full-read / reproduced
-- Review Stage: ai-extracted / human-checked / discussed / integrated / cited
-
-## Keywords
-
-- Topics:
-- Keywords:
+- Reading Status:
+- Full Text:
+- PDF:
 
 ## Research Question
 
@@ -39,45 +32,59 @@ What question does this paper answer?
 
 How did the authors answer it?
 
-## Main Findings
+## Key Findings
 
-- Finding 1.
-- Finding 2.
-- Finding 3.
+- Finding:
+  - Evidence:
+  - Caveat:
 
-## Evidence / Figures
+## Important Evidence
 
 - Figure/table/result:
-- What it supports:
-- Reading limitation:
+  - Why it matters:
+  - Caveat:
 
 ## Limitations
 
-- Limitation 1.
-- Limitation 2.
+- Limitation:
 
 ## Citable Claims
 
-- Claim: ...
-  Evidence: ...
-  Use In: ...
+- Claim:
+  - Evidence:
+  - Use in:
 
-## My Notes on This Paper
+## Notes
 
-- Single-paper interpretation:
-- Questions for discussion:
-- Possible use in my research:
+- Paper-specific note:
 
-## Connections
+## Graph Links
 
-- Related concepts:
-- Related methods:
-- Related datasets:
-- Keyword pages:
-- Related code pages:
-- Related synthesis pages:
+- Topics:
+- Subtopics:
+- Related literature:
+- Related synthesis:
+- Related seminars:
+- Related projects:
 
-## Synthesis Update Needed
+<!--
+Template Field Guide
 
-- Yes/No:
-- Which synthesis page:
+Use this template to create concise single-paper reading notes. Generated wiki pages should contain only this paper's content and necessary source pointers. Do not copy this field guide, placeholder text, empty fields, or operational boilerplate into generated pages.
+
+Frontmatter:
+- type: use `paper`.
+- status: `draft`, `reviewed`, `needs-verification`, or `deprecated`.
+- source_status: `peer-reviewed`, `preprint`, `dataset`, `software`, or `non-academic`.
+- reading_status: `metadata-only`, `abstract-only`, `skimmed`, `full-read`, or `reproduced`.
+- review_stage: `ai-extracted`, `human-checked`, `discussed`, `integrated`, or `cited`.
+- topics: broad fields from `wiki/literature/topic_registry.md`.
+- subtopics: precise retrieval categories from `wiki/literature/topic_registry.md`.
+- keywords: flexible methods, datasets, mechanisms, instruments, or phenomena.
+
+Section rules:
+- Metadata should stay short: title, authors, venue/year, DOI, reading status, full text path, PDF path if available.
+- Research Question, Method, Key Findings, Important Evidence, Limitations, Citable Claims, and Notes must be about this paper only.
+- Put cross-paper interpretation in `wiki/synthesis/`, not in the paper page.
+- Graph Links should use explicit wikilinks for Obsidian graph quality.
+-->

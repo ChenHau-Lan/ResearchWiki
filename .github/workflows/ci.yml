@@ -1,0 +1,45 @@
+name: Research Wiki CI
+
+on:
+  pull_request:
+  push:
+    branches:
+      - main
+      - "codex*"
+
+jobs:
+  template-ci:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+      - name: Install command-line dependencies
+        run: sudo apt-get update && sudo apt-get install -y ripgrep poppler-utils
+      - name: Python syntax
+        run: python3 -m py_compile tools/*.py
+      - name: Install check
+        run: python3 tools/check_install.py --strict
+      - name: Wiki lint
+        run: python3 tools/wiki_lint.py
+      - name: Wiki doctor
+        run: python3 tools/wiki_doctor.py
+      - name: Repair plan
+        run: python3 tools/generate_repair_plan.py
+      - name: Synthetic workflow test
+        run: python3 tools/test_research_wiki_workflow.py
+
+  mac-command-smoke:
+    runs-on: macos-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+      - name: Install check
+        run: python3 tools/check_install.py
+      - name: Command wrapper exits
+        run: printf '0\n\n' | ./ResearchWiki.command
+      - name: Initializer wrapper exits
+        run: printf 'INIT TEST DATABASE\nn\n\n' | ./InitializeResearchWiki.command

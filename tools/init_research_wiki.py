@@ -42,6 +42,14 @@ CANONICAL_WIKI_ROOT_NAMES = {
 }
 
 
+def safe_input(label: str, default: str = "") -> str:
+    try:
+        return input(label).strip()
+    except EOFError:
+        print("")
+        return default
+
+
 def assert_inside_root(path: Path) -> None:
     path.resolve().relative_to(rw.ROOT.resolve())
 
@@ -130,7 +138,20 @@ def reset_core_files(include_sample: bool) -> None:
     )
 
 
-def frontmatter(page_type: str, keywords: str = "[]") -> str:
+def existing_yaml_value(path: Path, key: str) -> str:
+    if not path.exists():
+        return ""
+    for line in path.read_text(encoding="utf-8", errors="replace").splitlines():
+        if line.startswith(f"{key}:"):
+            return line.split(":", 1)[1].strip()
+    return ""
+
+
+def frontmatter(page_type: str, keywords: str = "[]", *, target: Path | None = None) -> str:
+    created = existing_yaml_value(target, "created") if target else ""
+    updated = existing_yaml_value(target, "updated") if target else ""
+    created = created or TODAY
+    updated = updated or created
     return "\n".join(
         [
             "---",
@@ -142,8 +163,8 @@ def frontmatter(page_type: str, keywords: str = "[]") -> str:
             "topics: []",
             "subtopics: []",
             f"keywords: {keywords}",
-            f"created: {TODAY}",
-            f"updated: {TODAY}",
+            f"created: {created}",
+            f"updated: {updated}",
             "sources: []",
             "---",
             "",
@@ -170,8 +191,15 @@ def graph_links(*, related_projects: bool = True) -> str:
 
 
 def reset_wiki_index_files() -> None:
-    (WIKI_ROOT / "index.md").write_text(
-        frontmatter("synthesis", "[index]")
+    wiki_index = WIKI_ROOT / "index.md"
+    literature_index = rw.WIKI_LIT / "literature.md"
+    synthesis_index = rw.WIKI_SYNTHESIS / "synthesis.md"
+    meetings_index = rw.WIKI_MEETINGS / "meetings.md"
+    project_index = rw.WIKI_PROJECT_SYNTHESIS / "project_synthesis.md"
+    seminars_index = rw.WIKI_SEMINARS / "seminars.md"
+
+    wiki_index.write_text(
+        frontmatter("synthesis", "[index]", target=wiki_index)
         + "# Research Wiki Index\n\n"
         + "- [[literature/literature|Literature]]\n"
         + "- [[synthesis/synthesis|Synthesis]]\n"
@@ -181,8 +209,8 @@ def reset_wiki_index_files() -> None:
         + graph_links(),
         encoding="utf-8",
     )
-    (rw.WIKI_LIT / "literature.md").write_text(
-        frontmatter("paper", "[literature_index]")
+    literature_index.write_text(
+        frontmatter("paper", "[literature_index]", target=literature_index)
         + "# Literature\n\n"
         + "Paper reading pages live in this folder.\n\n"
         + "New papers enter through `raw/paper_sources.md`. Processing progress is tracked in `raw/doi_dashboard.md`.\n\n"
@@ -192,8 +220,8 @@ def reset_wiki_index_files() -> None:
         + graph_links(),
         encoding="utf-8",
     )
-    (rw.WIKI_SYNTHESIS / "synthesis.md").write_text(
-        frontmatter("synthesis", "[synthesis_index]")
+    synthesis_index.write_text(
+        frontmatter("synthesis", "[synthesis_index]", target=synthesis_index)
         + "# Synthesis\n\n"
         + "Cross-literature research judgment pages live in this folder.\n\n"
         + "## Pages\n\n"
@@ -201,8 +229,8 @@ def reset_wiki_index_files() -> None:
         + graph_links(),
         encoding="utf-8",
     )
-    (rw.WIKI_MEETINGS / "meetings.md").write_text(
-        frontmatter("meeting", "[meeting_index]")
+    meetings_index.write_text(
+        frontmatter("meeting", "[meeting_index]", target=meetings_index)
         + "# Meetings\n\n"
         + "Single-meeting records live in this folder.\n\n"
         + "## Pages\n\n"
@@ -210,8 +238,8 @@ def reset_wiki_index_files() -> None:
         + graph_links(),
         encoding="utf-8",
     )
-    (rw.WIKI_PROJECT_SYNTHESIS / "project_synthesis.md").write_text(
-        frontmatter("project-synthesis", "[project_synthesis_index]")
+    project_index.write_text(
+        frontmatter("project-synthesis", "[project_synthesis_index]", target=project_index)
         + "# Project Synthesis\n\n"
         + "Cross-meeting project evolution, decision history, and project links live in this folder.\n\n"
         + "## Pages\n\n"
@@ -219,8 +247,8 @@ def reset_wiki_index_files() -> None:
         + graph_links(related_projects=False),
         encoding="utf-8",
     )
-    (rw.WIKI_SEMINARS / "seminars.md").write_text(
-        frontmatter("seminar", "[seminar_index]")
+    seminars_index.write_text(
+        frontmatter("seminar", "[seminar_index]", target=seminars_index)
         + "# Seminars\n\n"
         + "Seminar and talk records live in this folder.\n\n"
         + "## Pages\n\n"
@@ -238,12 +266,12 @@ def main() -> int:
     print("It will keep tools, templates, skills, docs, topic registry, and Obsidian settings.")
     print("It will reset section index pages so they do not point to deleted generated pages.")
     print("")
-    answer = input(f'Type "{CONFIRM_TEXT}" to continue: ').strip()
+    answer = safe_input(f'Type "{CONFIRM_TEXT}" to continue: ')
     if answer != CONFIRM_TEXT:
         print("Cancelled.")
         return 1
 
-    include_sample = input("Add the sample WAF DOI to the reset dashboard? [y/N]: ").strip().lower() in {"y", "yes"}
+    include_sample = safe_input("Add the sample WAF DOI to the reset dashboard? [y/N]: ").lower() in {"y", "yes"}
 
     rw.ensure_core_files()
     deleted: list[str] = []
@@ -274,8 +302,9 @@ def main() -> int:
     print("Next test path:")
     print("1. Run ResearchWiki.command Paper intake to open authorized source pages.")
     print("2. Save legal PDFs into raw/doi_pdf/.")
-    print("3. Run Paper intake again to import evidence and create QCed raw/full_text.")
-    print("4. Run Ingest QCed full_text to wiki.")
+    print("3. Run Paper intake local import to rename PDFs and create staging text.")
+    print("4. Run Paper intake Codex reflow/QC to create raw/full_text.")
+    print("5. Run Ingest QCed full_text to wiki.")
     return 0
 
 

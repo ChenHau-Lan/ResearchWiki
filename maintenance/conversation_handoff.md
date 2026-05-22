@@ -15,23 +15,21 @@ Generated: 2026-05-21
 
 ## Current Command Menu
 
-1. Paper intake: sources -> QCed full_text.
-2. Open DOI dashboard.
+1. Paper intake.
+   - Add/open paper sources (local, no token).
+   - Open authorized source pages (local, no token).
+   - Import PDFs + extract staging + rebuild index (local, no token).
+   - Codex reflow/QC staging -> full_text (LLM).
+   - Codex source-resolution fallback (LLM, exception only).
 2. Ingest QCed full_text into wiki literature pages.
 3. Project / idea conversation.
 4. Topics / graph.
 5. Maintenance / support.
-8. Launch Codex project conversation.
-9. Manage topic/subtopic registry.
-10. Open Obsidian graph guide.
-11. Run database health check.
-12. Generate repair plan.
-13. Prepare a redacted GitHub support issue draft.
 
 Additional test helper:
 
 - `InitializeResearchWiki.command` resets a local test database after explicit confirmation (`INIT TEST DATABASE`). It batch-clears scoped test evidence, generated raw artifacts, and generated wiki pages, preserving tools/templates/skills/docs/topic registry/Obsidian settings and resetting section index pages.
-- `tools/test_research_wiki_workflow.py` runs 10 reset-first integration scenarios and writes `maintenance/workflow_test_report_YYYY-MM-DD.md`. Latest run on 2026-05-21 passed 10/10 and reset the database to a clean template state afterward. Set `RESEARCHWIKI_LEAVE_SAMPLE_STATE=1` only when a maintainer explicitly wants a four-paper sample state for manual inspection.
+- `tools/test_research_wiki_workflow.py` runs a reset-first intake matrix and writes `maintenance/workflow_test_report_YYYY-MM-DD.md`. Latest local run on 2026-05-22 passed 15/15 and reset the database to a clean template state afterward. The matrix covers DOI-only, DOI+URL, PDF-only, DOI+PDF, duplicate DOI/PDF, non-PDF, no-DOI PDF, DOI/PDF mismatch, QC failure, wiki ingest before QC, and explicit source-resolution fallback. Set `RESEARCHWIKI_LEAVE_SAMPLE_STATE=1` only when a maintainer explicitly wants a four-paper sample state for manual inspection.
 - `InitializeResearchWiki.command` and `ResearchWiki.command` were smoke-tested from the shell. Their final `read` now tolerates non-interactive EOF so automated checks do not falsely fail after successful work.
 - `tools/check_install.py` verifies local install prerequisites.
 - `tools/support_report.py` writes a redacted local support report and prints a prefilled GitHub issue URL; it never submits issues automatically.
@@ -54,7 +52,7 @@ Additional test helper:
 - Next practical DOI work should preserve the new boundary: staging extraction is not full_text; wiki ingest should only use already-QCed `raw/full_text/*.md`.
 - Branch discipline should follow `maintenance/branch_strategy.md`: `main` is private protected integration, `codex/core-*` for core, `codex/command-*` for command/UI, `personal/*` for private research state.
 - Browser-session PDF download may depend on macOS/Codex/Chrome permissions; keep Codex acquisition as fallback, not the default batch route.
-- `ResearchWiki.command` should stay simple; avoid adding many special-case menu items.
+- `ResearchWiki.command` should stay simple at the top level, but Paper intake must keep local/no-token work visibly separate from Codex/LLM work. Do not hide source input, PDF import, staging extraction, or index rebuild inside a Codex step.
 - Obsidian graph quality depends on consistent `Graph Links`; future pages need periodic checks.
 - Raw evidence is mostly ignored by Git, so the long-term sync/backup plan for `raw/doi_pdf/` and `raw/full_text/` still needs a firm decision.
 - Topic/subtopic registry should remain small; do not let keywords become uncontrolled graph nodes.

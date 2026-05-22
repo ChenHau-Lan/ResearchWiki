@@ -55,20 +55,20 @@ README 只講最短流程；細節放在這裡。
 
 ## 4. 論文怎麼進資料庫
 
-大多數時候只需要做兩件事：
+大多數時候先記住兩段：
 
-1. 用 `Paper intake: sources -> QCed full_text` 把 DOI/URL/PDF 變成 `raw/full_text/`。
-2. 用 `Ingest QCed full_text to wiki` 把 `raw/full_text/` 變成 `wiki/literature/`。
+1. 用 `Paper intake` 先把 DOI/URL/PDF 整理成合法 evidence、PDF、staging text，然後明確選 Codex reflow/QC 才產生 `raw/full_text/`。
+2. 用 `Ingest QCed full_text to wiki` 把已 QC 的 `raw/full_text/` 變成 `wiki/literature/`。
 
 更完整的流程是：
 
 1. 把 DOI、DOI URL、article URL、PDF URL 或來源註記貼到 `raw/paper_sources.md`，或在 command 中貼上。
 2. 打開 `ResearchWiki.command`。
-3. 選 `Paper intake: sources -> QCed full_text`。
+3. 選 `Paper intake`。
 4. 只使用合法來源：publisher、作者頁、open-access、institutional access、你已授權的 browser session、或你自己提供的 PDF/text。
 5. 如果需要手動下載 PDF，把合法 PDF 放到 `raw/doi_pdf/`，再重新跑同一個 intake。
-6. Intake 會建立或更新 dashboard、整理檔名、抽 staging text，並用 Codex CLI 或可貼上的 Codex prompt 做 reflow/QC。
-7. QC 成功後才會寫入 `raw/full_text/`，並更新 `raw/full_text_index.*`。
+6. 先選 local/no-token 的 import：建立或更新 dashboard、整理檔名、抽 staging text、重建 index。
+7. staging 準備好後，再選 Codex reflow/QC；QC 成功後才會寫入 `raw/full_text/`，並更新 `raw/full_text_index.*`。
 8. 再選 `Ingest QCed full_text to wiki` 產生 paper page。
 
 進度看 `raw/doi_dashboard.md`。主表只放快速判讀欄位：
@@ -81,7 +81,7 @@ Last Name_Year | Journal | DOI | Wiki Status | Access Legality | PDF | Full Text
 
 ## 5. Command 五個選項
 
-1. `Paper intake: sources -> QCed full_text`：主要一鍵流程。加入 DOI/URL，開合法來源頁，匯入 PDF/evidence，抽 staging text，用 Codex CLI 或可貼上的 Codex prompt 產生 QC 後全文。
+1. `Paper intake`：論文來源入口。裡面分成 local/no-token：加入來源、開合法來源頁、匯入 PDF、抽 staging、重建 index；以及 LLM：Codex reflow/QC staging -> full_text、Codex source-resolution fallback。
 2. `Ingest QCed full_text to wiki`：只從已 QC 的 `raw/full_text/` 產生或更新 `wiki/literature/`。它不找新 PDF，也不做 full text reflow/QC。
 3. `Project / idea conversation`：和 Codex 討論 project 或 idea，讓 Codex 事後整理 topics、subtopics、相關文獻與 DOI。
 4. `Topics / graph`：管理 topic/subtopic registry，或打開 Obsidian graph 說明。

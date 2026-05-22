@@ -12,8 +12,16 @@ Any command or UI implementation must satisfy these scenarios.
 
 ## Command Acceptance Scenarios
 
+- Paper intake exposes local/no-token steps separately from LLM steps:
+  source input, source-page opening, PDF import, staging extraction, and index
+  rebuild must not launch Codex; staging reflow/QC and source-resolution
+  fallback are explicit LLM actions.
 - DOI list input creates or refreshes dashboard rows without fabricating
   metadata.
+- DOI-only intake creates a dashboard row but does not create PDF, staging, or
+  full-text artifacts.
+- DOI plus DOI URL/article URL intake deduplicates DOI rows; unresolved
+  non-DOI source pointers remain queued or are recorded as source notes.
 - Paper-source intake accepts DOI values, DOI URLs, article URLs, and PDF URLs;
   unresolved non-DOI source pointers remain queued until a DOI or reliable
   metadata is resolved.

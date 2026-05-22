@@ -55,20 +55,20 @@ Private research state, sensitive DOI batches, and unpublished raw evidence shou
 
 ## 4. How Papers Enter
 
-Most of the time, remember only two actions:
+Most of the time, remember two phases:
 
-1. Use `Paper intake: sources -> QCed full_text` to turn DOI/URL/PDF sources into `raw/full_text/`.
+1. Use `Paper intake` to organize DOI/URL/PDF sources into legal evidence, PDFs, and staging text; then explicitly choose Codex reflow/QC before `raw/full_text/` is created.
 2. Use `Ingest QCed full_text to wiki` to turn `raw/full_text/` into `wiki/literature/`.
 
 The complete flow is:
 
 1. Add a DOI, DOI URL, article URL, PDF URL, or source note to `raw/paper_sources.md`, or paste it into the command.
 2. Open `ResearchWiki.command`.
-3. Choose `Paper intake: sources -> QCed full_text`.
+3. Choose `Paper intake`.
 4. Use only legal sources: publisher pages, author pages, open access, institutional access, your authorized browser session, or user-provided PDF/text.
 5. If manual PDF download is needed, save the legal PDF into `raw/doi_pdf/`, then run the same intake again.
-6. Intake updates the dashboard, normalizes filenames, extracts staging text, and uses the Codex CLI or a pasteable Codex prompt for reflow/QC.
-7. Only QC success writes into `raw/full_text/` and updates `raw/full_text_index.*`.
+6. First choose the local/no-token import path: update the dashboard, normalize filenames, extract staging text, and rebuild the index.
+7. After staging is ready, choose Codex reflow/QC. Only QC success writes into `raw/full_text/` and updates `raw/full_text_index.*`.
 8. Then choose `Ingest QCed full_text to wiki` to create the paper page.
 
 Progress is shown in `raw/doi_dashboard.md`. The main board stays short:
@@ -81,7 +81,7 @@ Longer next actions, blockers, and notes live in the `DOI Notes` section below t
 
 ## 5. The Five Command Options
 
-1. `Paper intake: sources -> QCed full_text`: the main one-stop paper intake. It adds DOI/URL sources, opens legal source pages, imports PDF/evidence, extracts staging text, and uses the Codex CLI or a pasteable prompt to create QCed full text.
+1. `Paper intake`: the paper-source entrypoint. It separates local/no-token steps, including source input, legal source-page opening, PDF import, staging extraction, and index rebuild, from LLM steps, including Codex staging reflow/QC and source-resolution fallback.
 2. `Ingest QCed full_text to wiki`: creates or updates `wiki/literature/` only from already-QCed `raw/full_text/`. It does not find new PDFs or perform full-text reflow/QC.
 3. `Project / idea conversation`: starts a Codex project or idea discussion and lets Codex infer topics, subtopics, related papers, and DOI needs afterward.
 4. `Topics / graph`: manages the topic/subtopic registry or opens Obsidian graph guidance.

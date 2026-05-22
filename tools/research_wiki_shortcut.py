@@ -87,6 +87,9 @@ def prompt(label: str, default: str = "") -> str:
 
 def open_path(path: Path) -> None:
     ensure_core_files()
+    if os.environ.get("RESEARCHWIKI_NO_OPEN") == "1":
+        print(f"Open skipped because RESEARCHWIKI_NO_OPEN=1: {repo_relative(path)}")
+        return
     subprocess.run(["open", str(path)], cwd=ROOT)
 
 
@@ -475,7 +478,7 @@ def default_doi_dashboard() -> str:
                 "access_legality": "unknown",
                 "pdf": "",
                 "full_text": "",
-                "next_action": "acquire_full_text",
+                "next_action": "authorized_source_or_pdf_needed",
                 "updated": TODAY,
                 "note": "Test DOI for first acquisition check.",
             }
@@ -863,7 +866,17 @@ def pdf_signature_ok(path: Path) -> bool:
         return False
 
 
+def iter_doi_pdf_files() -> list[Path]:
+    return sorted(
+        path
+        for path in DOI_PDF_DIR.iterdir()
+        if path.is_file() and not path.name.startswith(".") and path.suffix.lower() == ".pdf"
+    )
+
+
 def pdf_text_preview(path: Path) -> str:
+    if os.environ.get("RESEARCHWIKI_DISABLE_PDF_TEXT") == "1":
+        return ""
     pdftotext = shutil.which("pdftotext")
     if not pdftotext:
         return ""
@@ -896,6 +909,9 @@ def extract_pdf_doi(path: Path, preview: str = "") -> str:
 
 def pdf_text_extract(path: Path) -> tuple[str, str]:
     """Extract full text from a PDF using local tools only."""
+    if os.environ.get("RESEARCHWIKI_DISABLE_PDF_TEXT") == "1":
+        return "", "disabled"
+
     try:
         import fitz  # type: ignore[import-not-found]
 
@@ -1222,11 +1238,7 @@ def import_new_doi_pdfs(rows: list[dict[str, str]]) -> tuple[list[str], list[str
     ensure_core_files()
     messages: list[str] = []
     warnings: list[str] = []
-    pdfs = sorted(
-        path
-        for path in DOI_PDF_DIR.glob("*.pdf")
-        if path.is_file() and not path.name.startswith(".")
-    )
+    pdfs = iter_doi_pdf_files()
     expected_paths = {
         expected.resolve()
         for row in rows
@@ -1810,7 +1822,7 @@ def refreshed_row(row: dict[str, str], index: dict[str, dict[str, str]], wiki: d
             note = "PDF found; readable full text Markdown missing"
     elif wiki_page and "abstract-only" in reading_status:
         status = "abstract_only"
-        next_action = row.get("next_action") or "acquire_full_text"
+        next_action = row.get("next_action") or "authorized_source_or_pdf_needed"
         note = row.get("note") or "abstract-only paper page found"
     elif wiki_page:
         status = "metadata_ok"
@@ -1821,15 +1833,15 @@ def refreshed_row(row: dict[str, str], index: dict[str, dict[str, str]], wiki: d
         stale_completed = row.get("status") in {"full_text_done", "wiki_done"}
         if existing_status in {"metadata_ok", "full_text_needed"}:
             status = existing_status
-            next_action = row.get("next_action") or ("get_full_text" if existing_status == "full_text_needed" else "check_or_get_full_text")
+            next_action = row.get("next_action") or "authorized_source_or_pdf_needed"
             note = row.get("note") or "waiting for full text"
         elif stale_completed or title:
             status = "full_text_needed"
-            next_action = "get_full_text"
+            next_action = "authorized_source_or_pdf_needed"
             note = "full text path missing; refresh downgraded status"
         else:
             status = "new"
-            next_action = "acquire_full_text"
+            next_action = row.get("next_action") or "authorized_source_or_pdf_needed"
             note = row.get("note") or "waiting for full-text acquisition"
 
     if row.get("status") == "blocked" and not (pdf or full_text):
@@ -1887,7 +1899,7 @@ def sync_doi_board() -> list[dict[str, str]]:
                 "title": "",
                 "full_text": "",
                 "wiki_page": "",
-                "next_action": "acquire_full_text",
+                "next_action": "authorized_source_or_pdf_needed",
                 "updated": TODAY,
                 "note": "from paper_sources" if doi in source_dois else "from doi_list",
             }
@@ -2323,7 +2335,7 @@ def open_authorized_source_pages() -> None:
     print("\nAfter downloading authorized PDFs or confirming full text, place evidence in raw/doi_pdf/ or source notes, then run Paper intake again.")
 
 
-def rebuild_full_text_index() -> None:
+def import_evidence_extract_staging_rebuild_index() -> None:
     ensure_core_files()
     print("\nChecking raw/doi_pdf for newly added PDF files...")
     rows = sync_doi_board()
@@ -2332,10 +2344,6 @@ def rebuild_full_text_index() -> None:
     write_dashboard_rows(rows)
     print_pdf_import_report(messages, warnings)
     print_pdf_extraction_report(extraction_messages, extraction_warnings)
-    conversion_messages, conversion_warnings, rows_mutated = create_qced_full_text(rows)
-    if rows_mutated:
-        write_dashboard_rows(rows)
-    print_full_text_conversion_report(conversion_messages, conversion_warnings)
 
     print("\nRebuilding local full_text index...")
     proc = subprocess.run(
@@ -2358,10 +2366,48 @@ def rebuild_full_text_index() -> None:
     else:
         print("No full_text index output.")
     print("Outputs: raw/full_text_index.md, raw/full_text_index.json")
+    print("\nNext step: choose `Codex reflow/QC staging -> full_text` when staging text is ready.")
+
+
+def codex_reflow_qc_staging_to_full_text() -> None:
+    ensure_core_files()
+    rows = sync_doi_board()
+    active = rows_needing_full_text_conversion(rows)
+    if not active:
+        print("\nNo staging text is ready for Codex reflow/QC.")
+        print(f"Run local import first, or place authorized PDFs in {DOI_PDF_DIR.relative_to(ROOT)}.")
+        return
+    print("\n== Codex Reflow/QC ==")
+    for row in active:
+        staging = staging_path_for_row(row)
+        print(f"- {row['doi']}: {repo_relative(staging) if staging else 'missing staging'}")
+    conversion_messages, conversion_warnings, rows_mutated = create_qced_full_text(rows)
+    if rows_mutated:
+        write_dashboard_rows(rows)
+    print_full_text_conversion_report(conversion_messages, conversion_warnings)
+    build_full_text_index_quiet()
+    rows = sync_doi_board()
+    print_acquisition_result(rows, {row["doi"] for row in active})
+
+
+def codex_source_resolution_fallback() -> None:
+    ensure_core_files()
+    rows = sync_doi_board()
+    unresolved = unresolved_source_lines()
+    active = active_acquisition_rows(rows)
+    if not unresolved and not active:
+        print("\nNo unresolved source pointers or DOI rows need source-route judgment.")
+        return
+    print("\n== Codex Source-Resolution Fallback ==")
+    print("Use this only when local source-page opening and user-provided evidence are not enough.")
+    if unresolved:
+        resolve_unresolved_sources_with_codex(unresolved)
+    else:
+        launch_full_text_acquisition_prompt()
 
 
 def has_local_pdf_evidence() -> bool:
-    return any(path.is_file() and not path.name.startswith(".") for path in DOI_PDF_DIR.glob("*.pdf"))
+    return bool(iter_doi_pdf_files())
 
 
 def paper_intake_workflow() -> None:
@@ -2386,14 +2432,29 @@ def paper_intake_workflow() -> None:
 
     unresolved_after_open = unresolved_source_lines()
     if unresolved_after_open:
-        resolve_unresolved_sources_with_codex(unresolved_after_open)
+        print("\nUnresolved source pointers remain queued.")
+        print("Use `Paper intake -> Codex source-resolution fallback` only if local source-page opening and user-provided evidence are not enough.")
 
     if not has_local_pdf_evidence() and not rows_needing_full_text_conversion(sync_doi_board()):
         print("\nNo local PDF evidence or staging text is ready for import/QC.")
         print(f"Add source pointers to {PAPER_SOURCES.relative_to(ROOT)} or place authorized PDFs in {DOI_PDF_DIR.relative_to(ROOT)}, then run this option again.")
         return
 
-    rebuild_full_text_index()
+    import_evidence_extract_staging_rebuild_index()
+
+
+def paper_intake_menu() -> None:
+    run_submenu(
+        "Paper Intake",
+        {
+            "1": ("Add/open paper sources (local, no token)", add_or_open_paper_sources),
+            "2": ("Open authorized source pages (local, no token)", open_authorized_source_pages),
+            "3": ("Import PDFs + extract staging + rebuild index (local, no token)", import_evidence_extract_staging_rebuild_index),
+            "4": ("Codex reflow/QC staging -> full_text (LLM)", codex_reflow_qc_staging_to_full_text),
+            "5": ("Codex source-resolution fallback (LLM, exception only)", codex_source_resolution_fallback),
+            "0": ("Back", None),
+        },
+    )
 
 
 def run_health_check() -> None:
@@ -2484,7 +2545,7 @@ def maintenance_menu() -> None:
 
 def menu() -> None:
     actions = {
-        "1": ("Paper intake: sources -> QCed full_text", paper_intake_workflow),
+        "1": ("Paper intake", paper_intake_menu),
         "2": ("Ingest QCed full_text to wiki", launch_wiki_ingest_prompt),
         "3": ("Project / idea conversation", project_prompt),
         "4": ("Topics / graph", topic_graph_menu),

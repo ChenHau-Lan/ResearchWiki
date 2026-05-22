@@ -272,10 +272,10 @@ def main() -> int:
             print(f"- {path}")
     print("")
     print("Next test path:")
-    print("1. Run ResearchWiki.command option 5 to open authorized source pages.")
+    print("1. Run ResearchWiki.command Paper intake to open authorized source pages.")
     print("2. Save legal PDFs into raw/doi_pdf/.")
-    print("3. Run option 6 to import evidence and create QCed raw/full_text.")
-    print("4. Run option 7 to ingest QCed full_text into wiki/literature/.")
+    print("3. Run Paper intake again to import evidence and create QCed raw/full_text.")
+    print("4. Run Ingest QCed full_text to wiki.")
     return 0
 
 

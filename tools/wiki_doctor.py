@@ -188,7 +188,7 @@ def collect_issues() -> tuple[list[str], list[str]]:
             text = read(path).lower()
             if any(marker in text for marker in pending_markers):
                 warnings.append(
-                    f"Pending QC text in raw/full_text: {rel(path)}; move/recreate it through raw/staging/extracted_text and option 6"
+                    f"Pending QC text in raw/full_text: {rel(path)}; move/recreate it through raw/staging/extracted_text and Paper intake"
                 )
 
     pages = wiki_pages()

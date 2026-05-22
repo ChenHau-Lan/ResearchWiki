@@ -22,21 +22,17 @@ Research Wiki is designed around an evidence chain:
 ## How Research Material Enters
 
 ```mermaid
-flowchart TD
-    SOURCE["source pointer<br/>DOI / DOI URL / article URL / PDF URL / local PDF"] --> QUEUE["raw/paper_sources.md<br/>unresolved source queue"]
-    QUEUE --> RESOLVE["legal source resolution<br/>publisher / author / OA / institution / user-provided"]
-    RESOLVE --> PDF["raw/doi_pdf/<br/>original PDF evidence"]
-    RESOLVE --> STAGE["raw/staging/extracted_text/<br/>machine extraction staging"]
-    PDF --> STAGE
-    STAGE --> FT["raw/full_text/<br/>reflowed, QCed, readable full text"]
-    FT --> LIT["wiki/literature/<br/>paper reading page"]
-    LIT --> SYN["wiki/synthesis/"]
-    OTHER["Other raw material<br/>raw/files/"] --> WIKI2["meeting / seminar / project pages"]
+flowchart LR
+    A["Source<br/>DOI / URL / PDF"] --> B["raw/<br/>evidence + QCed full text"]
+    B --> C["wiki/literature/<br/>paper page"]
+    C --> D["wiki/synthesis/<br/>cross-paper judgment"]
 ```
 
-A paper may start from a DOI, URL, PDF URL, or local PDF. Those are source pointers first; the database resolves them into a legal evidence package, preserves the PDF or original source, and puts machine extraction into staging. Only reflowed and QCed readable Markdown belongs in `raw/full_text/`, and only that full text should feed `wiki/literature/` paper pages.
+A paper may start from a DOI, URL, PDF URL, or local PDF. The database first turns it into a checkable evidence package in `raw/`. Only reflowed and QCed readable Markdown belongs in `raw/full_text/`, and only that full text should feed `wiki/literature/` paper pages.
 
 PDF is an important part of the evidence package because it preserves layout, tables, equations, captions, and publisher formatting. Paper pages should not copy the whole PDF or full text; they keep reading judgment and source pointers so the evidence can be checked later.
+
+Machine extraction may briefly live in `raw/staging/extracted_text/`; it is not official full text, is not indexed, and should not be used to create wiki pages.
 
 ## Install And Start
 

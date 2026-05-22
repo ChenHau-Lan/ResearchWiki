@@ -12,7 +12,7 @@
 
 1. 有客製化 paper source queue、DOI dashboard、full text cache 與 full text index。
 2. Paper wiki page 對文獻閱讀最佳化，但不複製全文。
-3. Command 讓使用者快速操作，避免把機械檢查浪費在 LLM token；預設論文流程是第 5 項先開合法 source 頁面、第 6 項本地匯入 evidence 並用 Codex 轉成 QCed full text、第 7 項才 ingest wiki。第 3 / 第 4 項 Codex source finding 只是 fallback，用在 open publisher HTML/XML、授權瀏覽器 session 或真的需要來源判斷時。
+3. Command 讓使用者快速操作，避免把機械檢查浪費在 LLM token；預設論文流程以 `Paper intake: sources -> QCed full_text` 一鍵推進來源、合法 evidence、staging extraction 與 Codex QCed full text，之後才用 `Ingest QCed full_text to wiki` 產生 paper page。Codex source finding 只作為 intake 內的 fallback，用在 open publisher HTML/XML、授權瀏覽器 session 或真的需要來源判斷時。
 4. Obsidian graph 是一級功能，正式頁必須有 explicit wikilinks。
 5. 資料庫要能被定期診斷、產生 repair plan，但不可自動批量刪除。
 

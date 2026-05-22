@@ -147,7 +147,7 @@ def lint_full_text_qc(errors: list[str]) -> None:
         status_blob = " ".join(frontmatter.get(key, "") for key in ["extraction_status", "readability_status", "qc_status"]).lower()
         if any(marker in status_blob for marker in pending_markers):
             errors.append(
-                f"{path.relative_to(ROOT)}: raw/full_text may only contain QCed readable full text; use raw/staging/extracted_text and option 6 for Codex conversion"
+                f"{path.relative_to(ROOT)}: raw/full_text may only contain QCed readable full text; use raw/staging/extracted_text and Paper intake for Codex conversion"
             )
 
 

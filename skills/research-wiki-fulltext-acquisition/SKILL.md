@@ -81,13 +81,13 @@ Use this order. Stop when a legal complete source is obtained, or when the next 
 
 Use this for normal batches:
 
-1. Run command option 5, `Open authorized source pages`.
+1. Run command `Paper intake: sources -> QCed full_text`.
 2. Download legal PDFs from publisher, author, open-access, institutional, or user-provided sources.
 3. Save the PDFs directly in `raw/doi_pdf/`.
-4. Run command option 6, `Import evidence + create QCed full_text`.
-5. Run command option 7, `Ingest QCed full_text to wiki`.
+4. Rerun `Paper intake: sources -> QCed full_text` after saving PDFs.
+5. Run `Ingest QCed full_text to wiki`.
 
-Option 3/4 Codex acquisition is for exceptions: open publisher HTML/XML extraction, authorized browser-session capture, or a small number of rows where metadata and access judgment matter. It should not be the default way to process a long DOI queue.
+Codex source/full-text finding inside Paper intake is for exceptions: open publisher HTML/XML extraction, authorized browser-session capture, or a small number of rows where metadata and access judgment matter. It should not become a long-running route chase for a DOI queue.
 
 ## Browser-Session PDF Download Protocol
 

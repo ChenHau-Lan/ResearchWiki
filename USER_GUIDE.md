@@ -48,7 +48,7 @@ Optional:
 
 ## 3. Add Paper Sources
 
-Use `ResearchWiki.command` and choose `Add/open paper sources`, or edit `raw/paper_sources.md` directly:
+Use `ResearchWiki.command` and choose `Paper intake: sources -> QCed full_text`, or edit `raw/paper_sources.md` directly:
 
 ```md
 ## Add Sources Here
@@ -72,37 +72,29 @@ Longer next actions and failure reasons are kept in the `DOI Notes` section belo
 
 The default paper-source workflow is source-first and semi-automatic:
 
-1. Open authorized DOI/article/publisher/source pages.
-2. Save legal PDFs into `raw/doi_pdf/`.
-3. Import PDFs and extract local machine text into `raw/staging/extracted_text/`.
-4. Use Codex to reflow/QC staging text into `raw/full_text/`.
-5. Use Codex to ingest QCed text into `wiki/literature/`.
+1. Choose `Paper intake: sources -> QCed full_text`.
+2. Paste DOI/URL/PDF source pointers, or use queued sources.
+3. Save legal PDFs into `raw/doi_pdf/` when the command opens authorized source pages.
+4. Let the command import evidence, create staging text, and use Codex CLI or a pasteable Codex prompt to produce QCed `raw/full_text/`.
+5. Choose `Ingest QCed full_text to wiki` when ready to create paper pages.
 
 Codex acquisition is now a fallback for open publisher HTML/XML, authorized browser-session capture, or cases where source-route judgment is needed.
 
 If source/full-text finding needs browser-session access that the CLI cannot use, use the Codex app handoff option. It creates `maintenance/codex_app_handoff_prompt.md`, initializes `maintenance/codex_app_last_run.log`, and asks the Codex app run to append concise acquisition notes to that log.
 
-For normal DOI batches, use the authorized source page option first. It opens source pages and `raw/doi_pdf/`; only use publisher, author, open-access, institutional, or user-provided PDFs/full text.
+For normal DOI batches, use `Paper intake: sources -> QCed full_text`. It opens source pages and `raw/doi_pdf/` when user evidence is needed; only use publisher, author, open-access, institutional, or user-provided PDFs/full text.
 
 DOI-derived files use paper-based filenames: `last_name_year_journal_abbrev`. For example, Conrick et al. 2021 in Weather and Forecasting becomes `conrick_2021_waf.pdf` and `conrick_2021_waf.md`.
 
-If a publisher blocks shell download but the article page is readable in your browser and the PDF button works, this is treated as authorized browser-session access. The default workflow is still to download the legal PDF manually through option 5 and let option 6 create QCed full text; Codex browser capture is a fallback.
+If a publisher blocks shell download but the article page is readable in your browser and the PDF button works, this is treated as authorized browser-session access. The default workflow is still to download the legal PDF manually after the intake command opens the page, then rerun intake to create QCed full text; Codex browser capture is a fallback.
 
 ## 4. Command Menu
 
-1. `Add/open paper sources`: local source input for DOI values, DOI URLs, article URLs, PDF URLs, or source notes.
-2. `Open/manage DOI dashboard`: opens progress board.
-3. `Codex-assisted source/full-text finding`: runs Codex only for exceptions such as open publisher HTML/XML, authorized browser-session capture, or source-route judgment. It should stop and request the source-first path instead of spending a long session chasing blocked publisher routes.
-4. `Prepare Codex app source/full-text finding prompt`: writes the source/full-text finding prompt to `maintenance/codex_app_handoff_prompt.md`, initializes `maintenance/codex_app_last_run.log`, copies the prompt to the clipboard when possible, and opens the Codex app on this repository.
-5. `Open authorized source pages`: opens unresolved source URLs and DOI landing pages for dashboard rows missing evidence, then opens `raw/doi_pdf/`. Do not use this project to automate unauthorized shadow-library downloads.
-6. `Import evidence + create QCed full_text`: imports PDFs/evidence, creates missing dashboard rows from PDF DOI metadata, renames matched files to `<paper_file_key>.pdf`, extracts machine text into `raw/staging/extracted_text/`, runs Codex reflow/QC, and writes `raw/full_text/<paper_file_key>.md` only after QC succeeds.
-7. `Ingest QCed full_text to wiki`: runs Codex in the foreground and turns already-QCed `raw/full_text/` into paper-specific reading pages. It does not acquire sources or perform full-text reflow/QC.
-8. `Launch Codex project conversation`: starts Codex with an English project/idea discussion prompt and lets Codex infer topics after the conversation.
-9. `Manage topic registry`: opens or appends topics and subtopics.
-10. `Open Obsidian graph guide`: opens graph instructions for reading relationships.
-11. `Run database health check (diagnose only)`: checks stale paths, missing graph links, unresolved links, release hygiene, local machine paths, and structure issues without deleting files.
-12. `Generate repair plan (no deletes)`: writes an issue-specific repair plan under `maintenance/` without deleting files.
-13. `Prepare GitHub support issue (redacted)`: writes a redacted support report and opens a prefilled GitHub issue URL for human review.
+1. `Paper intake: sources -> QCed full_text`: the main one-stop workflow. It accepts DOI/URL input, opens authorized source pages when needed, imports PDFs/evidence, creates staging text, and uses Codex CLI or a pasteable prompt to create QCed `raw/full_text/`.
+2. `Ingest QCed full_text to wiki`: creates or updates `wiki/literature/` paper pages from already-QCed full text. It does not acquire sources or perform full-text reflow/QC.
+3. `Project / idea conversation`: starts Codex with an English project/idea discussion prompt and lets Codex infer topics after the conversation.
+4. `Topics / graph`: opens topic/subtopic registry and Obsidian graph guidance.
+5. `Maintenance / support`: opens the DOI dashboard, runs health checks, writes repair plans, opens the paper source queue, or prepares a redacted GitHub issue draft.
 
 ## 5. Knowledge Areas
 

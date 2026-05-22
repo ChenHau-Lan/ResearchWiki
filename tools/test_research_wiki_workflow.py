@@ -65,35 +65,32 @@ def reset_database() -> str:
     return proc.stdout
 
 
-def option6() -> str:
-    proc = run(["python3", "tools/research_wiki_shortcut.py"], input_text="6\n\n0\n")
+def option1_paper_intake(input_text: str = "1\n\n\n\n0\n", *, extra_env: dict[str, str] | None = None) -> str:
+    proc = run(["python3", "tools/research_wiki_shortcut.py"], input_text=input_text, extra_env=extra_env)
     if proc.returncode != 0:
-        raise AssertionError(f"option 6 failed:\n{proc.stdout}")
+        raise AssertionError(f"paper intake failed:\n{proc.stdout}")
     return proc.stdout
+
+
+def option6() -> str:
+    return option1_paper_intake()
 
 
 def option6_qc_fail() -> str:
-    proc = run(
-        ["python3", "tools/research_wiki_shortcut.py"],
-        input_text="6\n\n0\n",
-        extra_env={"RESEARCHWIKI_TEST_QC_FAIL": "1"},
-    )
-    if proc.returncode != 0:
-        raise AssertionError(f"option 6 QC-fail run failed:\n{proc.stdout}")
-    return proc.stdout
+    return option1_paper_intake(extra_env={"RESEARCHWIKI_TEST_QC_FAIL": "1"})
 
 
 def option5_dry_run() -> str:
-    proc = run(["python3", "tools/research_wiki_shortcut.py"], input_text="5\n1\n\n0\n")
+    proc = run(["python3", "tools/research_wiki_shortcut.py"], input_text="1\n\n1\n\n0\n")
     if proc.returncode != 0:
-        raise AssertionError(f"option 5 dry run failed:\n{proc.stdout}")
+        raise AssertionError(f"paper intake source-page dry run failed:\n{proc.stdout}")
     return proc.stdout
 
 
 def option7_dry_run() -> str:
-    proc = run(["python3", "tools/research_wiki_shortcut.py"], input_text="7\n0\n", timeout=240)
+    proc = run(["python3", "tools/research_wiki_shortcut.py"], input_text="2\n0\n", timeout=240)
     if proc.returncode != 0:
-        raise AssertionError(f"option 7 dry run failed:\n{proc.stdout[:4000]}")
+        raise AssertionError(f"wiki ingest dry run failed:\n{proc.stdout[:4000]}")
     return proc.stdout
 
 
@@ -272,7 +269,7 @@ def scenario_doi_list_plus_pdf() -> tuple[str, str]:
     assert_contains(dash, "ingest_full_text_to_wiki")
     assert_file("raw/full_text/ansmann_2021_acp.md")
     assert "10.5194/acp-21-9779-2021" not in read_paper_sources()
-    return "option 5 dry-run then DOI PDF synchronizes to canonical paths", option5_out + "\n\n--- option 6 ---\n\n" + out
+    return "paper intake opens sources then DOI PDF synchronizes to canonical paths", option5_out + "\n\n--- intake with PDF ---\n\n" + out
 
 
 def scenario_multi_batch() -> tuple[str, str]:
@@ -370,7 +367,7 @@ def scenario_second_run_idempotent() -> tuple[str, str]:
     assert idx["summary"]["primary_entries"] == 1
     assert idx["summary"]["fulltext_qc_needed"] == 0
     assert_contains(read_dashboard(), "ingest_full_text_to_wiki")
-    return "running option 6 twice is idempotent for QCed full_text rows", out
+    return "running paper intake twice is idempotent for QCed full_text rows", out
 
 
 def scenario_option7_dry_run() -> tuple[str, str]:
@@ -381,7 +378,7 @@ def scenario_option7_dry_run() -> tuple[str, str]:
     assert_contains(out, "Codex launch skipped because RESEARCHWIKI_NO_OPEN=1.")
     assert_contains(out, "Create, update, or clean wiki/literature paper pages from already QCed raw/full_text Markdown")
     assert_contains(out, "Do not acquire new PDFs, new sources, or perform full_text reflow/QC")
-    return "option 7 selects QCed full_text rows and emits wiki-only prompt", out
+    return "wiki ingest selects QCed full_text rows and emits wiki-only prompt", out
 
 
 def scenario_article_url_stays_in_source_queue() -> tuple[str, str]:
@@ -397,7 +394,7 @@ def scenario_article_url_stays_in_source_queue() -> tuple[str, str]:
     option5_out = option5_dry_run()
     assert_contains(option5_out, "https://example.org/articles/no-doi-yet")
     assert_contains(read_paper_sources(), "https://example.org/articles/no-doi-yet")
-    return "article URL without DOI remains in source queue and option 5 lists it", option5_out
+    return "article URL without DOI remains in source queue and intake lists it", option5_out
 
 
 SCENARIOS = [

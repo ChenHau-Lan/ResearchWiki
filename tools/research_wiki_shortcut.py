@@ -609,6 +609,35 @@ def unresolved_source_lines() -> list[str]:
     return [line for line in parse_source_lines(source_block) if not extract_dois(line)]
 
 
+def queue_source_pointers(value: str) -> int:
+    incoming_lines = [normalize_source_line(line) for line in value.splitlines() if normalize_source_line(line)]
+    if not incoming_lines:
+        return 0
+
+    source_text = PAPER_SOURCES.read_text(encoding="utf-8")
+    existing_sources = {line.lower() for line in parse_source_lines(source_text)}
+    existing_dois = set(
+        extract_dois(
+            source_text + "\n" + DOI_LIST.read_text(encoding="utf-8") + "\n" + DOI_DASHBOARD.read_text(encoding="utf-8")
+        )
+    )
+    new_sources: list[str] = []
+    for source in incoming_lines:
+        source_dois = extract_dois(source)
+        if source_dois and all(doi in existing_dois for doi in source_dois):
+            continue
+        if source.lower() in existing_sources:
+            continue
+        new_sources.append(source)
+    if not new_sources:
+        return 0
+
+    _, _, source_block = source_add_block(source_text)
+    current_sources = parse_source_lines(source_block)
+    PAPER_SOURCES.write_text(replace_source_add(source_text, current_sources + new_sources), encoding="utf-8")
+    return len(new_sources)
+
+
 def parse_board(text: str) -> list[dict[str, str]]:
     rows: list[dict[str, str]] = []
     rows_by_doi: dict[str, dict[str, str]] = {}
@@ -1534,6 +1563,57 @@ def print_full_text_conversion_report(messages: list[str], warnings: list[str]) 
         print(f"- Warning: {warning}")
 
 
+def build_source_pointer_resolution_prompt(sources: list[str]) -> str:
+    source_lines = "\n".join(f"- {source}" for source in sources)
+    return f"""You are working inside this Research Wiki project.
+
+First read and follow the command-independent core contract:
+- core/principles.md
+- core/data_contract.md
+- core/agent_contract.md
+- core/skills/research-wiki-fulltext-acquisition/SKILL.md
+
+Goal:
+Resolve queued paper source pointers into DOI dashboard rows and authorized evidence routes. Do not create wiki/literature pages.
+
+Queued source pointers:
+{source_lines}
+
+Rules:
+0. Core contract is authoritative. If these command instructions conflict with core/*, follow core/* and report the mismatch.
+1. For each source pointer, identify a DOI if legally and reliably available. Do not fabricate DOI, title, authors, year, venue, or URL.
+2. If a DOI is resolved, add or update the row in raw/doi_dashboard.md.
+3. If an authorized PDF/full-text route is obvious, record it in the dashboard note and save legal PDF evidence only when actually available.
+4. If the source requires browser/session access or user action, keep the source pointer in raw/paper_sources.md and record the next action.
+5. Do not bypass paywalls, CAPTCHA, robots, or credential barriers.
+6. Do not write pending machine extraction to raw/full_text/. Use raw/staging/extracted_text/ if you extract text, then convert to QCed raw/full_text only after reflow/QC.
+7. Run python3 tools/build_full_text_index.py after changing evidence or dashboard files.
+
+Console output protocol:
+- Emit concise progress lines only with these exact prefixes:
+  - RW_STATUS|source|<short source label>
+  - RW_ATTEMPT|source|resolve_source_pointer|<source>
+  - RW_RESULT|source|success|<reason>
+  - RW_RESULT|source|failed|<reason>
+- Do not emit the example protocol lines themselves. Never emit angle-bracket placeholders as real progress.
+"""
+
+
+def resolve_unresolved_sources_with_codex(sources: list[str]) -> None:
+    if not sources:
+        return
+    print("\n== Source Resolution ==")
+    print("Unresolved source pointers need DOI/metadata judgment.")
+    prompt_text = build_source_pointer_resolution_prompt(sources)
+    return_code, failure_hint = run_codex_prompt_foreground(
+        prompt_text,
+        "paper source resolution",
+        reasoning_effort="high",
+    )
+    if return_code != 0:
+        print(f"Source resolution did not complete: {failure_hint or 'Codex did not finish successfully.'}")
+
+
 def write_dashboard_rows(rows: list[dict[str, str]]) -> None:
     dashboard_text = DOI_DASHBOARD.read_text(encoding="utf-8")
     DOI_DASHBOARD.write_text(replace_board(dashboard_text, rows), encoding="utf-8")
@@ -1829,30 +1909,11 @@ def add_or_open_paper_sources() -> None:
     if not value:
         open_path(PAPER_SOURCES)
         return
-    incoming_lines = [normalize_source_line(line) for line in value.splitlines() if normalize_source_line(line)]
-    if not incoming_lines:
-        print("No source pointers found.")
-        return
-
-    source_text = PAPER_SOURCES.read_text(encoding="utf-8")
-    existing_sources = {line.lower() for line in parse_source_lines(source_text)}
-    existing_dois = set(extract_dois(source_text + "\n" + DOI_LIST.read_text(encoding="utf-8") + "\n" + DOI_DASHBOARD.read_text(encoding="utf-8")))
-    new_sources: list[str] = []
-    for source in incoming_lines:
-        source_dois = extract_dois(source)
-        if source_dois and all(doi in existing_dois for doi in source_dois):
-            continue
-        if source.lower() in existing_sources:
-            continue
-        new_sources.append(source)
-    if not new_sources:
+    added = queue_source_pointers(value)
+    if not added:
         print("All source pointers already exist in raw/paper_sources.md or raw/doi_dashboard.md.")
         return
-
-    _, _, source_block = source_add_block(source_text)
-    current_sources = parse_source_lines(source_block)
-    PAPER_SOURCES.write_text(replace_source_add(source_text, current_sources + new_sources), encoding="utf-8")
-    print(f"Added {len(new_sources)} source pointer(s) to raw/paper_sources.md.")
+    print(f"Added {added} source pointer(s) to raw/paper_sources.md.")
     print("Progress will appear in raw/doi_dashboard.md after source resolution or DOI sync.")
 
 
@@ -1909,9 +1970,9 @@ Rules:
 4. If metadata is incomplete, temporarily use `<first_author_last_name>_<year>_<short_journal_slug>` and revise it after verification. If two papers collide, append a short DOI slug such as `_waf_d_21_0044_1`.
 5. If Full Text already exists but PDF is missing, treat this as PDF backfill. Do not redo the full text unless it is incomplete or mismatched.
 6. If a PDF is obtained, save it as raw/doi_pdf/<paper_file_key>.pdf.
-7. Do not write pending machine extraction to raw/full_text/. If you capture machine text, put it in raw/staging/extracted_text/ or leave instructions for option 6.
+7. Do not write pending machine extraction to raw/full_text/. If you capture machine text, put it in raw/staging/extracted_text/ or leave instructions for the Paper intake workflow.
 8. Only write raw/full_text/<paper_file_key>.md if the text has already been reflowed, QCed, and frontmatter says extraction_status: codex_qc_done and qc_status: codex_qc_done.
-9. This command is not the default high-volume DOI path. For routine rows, prefer the semi-automatic flow: option 5 opens authorized source pages, the user saves PDFs into raw/doi_pdf/, option 6 imports evidence and creates QCed raw/full_text, and option 7 ingests wiki pages.
+9. This command is not the default high-volume DOI path. For routine rows, prefer the semi-automatic Paper intake flow: it opens authorized source pages, the user saves PDFs into raw/doi_pdf/, imports evidence, and creates QCed raw/full_text. Wiki ingest is a separate command.
 10. Spend reasoning on legal source selection, metadata verification, filename correctness, and completeness checks. Do not spend time on exhaustive publisher-route chasing, broad web searches, or research synthesis.
 11. For each DOI, try existing local evidence, obvious open publisher HTML/XML/PDF, and visible authorized browser PDF controls. If those do not work promptly, update the dashboard to `full_text_needed`, set Next Action to `authorized_browser_or_user_pdf_needed`, and move on.
 12. If the user/browser can view the article page and click the PDF button, treat that as authorized browser-session access. Do not mark blocked only because shell curl/wget/programmatic fetch returns 403.
@@ -1922,7 +1983,7 @@ Rules:
    If direct fetch returns CloudFront 403, switch to browser-session PDF download: open the DOI/article page in an authorized browser session, click the visible PDF/Download PDF control, save or import the resulting PDF to raw/doi_pdf/<paper_file_key>.pdf, then verify title/DOI.
 14. For AMS / AMETSOC papers, do not bypass CloudFront, CAPTCHA, robots, or access controls. AMS says WAF and other technical journals are free to read after 12 months, so prefer normal AMS Journals Online article/PDF pages and visible browser PDF controls.
 15. If browser automation is available, use it to download the visible publisher PDF automatically. If automation cannot access the browser session, open the page for the user and ask for manual click/download only as the fallback.
-16. If a PDF is obtained, save/import it and let option 6 perform staging extraction plus Codex reflow/QC into final raw/full_text. Do not stop at PDF-only unless source access or extraction is blocked.
+16. If a PDF is obtained, save/import it and let the Paper intake workflow perform staging extraction plus Codex reflow/QC into final raw/full_text. Do not stop at PDF-only unless source access or extraction is blocked.
 17. Run python3 tools/build_full_text_index.py after adding or changing full text/PDF metadata.
 18. Update raw/doi_dashboard.md only for acquisition state:
     - full text Markdown exists: Status = full_text_done, Full Text = raw/full_text/<paper_file_key>.md, Next Action = ingest_full_text_to_wiki.
@@ -2018,7 +2079,7 @@ def prepare_codex_app_acquisition_prompt() -> None:
         print("Prompt copied to clipboard. Paste it into the new Codex conversation and run it.")
     else:
         print("Clipboard copy was unavailable. Open the prompt file above and paste it into Codex.")
-    print("After Codex finishes, run option 6 to import PDFs/rebuild the dashboard, then option 7 to create or refresh the wiki page.")
+    print("After Codex finishes, run Paper intake again to import evidence/create QCed full_text, then run wiki ingest.")
 
 
 def launch_full_text_acquisition_prompt() -> None:
@@ -2259,7 +2320,7 @@ def open_authorized_source_pages() -> None:
         subprocess.run(["open", str(DOI_PDF_DIR)], cwd=ROOT)
         print(f"\nOpened {opened} source/DOI page(s) and raw/doi_pdf/.")
 
-    print("\nAfter downloading authorized PDFs or confirming full text, place evidence in raw/doi_pdf/ or source notes, then run option 6.")
+    print("\nAfter downloading authorized PDFs or confirming full text, place evidence in raw/doi_pdf/ or source notes, then run Paper intake again.")
 
 
 def rebuild_full_text_index() -> None:
@@ -2299,6 +2360,42 @@ def rebuild_full_text_index() -> None:
     print("Outputs: raw/full_text_index.md, raw/full_text_index.json")
 
 
+def has_local_pdf_evidence() -> bool:
+    return any(path.is_file() and not path.name.startswith(".") for path in DOI_PDF_DIR.glob("*.pdf"))
+
+
+def paper_intake_workflow() -> None:
+    ensure_core_files()
+    print("\n== Paper Intake ==")
+    print("Goal: source pointer -> legal evidence -> staging extraction -> QCed raw/full_text.")
+    value = prompt("Paste DOI / URL now, or press Enter to use queued sources and local PDFs")
+    if value:
+        added = queue_source_pointers(value)
+        if added:
+            print(f"Added {added} source pointer(s) to raw/paper_sources.md.")
+        else:
+            print("No new source pointers were added.")
+
+    rows = sync_doi_board()
+    unresolved = unresolved_source_lines()
+    missing_evidence = [row for row in rows if row.get("doi") and not row.get("pdf") and not row.get("full_text")]
+    if unresolved or missing_evidence:
+        open_authorized_source_pages()
+        if sys.stdin.isatty() and os.environ.get("RESEARCHWIKI_NO_OPEN") != "1":
+            prompt("After saving authorized PDFs into raw/doi_pdf/, press Enter to continue")
+
+    unresolved_after_open = unresolved_source_lines()
+    if unresolved_after_open:
+        resolve_unresolved_sources_with_codex(unresolved_after_open)
+
+    if not has_local_pdf_evidence() and not rows_needing_full_text_conversion(sync_doi_board()):
+        print("\nNo local PDF evidence or staging text is ready for import/QC.")
+        print(f"Add source pointers to {PAPER_SOURCES.relative_to(ROOT)} or place authorized PDFs in {DOI_PDF_DIR.relative_to(ROOT)}, then run this option again.")
+        return
+
+    rebuild_full_text_index()
+
+
 def run_health_check() -> None:
     ensure_core_files()
     proc = subprocess.run(
@@ -2336,21 +2433,62 @@ def open_graph_guide() -> None:
     open_path(OBSIDIAN_GRAPH_GUIDE)
 
 
+def run_submenu(title: str, actions: dict[str, tuple[str, object]]) -> None:
+    while True:
+        print_header()
+        print(title)
+        print("-" * len(title))
+        for key, (label, _) in actions.items():
+            print(f"{key}. {label}")
+        choice = prompt("Choose", "0" if not sys.stdin.isatty() else "")
+        if choice == "0":
+            return
+        action = actions.get(choice)
+        if not action:
+            print("Unknown choice.")
+            pause()
+            continue
+        try:
+            action[1]()
+        except KeyboardInterrupt:
+            print("\nCancelled.")
+        except Exception as exc:
+            print(f"\nError: {exc}")
+        pause()
+
+
+def topic_graph_menu() -> None:
+    run_submenu(
+        "Topics / Graph",
+        {
+            "1": ("Manage topic/subtopic registry", manage_topics),
+            "2": ("Open Obsidian graph guide", open_graph_guide),
+            "0": ("Back", None),
+        },
+    )
+
+
+def maintenance_menu() -> None:
+    run_submenu(
+        "Maintenance / Support",
+        {
+            "1": ("Open DOI dashboard", lambda: open_path(DOI_DASHBOARD)),
+            "2": ("Run database health check", run_health_check),
+            "3": ("Generate repair plan", generate_repair_plan),
+            "4": ("Prepare GitHub support issue", prepare_support_issue),
+            "5": ("Open paper source queue", lambda: open_path(PAPER_SOURCES)),
+            "0": ("Back", None),
+        },
+    )
+
+
 def menu() -> None:
     actions = {
-        "1": ("Add/open paper sources", add_or_open_paper_sources),
-        "2": ("Open/manage DOI dashboard", lambda: open_path(DOI_DASHBOARD)),
-        "3": ("Codex-assisted source/full-text finding", launch_full_text_acquisition_prompt),
-        "4": ("Prepare Codex app source/full-text finding prompt", prepare_codex_app_acquisition_prompt),
-        "5": ("Open authorized source pages", open_authorized_source_pages),
-        "6": ("Import evidence + create QCed full_text", rebuild_full_text_index),
-        "7": ("Ingest QCed full_text to wiki", launch_wiki_ingest_prompt),
-        "8": ("Launch Codex project conversation", project_prompt),
-        "9": ("Manage topic/subtopic registry", manage_topics),
-        "10": ("Open Obsidian graph guide", open_graph_guide),
-        "11": ("Run database health check (diagnose only)", run_health_check),
-        "12": ("Generate repair plan (no deletes)", generate_repair_plan),
-        "13": ("Prepare GitHub support issue (redacted)", prepare_support_issue),
+        "1": ("Paper intake: sources -> QCed full_text", paper_intake_workflow),
+        "2": ("Ingest QCed full_text to wiki", launch_wiki_ingest_prompt),
+        "3": ("Project / idea conversation", project_prompt),
+        "4": ("Topics / graph", topic_graph_menu),
+        "5": ("Maintenance / support", maintenance_menu),
         "0": ("Exit", None),
     }
     while True:
@@ -2372,7 +2510,7 @@ def menu() -> None:
             print("\nCancelled.")
         except Exception as exc:
             print(f"\nError: {exc}")
-        if choice in {"3", "7"}:
+        if choice in {"2", "3", "4", "5"}:
             continue
         pause()
 

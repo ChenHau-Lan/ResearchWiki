@@ -15,13 +15,12 @@ Generated: 2026-05-21
 
 ## Current Command Menu
 
-1. Add/open paper sources.
+1. Paper intake: sources -> QCed full_text.
 2. Open DOI dashboard.
-3. Codex-assisted source/full-text finding for slow/exception cases.
-4. Prepare Codex app source/full-text finding prompt and app-run log.
-5. Open authorized source pages for queued sources or DOI rows missing evidence.
-6. Import evidence, create staging extraction, run Codex reflow/QC, and write `raw/full_text/` only after QC succeeds.
-7. Ingest QCed full_text into wiki literature pages.
+2. Ingest QCed full_text into wiki literature pages.
+3. Project / idea conversation.
+4. Topics / graph.
+5. Maintenance / support.
 8. Launch Codex project conversation.
 9. Manage topic/subtopic registry.
 10. Open Obsidian graph guide.
@@ -52,7 +51,7 @@ Additional test helper:
 
 ## Key Problems Still Worth Solving
 
-- Next practical DOI work should preserve the new boundary: staging extraction is not full_text; option 7 should only ingest already-QCed `raw/full_text/*.md`.
+- Next practical DOI work should preserve the new boundary: staging extraction is not full_text; wiki ingest should only use already-QCed `raw/full_text/*.md`.
 - Branch discipline should follow `maintenance/branch_strategy.md`: `main` is private protected integration, `codex/core-*` for core, `codex/command-*` for command/UI, `personal/*` for private research state.
 - Browser-session PDF download may depend on macOS/Codex/Chrome permissions; keep Codex acquisition as fallback, not the default batch route.
 - `ResearchWiki.command` should stay simple; avoid adding many special-case menu items.

@@ -22,21 +22,17 @@ Research Wiki 的目標是讓研究資料有清楚的 evidence chain：
 ## 研究材料如何進入資料庫
 
 ```mermaid
-flowchart TD
-    SOURCE["source pointer<br/>DOI / DOI URL / article URL / PDF URL / local PDF"] --> QUEUE["raw/paper_sources.md<br/>尚未解析的來源線索"]
-    QUEUE --> RESOLVE["legal source resolution<br/>publisher / author / OA / institution / user-provided"]
-    RESOLVE --> PDF["raw/doi_pdf/<br/>原始 PDF evidence"]
-    RESOLVE --> STAGE["raw/staging/extracted_text/<br/>機械抽字暫存"]
-    PDF --> STAGE
-    STAGE --> FT["raw/full_text/<br/>已重排、已 QC、可閱讀全文"]
-    FT --> LIT["wiki/literature/<br/>paper reading page"]
-    LIT --> SYN["wiki/synthesis/"]
-    OTHER["其他原始材料<br/>raw/files/"] --> WIKI2["meeting / seminar / project pages"]
+flowchart LR
+    A["來源<br/>DOI / URL / PDF"] --> B["raw/<br/>證據 + QC 後全文"]
+    B --> C["wiki/literature/<br/>paper page"]
+    C --> D["wiki/synthesis/<br/>跨文獻判斷"]
 ```
 
-論文可以從 DOI、網址、PDF URL 或本機 PDF 開始。這些一開始只是 source pointer；資料庫要做的事，是把它們解析成合法 evidence package，保留 PDF 或原始來源，再把機械抽字放到 staging。只有經過 Codex 重排與 QC 的可閱讀 Markdown，才會進 `raw/full_text/`，也只有這種 full text 才能進一步產生 `wiki/literature/` paper page。
+論文可以從 DOI、網址、PDF URL 或本機 PDF 開始。資料庫先把它們變成 `raw/` 裡可回查的 evidence package；只有經過 Codex 重排與 QC 的可閱讀 Markdown，才會進 `raw/full_text/`，也只有這種 full text 才能產生 `wiki/literature/` paper page。
 
 PDF 是 evidence package 的一種重要材料，因為它保留版面、表格、公式、圖說與出版格式。Paper page 不複製整篇全文，而是保存閱讀判斷與來源指標，讓你可以回查 PDF 或 QC 後 full text。
+
+細節上，機械抽字會短暫放在 `raw/staging/extracted_text/`；它不是正式全文，不會進 index，也不會被拿去產生 wiki。
 
 ## 安裝與開始使用
 

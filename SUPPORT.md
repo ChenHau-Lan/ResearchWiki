@@ -8,7 +8,7 @@ diagnostics into a GitHub issue draft.
 Use it when:
 
 - installation is unclear;
-- `ResearchWiki.command` does not run;
+- `ResearchWikiCodex.command` does not run;
 - DOI dashboard, full-text index, or wiki doctor output looks wrong;
 - a new user gets stuck while following the README;
 - you want to report a core contract, command UI, or privacy redaction problem.
@@ -25,6 +25,8 @@ Do not submit the issue automatically. Give me the draft for review.
 ```
 
 Codex can run checks, read the report, inspect whether redaction looks reasonable, and open the issue draft. A human should still review before submitting.
+
+`ResearchWikiCodex.command` also has a feedback option that asks for an issue title, copies a Codex prompt, and opens Codex. Use the next conversation to provide the full description, screenshots, and final confirmation before any issue is submitted.
 
 ## What It Does
 

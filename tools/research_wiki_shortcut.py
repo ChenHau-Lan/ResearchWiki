@@ -16,6 +16,7 @@ import shutil
 import subprocess
 import sys
 import time
+import webbrowser
 from datetime import date, datetime
 from pathlib import Path
 from urllib.parse import quote
@@ -51,8 +52,9 @@ URL_RE = re.compile(r"https?://[^\s<>)\]]+", re.IGNORECASE)
 OLD_BOARD_HEADER = "| DOI | Status | Title | Full Text | Wiki Page | Next Action | Updated | Note |"
 LEGACY_BOARD_HEADER = "| Paper | Journal | DOI | Wiki Status | Access Legality | PDF | Full Text | Next Action | Updated | Note |"
 LEGACY_DETAIL_BOARD_HEADER = "| Last Name_Year | Journal | DOI | Wiki Status | Access Legality | PDF | Full Text | Next Action | Updated | Note |"
-BOARD_HEADER = "| Last Name_Year | Journal | DOI | Wiki Status | Access Legality | PDF | Full Text |"
-BOARD_SEPARATOR = "|---|---|---|---|---|---|---|"
+LEGACY_COMPACT_BOARD_HEADER = "| Last Name_Year | Journal | DOI | Wiki Status | Access Legality | PDF | Full Text |"
+BOARD_HEADER = "| Last Name_Year | Journal | DOI | Wiki Status | PDF | Full Text |"
+BOARD_SEPARATOR = "|---|---|---|---|---|---|"
 NOTE_HEADER = "| DOI | Next Action | Updated | Note |"
 NOTE_SEPARATOR = "|---|---|---|---|"
 STATUSES = {
@@ -85,17 +87,40 @@ def prompt(label: str, default: str = "") -> str:
     return value or default
 
 
-def open_path(path: Path) -> None:
+def open_location(target: str | Path) -> None:
+    """Open a local path or URL with the current platform's default handler."""
     ensure_core_files()
+    label = repo_relative(target) if isinstance(target, Path) and target.is_relative_to(ROOT) else str(target)
     if os.environ.get("RESEARCHWIKI_NO_OPEN") == "1":
-        print(f"Open skipped because RESEARCHWIKI_NO_OPEN=1: {repo_relative(path)}")
+        print(f"Open skipped because RESEARCHWIKI_NO_OPEN=1: {label}")
         return
-    subprocess.run(["open", str(path)], cwd=ROOT)
+    value = str(target)
+    if sys.platform == "darwin":
+        subprocess.run(["open", value], cwd=ROOT)
+        return
+    if os.name == "nt":
+        try:
+            os.startfile(value)  # type: ignore[attr-defined]
+        except OSError:
+            webbrowser.open(value)
+        return
+    opener = shutil.which("xdg-open")
+    if opener:
+        subprocess.run([opener, value], cwd=ROOT)
+    else:
+        webbrowser.open(value)
+
+
+def open_path(path: Path) -> None:
+    open_location(path)
 
 
 def launch_codex() -> bool:
     if os.environ.get("RESEARCHWIKI_NO_OPEN") == "1":
         print("Codex launch skipped because RESEARCHWIKI_NO_OPEN=1.")
+        return False
+    if sys.platform != "darwin":
+        print("Codex app auto-launch is macOS-only. Open Codex manually and paste the copied prompt.")
         return False
     proc = subprocess.run(["open", "-a", "Codex", str(ROOT)], cwd=ROOT, stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True)
     if proc.returncode == 0:
@@ -111,10 +136,19 @@ def launch_codex() -> bool:
 def copy_to_clipboard(text: str) -> bool:
     if os.environ.get("RESEARCHWIKI_NO_OPEN") == "1":
         return False
-    pbcopy = shutil.which("pbcopy")
-    if not pbcopy:
+    command: list[str] | None = None
+    if sys.platform == "darwin":
+        command = [pbcopy] if (pbcopy := shutil.which("pbcopy")) else None
+    elif os.name == "nt":
+        command = [clip] if (clip := shutil.which("clip")) else None
+    else:
+        if xclip := shutil.which("xclip"):
+            command = [xclip, "-selection", "clipboard"]
+        elif xsel := shutil.which("xsel"):
+            command = [xsel, "--clipboard", "--input"]
+    if not command:
         return False
-    proc = subprocess.run([pbcopy], input=text, text=True, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+    proc = subprocess.run(command, input=text, text=True, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
     return proc.returncode == 0
 
 
@@ -122,6 +156,8 @@ def find_codex_binary() -> str | None:
     found = shutil.which("codex")
     if found:
         return found
+    if sys.platform != "darwin":
+        return None
     fallback = Path("/Applications/Codex.app/Contents/Resources/codex")
     if fallback.exists():
         return str(fallback)
@@ -129,26 +165,40 @@ def find_codex_binary() -> str | None:
 
 
 def print_codex_process_status() -> None:
-    proc = subprocess.run(["pgrep", "-if", "Codex"], stdout=subprocess.PIPE, stderr=subprocess.DEVNULL, text=True)
-    if proc.returncode == 0 and proc.stdout.strip():
-        print("Codex process appears to be running.")
-    else:
-        print("Codex process was not detected. If Codex is open under another process name, paste the prompt manually.")
+    if sys.platform == "darwin" and shutil.which("pgrep"):
+        proc = subprocess.run(["pgrep", "-if", "Codex"], stdout=subprocess.PIPE, stderr=subprocess.DEVNULL, text=True)
+        if proc.returncode == 0 and proc.stdout.strip():
+            print("Codex process appears to be running.")
+        else:
+            print("Codex process was not detected. If Codex is open under another process name, paste the prompt manually.")
+        return
+    if os.name == "nt" and shutil.which("tasklist"):
+        proc = subprocess.run(["tasklist"], stdout=subprocess.PIPE, stderr=subprocess.DEVNULL, text=True)
+        if proc.returncode == 0 and "Codex" in proc.stdout:
+            print("Codex process appears to be running.")
+        else:
+            print("Codex process was not detected. Paste the prompt manually if needed.")
+        return
+    print("Codex process check is unavailable on this platform. Paste the prompt manually if needed.")
 
 
 def codex_env() -> dict[str, str]:
     env = os.environ.copy()
-    path_parts = [
-        "/opt/homebrew/bin",
-        "/usr/local/bin",
-        "/usr/bin",
-        "/bin",
-        "/usr/sbin",
-        "/sbin",
-    ]
-    path_parts.extend(env.get("PATH", "").split(":"))
+    path_parts = []
+    if os.name != "nt":
+        path_parts.extend(
+            [
+                "/opt/homebrew/bin",
+                "/usr/local/bin",
+                "/usr/bin",
+                "/bin",
+                "/usr/sbin",
+                "/sbin",
+            ]
+        )
+    path_parts.extend(env.get("PATH", "").split(os.pathsep))
     seen: set[str] = set()
-    env["PATH"] = ":".join(part for part in path_parts if part and not (part in seen or seen.add(part)))
+    env["PATH"] = os.pathsep.join(part for part in path_parts if part and not (part in seen or seen.add(part)))
     return env
 
 
@@ -180,7 +230,7 @@ def print_acquisition_result(rows: list[dict[str, str]], active_dois: set[str], 
         print(f"- DOI: {doi}")
         print(f"  Paper: {row.get('paper') or 'unknown'} | Journal: {row.get('journal') or 'unknown'}")
         print(f"  Result: {result}")
-        print(f"  Wiki Status: {status} | Access Legality: {row.get('access_legality') or 'unknown'}")
+        print(f"  Wiki Status: {status}")
         print(f"  PDF: {pdf}")
         print(f"  Full Text: {full_text}")
 
@@ -400,11 +450,16 @@ def split_row(line: str) -> list[str]:
     return [part.strip().replace(r"\|", "|") for part in stripped.strip("|").split("|")]
 
 
+COPERNICUS_FILENAME_COPY_DOI_RE = re.compile(r"^(10\.5194/[a-z][a-z0-9]*-\d+-\d+-(?:19|20)\d{2})-\d+$")
+
+
 def normalize_doi(value: str) -> str:
     value = value.strip().rstrip(".,;")
     value = re.sub(r"^https?://(dx\.)?doi\.org/", "", value, flags=re.IGNORECASE)
     value = re.sub(r"^doi:\s*", "", value, flags=re.IGNORECASE)
-    return value.lower()
+    value = value.lower()
+    copy_suffix = COPERNICUS_FILENAME_COPY_DOI_RE.fullmatch(value)
+    return copy_suffix.group(1) if copy_suffix else value
 
 
 def extract_dois(text: str) -> list[str]:
@@ -468,22 +523,7 @@ is resolved.
 
 
 def default_doi_dashboard() -> str:
-    initial_board = render_board(
-        [
-            {
-                "paper": "conrick_2021",
-                "journal": "waf",
-                "doi": "10.1175/waf-d-21-0044.1",
-                "status": "new",
-                "access_legality": "unknown",
-                "pdf": "",
-                "full_text": "",
-                "next_action": "authorized_source_or_pdf_needed",
-                "updated": TODAY,
-                "note": "Test DOI for first acquisition check.",
-            }
-        ]
-    )
+    initial_board = render_board([])
     return f"""# DOI Dashboard
 
 This board tracks where each resolved DOI is in the paper-source ingest process.
@@ -491,6 +531,11 @@ This board tracks where each resolved DOI is in the paper-source ingest process.
 ## DOI Status Board
 
 {initial_board}
+
+## DOI Notes
+
+{NOTE_HEADER}
+{NOTE_SEPARATOR}
 
 ## Status Legend
 
@@ -525,7 +570,7 @@ def ensure_core_files() -> None:
 
     # One-time migration support from the older combined doi_list.md.
     text = DOI_LIST.read_text(encoding="utf-8")
-    if BOARD_HEADER in text or LEGACY_BOARD_HEADER in text or LEGACY_DETAIL_BOARD_HEADER in text or OLD_BOARD_HEADER in text:
+    if BOARD_HEADER in text or LEGACY_BOARD_HEADER in text or LEGACY_DETAIL_BOARD_HEADER in text or LEGACY_COMPACT_BOARD_HEADER in text or OLD_BOARD_HEADER in text:
         dashboard_text = DOI_DASHBOARD.read_text(encoding="utf-8")
         old_rows = parse_board(text)
         current_rows = parse_board(dashboard_text)
@@ -646,8 +691,11 @@ def parse_board(text: str) -> list[dict[str, str]]:
     rows_by_doi: dict[str, dict[str, str]] = {}
     in_board = ""
     for line in text.splitlines():
-        if line.strip() in {BOARD_HEADER, LEGACY_BOARD_HEADER, LEGACY_DETAIL_BOARD_HEADER}:
+        if line.strip() == BOARD_HEADER:
             in_board = "new"
+            continue
+        if line.strip() in {LEGACY_BOARD_HEADER, LEGACY_DETAIL_BOARD_HEADER, LEGACY_COMPACT_BOARD_HEADER}:
+            in_board = "legacy"
             continue
         if line.strip() == OLD_BOARD_HEADER:
             in_board = "old"
@@ -666,7 +714,28 @@ def parse_board(text: str) -> list[dict[str, str]]:
         parts = split_row(line)
         if not parts:
             continue
-        if in_board == "new" and len(parts) in {7, 10}:
+        if in_board == "new" and len(parts) == 6:
+            doi = normalize_doi(parts[2])
+            if not doi:
+                continue
+            status = parts[3] if parts[3] in STATUSES else "new"
+            row = {
+                "paper": parts[0],
+                "journal": parts[1],
+                "doi": doi,
+                "status": status,
+                "access_legality": "",
+                "pdf": "",
+                "full_text": "",
+                "wiki_page": "",
+                "title": "",
+                "next_action": "",
+                "updated": "",
+                "note": "",
+            }
+            rows.append(row)
+            rows_by_doi.setdefault(doi, row)
+        elif in_board == "legacy" and len(parts) in {7, 10}:
             doi = normalize_doi(parts[2])
             if not doi:
                 continue
@@ -686,7 +755,7 @@ def parse_board(text: str) -> list[dict[str, str]]:
                 "note": parts[9] if len(parts) == 10 else "",
             }
             rows.append(row)
-            rows_by_doi[doi] = row
+            rows_by_doi.setdefault(doi, row)
         elif in_board == "old" and len(parts) == 8:
             doi = normalize_doi(parts[0])
             if not doi:
@@ -707,7 +776,7 @@ def parse_board(text: str) -> list[dict[str, str]]:
                 "note": parts[7],
             }
             rows.append(row)
-            rows_by_doi[doi] = row
+            rows_by_doi.setdefault(doi, row)
         elif in_board == "notes" and len(parts) == 4:
             doi = normalize_doi(parts[0])
             row = rows_by_doi.get(doi)
@@ -718,15 +787,24 @@ def parse_board(text: str) -> list[dict[str, str]]:
     return rows
 
 
+def checkbox(value: str) -> str:
+    return "[x]" if value else "[ ]"
+
+
 def render_board(rows: list[dict[str, str]]) -> str:
     lines = [BOARD_HEADER, BOARD_SEPARATOR]
     for row in rows:
+        visible = [
+            row.get("paper", ""),
+            row.get("journal", ""),
+            row.get("doi", ""),
+            row.get("status", ""),
+            checkbox(row.get("pdf", "")),
+            checkbox(row.get("full_text", "")),
+        ]
         lines.append(
             "| "
-            + " | ".join(
-                escape_cell(row.get(key, ""))
-                for key in ["paper", "journal", "doi", "status", "access_legality", "pdf", "full_text"]
-            )
+            + " | ".join(escape_cell(value) for value in visible)
             + " |"
         )
     lines.extend(["", "## DOI Notes", "", NOTE_HEADER, NOTE_SEPARATOR])
@@ -756,6 +834,53 @@ def local_path_exists(value: str) -> bool:
     if not path.is_absolute():
         path = ROOT / value
     return path.exists()
+
+
+STATUS_RANK = {
+    "new": 0,
+    "metadata_ok": 1,
+    "blocked": 1,
+    "full_text_needed": 2,
+    "abstract_only": 2,
+    "full_text_done": 3,
+    "wiki_done": 4,
+}
+
+
+def merge_dashboard_rows(base: dict[str, str], incoming: dict[str, str]) -> dict[str, str]:
+    """Merge duplicate dashboard rows for the same canonical DOI."""
+    merged = dict(base)
+    for field in ["paper", "journal", "title", "pdf", "full_text", "wiki_page", "next_action", "updated", "note"]:
+        incoming_value = incoming.get(field, "")
+        if incoming_value and not merged.get(field):
+            merged[field] = incoming_value
+    incoming_status = incoming.get("status", "")
+    if STATUS_RANK.get(incoming_status, -1) > STATUS_RANK.get(merged.get("status", ""), -1):
+        merged["status"] = incoming_status
+        merged["next_action"] = incoming.get("next_action") or merged.get("next_action", "")
+        merged["note"] = incoming.get("note") or merged.get("note", "")
+    if local_path_exists(incoming.get("pdf", "")) and not local_path_exists(merged.get("pdf", "")):
+        merged["pdf"] = incoming["pdf"]
+    if full_text_is_qced(incoming.get("full_text", "")) and not full_text_is_qced(merged.get("full_text", "")):
+        merged["full_text"] = incoming["full_text"]
+    merged["doi"] = normalize_doi(merged.get("doi", "") or incoming.get("doi", ""))
+    return merged
+
+
+def dedupe_dashboard_rows(rows: list[dict[str, str]]) -> list[dict[str, str]]:
+    deduped: dict[str, dict[str, str]] = {}
+    order: list[str] = []
+    for row in rows:
+        doi = normalize_doi(row.get("doi", ""))
+        if not doi:
+            continue
+        normalized = {**row, "doi": doi}
+        if doi not in deduped:
+            deduped[doi] = normalized
+            order.append(doi)
+        else:
+            deduped[doi] = merge_dashboard_rows(deduped[doi], normalized)
+    return [deduped[doi] for doi in order]
 
 
 def parse_simple_frontmatter(text: str) -> dict[str, str]:
@@ -1159,6 +1284,8 @@ def render_qced_full_text_from_staging(staging_path: Path, text: str) -> str:
     text = text.replace("readability_status: needs_codex_qc", "readability_status: readable")
     text = text.replace("qc_status: pending_codex_qc", "qc_status: codex_qc_done")
     text = text.replace("equation_quality: not_checked", "equation_quality: not_applicable")
+    if "table_quality:" not in text:
+        text = text.replace("equation_quality: not_applicable", "equation_quality: not_applicable\ntable_quality: not_applicable", 1)
     text = re.sub(r"updated: .+", f"updated: {TODAY}", text, count=1)
     text = text.replace(
         "- It is staging text only. It must be reflowed and QCed before it can be copied to raw/full_text/.",
@@ -1518,9 +1645,16 @@ Rules:
    - readability_status: readable, readable-with-warnings, or poor
    - qc_status: codex_qc_done
    - equation_quality: good, partial, poor, or not_applicable
-8. If conversion succeeds, update raw/doi_dashboard.md for that DOI: Status = full_text_done, Full Text = raw/full_text/<paper_file_key>.md, Next Action = ingest_full_text_to_wiki.
-9. If conversion fails, keep Status = full_text_needed, keep Full Text empty, set Next Action = codex_convert_to_full_text, and record a concise blocker.
-10. Run python3 tools/build_full_text_index.py after writing final full_text.
+   - table_quality: good, partial, poor, or not_applicable
+8. Table handling is part of QC:
+   - Preserve every table caption as its own `### Table N. <caption>` section.
+   - Use a Markdown table only for simple tables whose rows and columns are unambiguous.
+   - For wide, multi-page, continued, or numeric tables, keep the table under that heading as a fenced text block with `Table status`, `Source pages` if known, and a warning that numeric reuse requires checking the PDF or supplement.
+   - Do not let table rows, continuation markers, or one-word column fragments spill into prose.
+   - If a central table is unreadable and cannot be checked against PDF/source/supplement, set `table_quality: poor`, `readability_status: readable-with-warnings` or `poor`, and record the blocker instead of pretending the table is QCed.
+9. If conversion succeeds, update raw/doi_dashboard.md for that DOI: Status = full_text_done, Full Text = raw/full_text/<paper_file_key>.md, Next Action = ingest_full_text_to_wiki.
+10. If conversion fails, keep Status = full_text_needed, keep Full Text empty, set Next Action = codex_convert_to_full_text, and record a concise blocker.
+11. Run python3 tools/build_full_text_index.py after writing final full_text.
 
 Console output protocol:
 - Emit concise progress lines only with these exact prefixes:
@@ -1529,7 +1663,7 @@ Console output protocol:
   - RW_RESULT|<doi>|success|<reason>
   - RW_RESULT|<doi>|failed|<reason>
   - RW_FILE|<doi>|<pdf_path_or_none>|<full_text_path_or_none>
-  - RW_DASHBOARD|<doi>|<wiki_status>|<access_legality>|<next_action>
+  - RW_DASHBOARD|<doi>|<wiki_status>|<next_action>
 - Do not emit the example protocol lines themselves. Never emit angle-bracket placeholders as real progress.
 """
 
@@ -1628,12 +1762,12 @@ def resolve_unresolved_sources_with_codex(sources: list[str]) -> None:
 
 def write_dashboard_rows(rows: list[dict[str, str]]) -> None:
     dashboard_text = DOI_DASHBOARD.read_text(encoding="utf-8")
-    DOI_DASHBOARD.write_text(replace_board(dashboard_text, rows), encoding="utf-8")
+    DOI_DASHBOARD.write_text(replace_board(dashboard_text, dedupe_dashboard_rows(rows)), encoding="utf-8")
 
 
 def build_full_text_index_quiet() -> str:
     proc = subprocess.run(
-        ["python3", "tools/build_full_text_index.py"],
+        [sys.executable, "tools/build_full_text_index.py"],
         cwd=ROOT,
         text=True,
         stdout=subprocess.PIPE,
@@ -1792,10 +1926,21 @@ def refreshed_row(row: dict[str, str], index: dict[str, dict[str, str]], wiki: d
         candidate_full_text = find_named_artifact(FULL_TEXT_DIR, paper, journal, ".md")
         full_text = candidate_full_text if full_text_is_qced(candidate_full_text) else ""
 
+    full_text_is_abstract_only = (
+        "abstract" in fulltext_status
+        or "metadata" in fulltext_status
+        or "abstract" in readability_status
+        or row.get("status") == "abstract_only"
+    )
+
     if full_text and full_text_needs_qc:
         status = "full_text_needed"
         next_action = "codex_convert_to_full_text"
         note = "pending full_text found outside contract; Codex conversion/QC needed before indexing"
+    elif full_text and full_text_is_abstract_only:
+        status = "abstract_only"
+        next_action = row.get("next_action") or "authorized_source_or_pdf_needed"
+        note = row.get("note") or "abstract-only full_text placeholder found; complete full text still needed"
     elif full_text and wiki_page and ("full-read" in reading_status or "reproduced" in reading_status):
         status = "wiki_done"
         if pdf:
@@ -1884,9 +2029,14 @@ def sync_doi_board() -> list[dict[str, str]]:
     order: list[str] = []
     for row in existing_rows:
         doi = normalize_doi(row["doi"])
-        if doi and doi not in rows_by_doi:
+        if not doi:
+            continue
+        row["doi"] = doi
+        if doi not in rows_by_doi:
             rows_by_doi[doi] = row
             order.append(doi)
+        else:
+            rows_by_doi[doi] = merge_dashboard_rows(rows_by_doi[doi], row)
     for doi in quick_dois + source_dois:
         if doi not in rows_by_doi:
             rows_by_doi[doi] = {
@@ -1951,7 +2101,7 @@ def build_full_text_acquisition_prompt(active: list[dict[str, str]], *, app_hand
         app_log_rule = f"""
 
 Codex app handoff logging:
-- This task was launched from ResearchWiki.command app handoff mode.
+- This task was launched from command app handoff mode.
 - Append concise execution notes to {display_path(CODEX_APP_LAST_LOG)} as you work.
 - Log at least: started time, target DOI, title, each acquisition route attempted, success/failure reason, PDF path, full_text path, dashboard status, and unresolved blockers.
 - Do not paste full article text into the log.
@@ -1965,7 +2115,7 @@ First read and follow the command-independent core contract:
 - core/agent_contract.md
 - core/skills/research-wiki-fulltext-acquisition/SKILL.md
 
-Then use AGENTS.md and USER_GUIDE.md for repository-specific implementation details. ResearchWiki.command is only a UI implementation of the core contract.
+Then use AGENTS.md and USER_GUIDE.md for repository-specific implementation details. The command is only a UI implementation of the core contract.
 
 Target DOI rows:
 {doi_lines}
@@ -2009,13 +2159,13 @@ Rules:
     - dashboard status and next action.
 
 Console output protocol:
-- Emit concise progress lines only with these exact prefixes so ResearchWiki.command can show the important parts:
+- Emit concise progress lines only with these exact prefixes so the command can show the important parts:
   - RW_STATUS|<doi>|<paper title>
   - RW_ATTEMPT|<doi>|<method>|<url_or_source>
   - RW_RESULT|<doi>|success|<reason>
   - RW_RESULT|<doi>|failed|<reason>
   - RW_FILE|<doi>|<pdf_path_or_none>|<full_text_path_or_none>
-  - RW_DASHBOARD|<doi>|<wiki_status>|<access_legality>|<next_action>
+  - RW_DASHBOARD|<doi>|<wiki_status>|<next_action>
 - The command displays only DOI/title, attempts, and success/failure reason. File and dashboard lines are kept in the full log.
 - Do not emit the example protocol lines themselves. Never emit angle-bracket placeholders such as `<doi>` or `<reason>` as real progress.
 - Keep normal prose short.
@@ -2148,7 +2298,7 @@ First read and follow the command-independent core contract:
 - core/agent_contract.md
 - core/skills/research-wiki-academic-writer/SKILL.md
 
-Then use AGENTS.md, USER_GUIDE.md, and templates/paper.md for repository-specific implementation details. ResearchWiki.command is only a UI implementation of the core contract.
+Then use AGENTS.md, USER_GUIDE.md, and templates/paper.md for repository-specific implementation details. The command is only a UI implementation of the core contract.
 
 Target DOI rows ready for full-text QC and/or wiki ingest:
 {doi_lines}
@@ -2161,21 +2311,22 @@ Rules:
 1. Read raw/full_text_index.json and the Full Text paths listed above.
 2. Verify the full_text DOI/title against the dashboard row and source PDF before writing. If the PDF and full_text disagree, stop for that DOI and record the blocker.
 3. If any full_text frontmatter still says `machine_extracted_needs_codex_qc`, `needs_codex_qc`, `pending_codex_qc`, or `needs-human-review`, do not ingest it; update the dashboard with Next Action = codex_convert_to_full_text.
-4. Use templates/paper.md. If an existing page contains old verbose sections, replace them with the concise structure.
-5. Set paper-page `reading_status: full-read` only if the body text, methods, results, limitations, and conclusion/summary were actually read from QCed raw/full_text.
-6. Keep full paper text out of wiki/literature. The wiki page should be a reading note, not a copy.
-7. The generated wiki page should contain only this paper's content plus necessary source pointers. Do not copy template field guides, placeholder text, empty fields, long operational explanations, generic Zotero boilerplate, user-trigger boilerplate, or unnecessary synthesis sections.
-8. Keep metadata concise: title, authors, venue/year, DOI, reading status, full_text path, and PDF path if available.
-9. Preserve abstract-only warnings only if full text is still incomplete; otherwise replace them with full-read evidence notes.
-10. Put cross-paper interpretation in wiki/synthesis only if explicitly necessary and evidence-labeled. For this command, prefer not to update synthesis.
-11. Update raw/doi_dashboard.md:
+4. Before ingesting, quality-check the full_text itself. If it still has obvious PDF extraction defects such as broken sentences/line wraps, page headers/footers, author-name page furniture, isolated equation fragments, missing/misordered section headings, figure captions, table captions, references, appendices, or table rows spilled into prose, do not create a full-read paper page. Update the dashboard with Status = full_text_needed and Next Action = codex_convert_to_full_text. If `table_quality` is `partial` or `poor`, keep exact table values out of the paper page unless you check the PDF, HTML/XML table, or supplement.
+5. Use templates/paper.md. If an existing page contains old verbose sections, replace them with the concise structure.
+6. Set paper-page `reading_status: full-read` only if the body text, methods, results, limitations, and conclusion/summary were actually read from QCed raw/full_text.
+7. Keep full paper text out of wiki/literature. The wiki page should be a reading note, not a copy.
+8. The generated wiki page should contain only this paper's content plus necessary source pointers. Do not copy template field guides, placeholder text, empty fields, long operational explanations, generic Zotero boilerplate, user-trigger boilerplate, or unnecessary synthesis sections.
+9. Keep metadata concise: title, authors, venue/year, DOI, reading status, full_text path, and PDF path if available.
+10. Preserve abstract-only warnings only if full text is still incomplete; otherwise replace them with full-read evidence notes.
+11. Put cross-paper interpretation in wiki/synthesis only if explicitly necessary and evidence-labeled. For this command, prefer not to update synthesis.
+12. Update raw/doi_dashboard.md:
     - if wiki page was created from QCed full_text: Status = wiki_done, Wiki Page = path, Next Action = review_or_ask_question.
     - if wiki ingest did not happen but QCed full_text remains usable: Status = full_text_done, Next Action = ingest_full_text_to_wiki.
     - if full_text is not actually QCed: Status = full_text_needed, Full Text empty, Next Action = codex_convert_to_full_text, Note = blocker.
-12. Run python3 tools/build_full_text_index.py after changing paper pages.
+13. Run python3 tools/build_full_text_index.py after changing paper pages.
 
 Console output protocol:
-- Emit concise progress lines only with these exact prefixes so ResearchWiki.command can show the important parts:
+- Emit concise progress lines only with these exact prefixes so the command can show the important parts:
   - RW_STATUS|<doi>|<paper title>
   - RW_ATTEMPT|<doi>|full_text QC|<full_text_path>
   - RW_ATTEMPT|<doi>|wiki ingest from full_text|<full_text_path>
@@ -2187,7 +2338,7 @@ Console output protocol:
 """
     return_code, failure_hint = run_codex_prompt_foreground(prompt_text, "wiki-page ingest", reasoning_effort="medium")
     subprocess.run(
-        ["python3", "tools/build_full_text_index.py"],
+        [sys.executable, "tools/build_full_text_index.py"],
         cwd=ROOT,
         text=True,
         stdout=subprocess.PIPE,
@@ -2215,7 +2366,7 @@ def manage_topics() -> None:
         print(f"`{topic}` already exists in the topic registry.")
         return
     marker = "| Candidate | Reason to Consider | Promote When |\n|---|---|---|"
-    row = f"\n| `{topic}` | Added from ResearchWiki.command. | It becomes a durable research direction across multiple papers. |"
+    row = f"\n| `{topic}` | Added from the command. | It becomes a durable research direction across multiple papers. |"
     if marker in text:
         text = text.replace(marker, marker + row, 1)
     else:
@@ -2247,7 +2398,7 @@ List DOI values or source pointers that should be added, and add ingest candidat
 def prepare_support_issue() -> None:
     ensure_core_files()
     print("\nPreparing redacted support report and prefilled GitHub issue URL...")
-    args = ["python3", "tools/support_report.py", "--issue-url"]
+    args = [sys.executable, "tools/support_report.py", "--issue-url"]
     if os.environ.get("RESEARCHWIKI_NO_OPEN") != "1":
         args.append("--open")
     proc = subprocess.run(
@@ -2273,14 +2424,13 @@ def print_dashboard_summary(rows: list[dict[str, str]]) -> None:
     print(f"Rows refreshed: {len(rows)}")
     for status in ["new", "metadata_ok", "full_text_needed", "full_text_done", "wiki_done", "abstract_only", "blocked"]:
         print(f"- {status}: {counts.get(status, 0)}")
-    print("\nLast Name_Year | Journal | DOI | Wiki Status | Access Legality | PDF | Full Text")
+    print("\nLast Name_Year | Journal | DOI | Wiki Status | PDF | Full Text")
     for row in rows:
-        pdf_status = row.get("pdf") or "no_pdf"
-        full_text_status = row.get("full_text") or "no_full_text"
+        pdf_status = "yes" if row.get("pdf") else "no"
+        full_text_status = "yes" if row.get("full_text") else "no"
         print(
             f"- {row.get('paper') or 'unknown'} | {row.get('journal') or 'unknown'} | {row['doi']} | "
-            f"{row['status']} | {row.get('access_legality') or 'unknown'} | "
-            f"pdf: {pdf_status} | full_text: {full_text_status}"
+            f"{row['status']} | pdf: {pdf_status} | full_text: {full_text_status}"
         )
     print(f"Output: {DOI_DASHBOARD.relative_to(ROOT)}")
 
@@ -2322,14 +2472,14 @@ def open_authorized_source_pages() -> None:
     if max_to_open:
         opened = 0
         for url in source_urls[:max_to_open]:
-            subprocess.run(["open", url], cwd=ROOT)
+            open_location(url)
             opened += 1
         remaining = max_to_open - opened
         for row in missing[:remaining]:
             doi_url = f"https://doi.org/{quote(row['doi'], safe='/')}"
-            subprocess.run(["open", doi_url], cwd=ROOT)
+            open_location(doi_url)
             opened += 1
-        subprocess.run(["open", str(DOI_PDF_DIR)], cwd=ROOT)
+        open_path(DOI_PDF_DIR)
         print(f"\nOpened {opened} source/DOI page(s) and raw/doi_pdf/.")
 
     print("\nAfter downloading authorized PDFs or confirming full text, place evidence in raw/doi_pdf/ or source notes, then run Paper intake again.")
@@ -2347,7 +2497,7 @@ def import_evidence_extract_staging_rebuild_index() -> None:
 
     print("\nRebuilding local full_text index...")
     proc = subprocess.run(
-        ["python3", "tools/build_full_text_index.py"],
+        [sys.executable, "tools/build_full_text_index.py"],
         cwd=ROOT,
         text=True,
         stdout=subprocess.PIPE,
@@ -2460,7 +2610,7 @@ def paper_intake_menu() -> None:
 def run_health_check() -> None:
     ensure_core_files()
     proc = subprocess.run(
-        ["python3", "tools/wiki_doctor.py"],
+        [sys.executable, "tools/wiki_doctor.py"],
         cwd=ROOT,
         text=True,
         stdout=subprocess.PIPE,
@@ -2476,7 +2626,7 @@ def run_health_check() -> None:
 def generate_repair_plan() -> None:
     ensure_core_files()
     proc = subprocess.run(
-        ["python3", "tools/generate_repair_plan.py"],
+        [sys.executable, "tools/generate_repair_plan.py"],
         cwd=ROOT,
         text=True,
         stdout=subprocess.PIPE,

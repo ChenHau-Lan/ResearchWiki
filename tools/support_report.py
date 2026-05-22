@@ -41,6 +41,8 @@ def sanitize(text: str) -> str:
     home = str(Path.home())
     clean = text.replace(str(ROOT), "<repo>")
     clean = clean.replace(home, "<home>")
+    user_root_pattern = "/" + "Users/" + r"[^\s|)]+"
+    clean = re.sub(user_root_pattern, "<home>/<redacted>", clean)
     clean = DOI_RE.sub("<doi-redacted>", clean)
     clean = re.sub(r"raw/doi_pdf/[^\s|)]+", "raw/doi_pdf/<redacted>", clean)
     clean = re.sub(r"raw/full_text/[^\s|)]+", "raw/full_text/<redacted>", clean)
@@ -106,21 +108,57 @@ def git_status_summary() -> list[str]:
     ]
 
 
-def issue_url(report_text: str, *, title: str) -> str:
+def build_report_text() -> str:
+    now = datetime.now().isoformat(timespec="seconds")
+    lines: list[str] = [
+        "# Research Wiki Support Report",
+        "",
+        f"- Generated: {now}",
+        f"- Python: {sys.version.split()[0]}",
+        "- Privacy: local paths, DOI values, raw PDF paths, full text paths, and Codex logs are redacted.",
+        "",
+    ]
+    lines.extend(section("Install Check", [sys.executable, "tools/check_install.py"]))
+    lines.extend(section("Wiki Lint", [sys.executable, "tools/wiki_lint.py"]))
+    lines.extend(section("Wiki Doctor", [sys.executable, "tools/wiki_doctor.py"]))
+    lines.extend(section("Git Branch", ["git", "branch", "--show-current"]))
+    lines.extend(git_status_summary())
+    lines.extend(section("GitHub CLI Auth", ["gh", "auth", "status"]))
+    return sanitize("\n".join(lines).rstrip() + "\n")
+
+
+def write_report(report_text: str) -> None:
+    REPORT.parent.mkdir(parents=True, exist_ok=True)
+    REPORT.write_text(report_text, encoding="utf-8")
+
+
+def build_issue_body(report_text: str, *, user_message: str = "") -> str:
+    issue_report = report_text.split("## Git Status Summary", 1)[0].strip()
+    lines = [
+        "This issue was prepared by `python3 tools/support_report.py`.",
+        "",
+        "Please review the redacted report before submitting.",
+        "Full local report path: `maintenance/support_report.md`.",
+    ]
+    clean_message = sanitize(user_message.strip())
+    if clean_message:
+        lines.extend(
+            [
+                "",
+                "## User Message",
+                "",
+                clean_message[-3000:],
+            ]
+        )
+    lines.extend(["", issue_report[-5000:]])
+    return "\n".join(lines)
+
+
+def issue_url(report_text: str, *, title: str, user_message: str = "") -> str:
     repo = origin_repo()
     if not repo:
         return ""
-    issue_report = report_text.split("## Git Status Summary", 1)[0].strip()
-    body = "\n".join(
-        [
-            "This issue was prepared by `python3 tools/support_report.py`.",
-            "",
-            "Please review the redacted report before submitting.",
-            "Full local report path: `maintenance/support_report.md`.",
-            "",
-            issue_report[-5000:],
-        ]
-    )
+    body = build_issue_body(report_text, user_message=user_message)
     query = urllib.parse.urlencode(
         {
             "title": title,
@@ -138,25 +176,8 @@ def main() -> int:
     parser.add_argument("--title", default="[install] Research Wiki support report", help="Issue title.")
     args = parser.parse_args()
 
-    now = datetime.now().isoformat(timespec="seconds")
-    lines: list[str] = [
-        "# Research Wiki Support Report",
-        "",
-        f"- Generated: {now}",
-        f"- Python: {sys.version.split()[0]}",
-        "- Privacy: local paths, DOI values, raw PDF paths, full text paths, and Codex logs are redacted.",
-        "",
-    ]
-    lines.extend(section("Install Check", ["python3", "tools/check_install.py"]))
-    lines.extend(section("Wiki Lint", ["python3", "tools/wiki_lint.py"]))
-    lines.extend(section("Wiki Doctor", ["python3", "tools/wiki_doctor.py"]))
-    lines.extend(section("Git Branch", ["git", "branch", "--show-current"]))
-    lines.extend(git_status_summary())
-    lines.extend(section("GitHub CLI Auth", ["gh", "auth", "status"]))
-
-    report_text = sanitize("\n".join(lines).rstrip() + "\n")
-    REPORT.parent.mkdir(parents=True, exist_ok=True)
-    REPORT.write_text(report_text, encoding="utf-8")
+    report_text = build_report_text()
+    write_report(report_text)
     print(f"Wrote {REPORT.relative_to(ROOT)}")
 
     if args.issue_url or args.open:

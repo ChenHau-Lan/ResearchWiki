@@ -51,6 +51,13 @@ When creating or updating `wiki/literature/` paper pages:
 - Include only this paper's content plus minimal source pointers.
 - Do not copy template field guides, placeholder text, empty fields, generic Zotero boilerplate, user-trigger boilerplate, or unnecessary maintenance sections.
 - Keep metadata short: title, authors, venue/year, DOI, reading status, full text path, and PDF path if available.
+- Before marking a page `full-read`, reject `raw/full_text/` that still has
+  obvious PDF extraction damage: broken paragraphs, repeated page headers or
+  footers, orphaned equation fragments, missing section headings, or missing
+  figure/table captions. Return it to full-text QC instead.
+- If `table_quality` is `partial` or `poor`, do not reuse numeric table values
+  in paper pages, synthesis, or reports unless the PDF, HTML/XML table, or
+  supplement has been checked. Record the limitation plainly.
 - Keep cross-paper interpretation out of the paper page unless it is explicitly labeled and necessary; prefer `wiki/synthesis/` for that.
 - Preserve `## Graph Links` so Obsidian can connect topics, subtopics, literature, synthesis, seminars, and projects.
 

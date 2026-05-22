@@ -26,6 +26,10 @@ Recommended Codex reasoning effort: `high` only for exceptional source/full-text
 - If readable full text already exists from HTML/XML/DOM but the DOI PDF is missing, treat the DOI as needing PDF backfill. Save the PDF evidence when the browser PDF button is legally available.
 - Save DOI PDFs, when obtained, to `raw/doi_pdf/<paper_file_key>.pdf`.
 - Output final readable Markdown to `raw/full_text/<paper_file_key>.md` only after Codex reflow/QC.
+- For `ResearchWikiCodex.command` Codex-first flows, first try legal complete online text. If that fails, open the publisher/DOI page where the user can download the PDF, ask the user to save it into `raw/doi_pdf/`, confirm the file exists, then continue. Do not create new persistent staging full text in this Codex-first path.
+- When legal web full text is complete, write QCed `raw/full_text/` from the web source and mark PDF backfill optional. Do not require PDF before wiki ingest solely for layout evidence.
+- Prefer opening a small number of DOI/source pages for user download over a long Codex search session.
+- If complete text and PDF are still unavailable but a reliable abstract is available, write an abstract-only `raw/full_text/<paper_file_key>.md` placeholder and mark the dashboard `abstract_only`.
 - If a PDF is obtained, extract machine text to `raw/staging/extracted_text/` first, then convert it into QCed `raw/full_text/`. Do not leave the task at PDF-only unless extraction fails or the PDF is unreadable.
 - If a legal complete source is not obvious after local evidence, publisher landing page, obvious open HTML/XML/PDF, and visible browser PDF controls, stop and update the dashboard with `authorized_browser_or_user_pdf_needed` instead of spending a long session searching.
 - `paper_file_key` is `first_author_last_name_year_journal_abbrev`, all lowercase ASCII, with punctuation removed and spaces changed to underscores. Prefer standard journal abbreviations when known. If there is a collision, append a short DOI slug.
@@ -36,16 +40,17 @@ Recommended Codex reasoning effort: `high` only for exceptional source/full-text
 ## Acquisition Priority
 
 1. Existing verified Markdown in `raw/full_text/`.
-2. Existing local PDF in `raw/doi_pdf/`, then local extraction to staging and Codex reflow/QC.
-3. Missing PDF backfill for entries that already have full text but no `raw/doi_pdf/<paper_file_key>.pdf`.
-4. User-provided full text or local saved publisher HTML/XML.
-5. Publisher XML/HTML when legally accessible.
+2. Legal complete online text: publisher HTML/XML, open-access full text, authorized browser DOM, or user-provided source text.
+3. Existing local PDF in `raw/doi_pdf/`, then local extraction/reflow in memory for the canonical Codex-first command, or staging for legacy workflows.
+4. Missing PDF backfill for entries that already have full text but no `raw/doi_pdf/<paper_file_key>.pdf`.
+5. User-provided full text or local saved publisher HTML/XML.
 6. Authorized browser-session PDF download from the visible article page.
 7. Authorized Chrome DOM capture when complete text is visible but PDF download is not available.
 8. Publisher PDF through normal public or authorized access.
 9. Open-access repository PDF or author manuscript.
-10. Ask for user-provided PDF through the command's authorized PDF page workflow.
-11. Mark `blocked` or `full_text_needed`.
+10. Ask for user-provided PDF through the command's authorized PDF page workflow, then continue after confirming the file exists.
+11. If a reliable abstract is available, create an abstract-only `raw/full_text/` placeholder and set dashboard status `abstract_only`.
+12. Mark `blocked` or `full_text_needed`.
 
 ## Filename Rules
 
@@ -152,8 +157,32 @@ Before marking full text as usable, verify:
 - Conclusion/summary is present when the article has one.
 - Figure/table captions are not obviously missing.
 - References are present.
+- Appendices and supplementary-material notes are present when the article has them.
 - Text is readable top-to-bottom.
 - Equations and tables are flagged if extraction quality is uncertain.
+
+## Reflow / Noise Cleanup Gate
+
+Before writing `raw/full_text/` or allowing wiki ingest:
+
+- Repair sentence and paragraph breaks introduced by PDF extraction.
+- Dehyphenate words split across line endings when context is clear.
+- Remove repeated page headers/footers, journal/date/author page furniture, page numbers, and orphaned equation fragments.
+- Treat disconnected fragments such as isolated article date, author name, and equation-symbol blocks as extraction noise unless they are needed to preserve a meaningful equation.
+- Ensure each article section has a clear Markdown heading and appears in order.
+- Ensure figure captions and table captions are labeled and not merged into unrelated paragraphs.
+- Preserve each table caption as its own `### Table N. <caption>` section.
+- Use Markdown tables only when row/column structure is clear. For wide,
+  numeric, multi-page, or continued tables, keep the content in a fenced `text`
+  block under the table heading with `Table status`, source pages when known,
+  and a note that numeric reuse requires PDF/supplement checking.
+- Keep `Table N. Continued` under the same table section. Never let table rows,
+  one-word column fragments, or continuation markers spill into prose.
+- Set `table_quality: good`, `partial`, `poor`, or `not_applicable` in final
+  full_text frontmatter. If a central table cannot be recovered from HTML/XML,
+  PDF, or supplement, mark `table_quality: poor` and keep the dashboard at
+  `full_text_needed` when that prevents trustworthy reading.
+- If the article is still noisy after cleanup, keep dashboard status `full_text_needed` and record a blocker rather than marking it full-read.
 
 ## PDF-to-Staging-to-Full-Text Gate
 
@@ -166,6 +195,8 @@ When only PDF is available:
 5. Mark `extraction_status: machine_extracted_needs_codex_qc`, `readability_status: needs_codex_qc`, `qc_status: pending_codex_qc`, and `equation_quality: not_checked`.
 6. Run Codex reflow/QC and write final readable Markdown to `raw/full_text/<paper_file_key>.md` only if QC succeeds.
 7. If extraction or QC fails, leave the PDF/staging path in the dashboard Note and set `Next Action` to `codex_convert_to_full_text`.
+
+For the canonical Codex-first command, do not write new staging files. Use in-memory extraction or legal online text, then write only QCed `raw/full_text/`, abstract-only placeholder, or a dashboard blocker.
 
 ## Metadata
 
@@ -181,9 +212,23 @@ Readable full-text Markdown should include frontmatter with:
 - `status` or `extraction_status`
 - `readability_status`
 - `equation_quality`
+- `table_quality`
 - `language`
 - `created`
 - `updated`
+
+## Duplicate DOI / PDF Guard
+
+Before spending Codex time, check whether the canonical DOI already has
+`raw/doi_pdf/`, `raw/full_text/`, or an index/dashboard row. Reuse existing
+evidence instead of creating another paper entry.
+
+- Normalize DOI URLs and DOI strings before comparison.
+- Treat Copernicus filename-copy suffixes such as
+  `10.5194/acp-5-799-2005-2` or `10.5194/acp-5-799-2005-3` as duplicates of
+  `10.5194/acp-5-799-2005`, not as new papers.
+- If duplicate PDF files are found, do not delete them automatically. Report
+  the duplicate paths and continue with the canonical PDF/full_text only.
 
 ## Acquisition Handoff
 

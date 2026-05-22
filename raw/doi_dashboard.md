@@ -4,8 +4,8 @@ This board tracks where each resolved DOI is in the paper-source ingest process.
 
 ## DOI Status Board
 
-| Last Name_Year | Journal | DOI | Wiki Status | Access Legality | PDF | Full Text |
-|---|---|---|---|---|---|---|
+| Last Name_Year | Journal | DOI | Wiki Status | PDF | Full Text |
+|---|---|---|---|---|---|
 
 ## DOI Notes
 

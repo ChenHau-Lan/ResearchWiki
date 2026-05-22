@@ -32,5 +32,13 @@ integrity and evidence tiers.
 - Keep full paper text out of `wiki/literature/`.
 - Use `reading_status: full-read` only after reading body, methods, results,
   limitations, and conclusion/summary from QCed full text.
+- Before creating a full-read paper page, reject full_text that still contains
+  obvious PDF extraction damage: broken paragraphs, repeated page furniture,
+  orphaned equation fragments, missing section headings, or missing figure/table
+  captions. Send it back to full-text QC instead of ingesting it.
+- If `table_quality` is `partial` or `poor`, do not use numeric table values in
+  synthesis or paper-page claims unless the PDF, HTML/XML table, or supplement
+  has been checked. Record the limitation instead of treating the table as
+  fully read.
 - Keep cross-paper interpretation in `wiki/synthesis/`.
 - Preserve `## Graph Links` with explicit wikilinks.

@@ -31,7 +31,7 @@ Read README.md, USER_GUIDE.md, INSTALL.md, and AGENTS.md first.
 Check whether Git, Python 3, ripgrep/rg, Poppler/pdftotext, and the Codex CLI are available.
 If a tool is missing, explain what it is for. Ask me before using Homebrew, system installation commands, or permission-requiring steps.
 After installing or confirming tools, run python3 tools/check_install.py --strict.
-When it succeeds, tell me how to open ResearchWiki.command. Do not upload private PDFs, full text, local paths, sensitive DOI lists, or Codex logs.
+When it succeeds, tell me how to open ResearchWikiCodex.command. Do not upload private PDFs, full text, local paths, sensitive DOI lists, or Codex logs.
 ```
 
 Required tools: Codex, Git, Python 3, and ripgrep. Recommended tools: Poppler / `pdftotext`, Obsidian, and Chrome.
@@ -57,37 +57,51 @@ Private research state, sensitive DOI batches, and unpublished raw evidence shou
 
 Most of the time, remember two phases:
 
-1. Use `Paper intake` to organize DOI/URL/PDF sources into legal evidence, PDFs, and staging text; then explicitly choose Codex reflow/QC before `raw/full_text/` is created.
+1. Use `ResearchWikiCodex.command` to organize DOI/URL/PDF sources into legal evidence, PDFs, and QCed full text; it does not create new persistent un-QCed staging text.
 2. Use `Ingest QCed full_text to wiki` to turn `raw/full_text/` into `wiki/literature/`.
 
 The complete flow is:
 
 1. Add a DOI, DOI URL, article URL, PDF URL, or source note to `raw/paper_sources.md`, or paste it into the command.
-2. Open `ResearchWiki.command`.
-3. Choose `Paper intake`.
+2. Open `ResearchWikiCodex.command` on macOS, or `ResearchWikiCodex.cmd` on Windows.
+3. Choose `Open/add paper sources` or paste the source directly into `raw/paper_sources.md`.
 4. Use only legal sources: publisher pages, author pages, open access, institutional access, your authorized browser session, or user-provided PDF/text.
 5. If manual PDF download is needed, save the legal PDF into `raw/doi_pdf/`, then run the same intake again.
-6. First choose the local/no-token import path: update the dashboard, normalize filenames, extract staging text, and rebuild the index.
-7. After staging is ready, choose Codex reflow/QC. Only QC success writes into `raw/full_text/` and updates `raw/full_text_index.*`.
+6. Run `Refresh DOI dashboard + scan PDFs`: update the dashboard, normalize filenames, scan for orphan/duplicate PDFs, rebuild the index, and open the dashboard for review.
+7. Run `Create QCed full_text with Codex`. It prefers legal online full text, opens source pages for manual PDF download when needed, and only writes QCed output into `raw/full_text/`; abstract-only fallback is marked `abstract_only`.
 8. Then choose `Ingest QCed full_text to wiki` to create the paper page.
 
 Progress is shown in `raw/doi_dashboard.md`. The main board stays short:
 
 ```text
-Last Name_Year | Journal | DOI | Wiki Status | Access Legality | PDF | Full Text
+Last Name_Year | Journal | DOI | Wiki Status | PDF | Full Text
 ```
 
-Longer next actions, blockers, and notes live in the `DOI Notes` section below the board.
+`PDF` and `Full Text` are checkboxes for whether evidence exists. Longer next
+actions, blockers, source routes, and notes live in the `DOI Notes` section
+below the board.
 
-## 5. The Five Command Options
+## 5. Command Options
 
-1. `Paper intake`: the paper-source entrypoint. It separates local/no-token steps, including source input, legal source-page opening, PDF import, staging extraction, and index rebuild, from LLM steps, including Codex staging reflow/QC and source-resolution fallback.
-2. `Ingest QCed full_text to wiki`: creates or updates `wiki/literature/` only from already-QCed `raw/full_text/`. It does not find new PDFs or perform full-text reflow/QC.
-3. `Project / idea conversation`: starts a Codex project or idea discussion and lets Codex infer topics, subtopics, related papers, and DOI needs afterward.
-4. `Topics / graph`: manages the topic/subtopic registry or opens Obsidian graph guidance.
-5. `Maintenance / support`: opens the dashboard, runs health checks, writes repair plans, opens the source queue, or prepares a redacted GitHub issue draft.
+`ResearchWikiCodex.command` is the canonical entrypoint:
 
-If you only want to process papers, start with options 1 and 2.
+1. `Open/add paper sources`: open or append DOI, URL, PDF URL, or source notes.
+2. `Refresh DOI dashboard + scan PDFs`: sync the dashboard, rebuild indexes, scan `raw/doi_pdf/`, ask for confirmed cleanup when byte-identical duplicate PDFs are found, and open the dashboard for review without launching Codex or creating staging full text.
+3. `Create QCed full_text with Codex`: handles a small batch, prefers legal online full text, opens DOI/source pages for user PDF download when needed, then asks Codex to create only QCed `raw/full_text/`; if only an abstract is available, it records `abstract_only`.
+4. `Ingest QCed full_text to wiki`: uses the QC-only wiki ingest boundary and rejects visibly noisy PDF extraction.
+5. `Prepare synthesis page + Codex prompt`: creates a draft synthesis page, copies a discussion prompt, and opens Codex so you can start a new conversation.
+6. `Prepare feedback issue Codex prompt`: asks only for a title, copies a prompt, and opens Codex so you can provide the full issue description before any submission.
+7. `Prepare external sandbox sync prompt`: creates a draft synthesis/project page and copies a prompt for another Codex sandbox on the same computer to read and update this exact database path directly.
+When option 2 finds duplicate PDFs, it lists byte-identical groups, keeps the canonical file, and deletes the listed duplicate candidates only after you type `DELETE ALL DUPLICATE PDFS` or confirm one explicit path at a time.
+
+Use `InitializeResearchWiki.command` on macOS, or `InitializeResearchWiki.cmd` on Windows, for first-time topic setup or a guarded reset of generated local artifacts.
+
+Full-text QC now treats tables as their own reliability layer. Wide,
+continued, or numeric tables may be preserved as fenced text with
+`table_quality: partial`; reuse exact table values only after checking the PDF,
+HTML/XML table, or supplement. Duplicate publisher PDF filenames are reported
+and skipped instead of creating duplicate DOI rows. Run
+`python3 tools/check_full_text_tables.py` for an advisory table-QC report.
 
 ## 6. Wiki Areas
 
@@ -127,7 +141,7 @@ python3 tools/generate_repair_plan.py
 
 Repair plans list recommendations and do not delete files. If a repair plan mentions `.DS_Store` or other release noise, inspect the exact path and remove only one explicit file at a time after human review; do not use recursive, wildcard, or bulk cleanup commands.
 
-Use `InitializeResearchWiki.command` only when intentionally resetting a local test database. It asks you to type `INIT TEST DATABASE`, then resets test evidence, generated raw artifacts, and generated wiki pages. Do not use it as everyday cleanup.
+Use `InitializeResearchWiki.command` only for first-time topic setup or when intentionally resetting a local test database. Reset mode asks you to type `INIT TEST DATABASE`, then resets scoped test evidence, generated raw artifacts, and generated wiki pages. Do not use reset mode as everyday cleanup.
 
 ## 9. Problems And Issues
 

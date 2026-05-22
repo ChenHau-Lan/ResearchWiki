@@ -22,6 +22,7 @@ WIKI_PROJECT_SYNTHESIS = ROOT / "wiki" / "project_synthesis"
 WIKI_SEMINARS = ROOT / "wiki" / "seminars"
 
 DOI_RE = re.compile(r"10\.\d{4,9}/[-._;()/:A-Z0-9]+", re.IGNORECASE)
+COPERNICUS_FILENAME_COPY_DOI_RE = re.compile(r"^(10\.5194/[a-z][a-z0-9]*-\d+-\d+-(?:19|20)\d{2})-\d+$")
 STATUSES = {
     "new",
     "metadata_ok",
@@ -34,7 +35,8 @@ STATUSES = {
 OLD_BOARD_HEADER = "| DOI | Status | Title | Full Text | Wiki Page | Next Action | Updated | Note |"
 LEGACY_BOARD_HEADER = "| Paper | Journal | DOI | Wiki Status | Access Legality | PDF | Full Text | Next Action | Updated | Note |"
 LEGACY_DETAIL_BOARD_HEADER = "| Last Name_Year | Journal | DOI | Wiki Status | Access Legality | PDF | Full Text | Next Action | Updated | Note |"
-BOARD_HEADER = "| Last Name_Year | Journal | DOI | Wiki Status | Access Legality | PDF | Full Text |"
+LEGACY_COMPACT_BOARD_HEADER = "| Last Name_Year | Journal | DOI | Wiki Status | Access Legality | PDF | Full Text |"
+BOARD_HEADER = "| Last Name_Year | Journal | DOI | Wiki Status | PDF | Full Text |"
 
 
 def read(path: Path) -> str:
@@ -45,7 +47,9 @@ def normalize_doi(value: str) -> str:
     value = value.strip().rstrip(".,;")
     value = re.sub(r"^https?://(dx\.)?doi\.org/", "", value, flags=re.IGNORECASE)
     value = re.sub(r"^doi:\s*", "", value, flags=re.IGNORECASE)
-    return value.lower()
+    value = value.lower()
+    copy_suffix = COPERNICUS_FILENAME_COPY_DOI_RE.fullmatch(value)
+    return copy_suffix.group(1) if copy_suffix else value
 
 
 def parse_frontmatter(text: str) -> dict[str, str] | None:
@@ -84,21 +88,24 @@ def lint_doi_board(errors: list[str]) -> None:
         intake_text = read(DOI_LIST)
         if "## Add DOI Here" not in intake_text:
             errors.append("raw/doi_list.md is missing the '## Add DOI Here' section")
-        if BOARD_HEADER in intake_text or LEGACY_BOARD_HEADER in intake_text or LEGACY_DETAIL_BOARD_HEADER in intake_text or OLD_BOARD_HEADER in intake_text:
+        if BOARD_HEADER in intake_text or LEGACY_BOARD_HEADER in intake_text or LEGACY_DETAIL_BOARD_HEADER in intake_text or LEGACY_COMPACT_BOARD_HEADER in intake_text or OLD_BOARD_HEADER in intake_text:
             errors.append("raw/doi_list.md should not contain the DOI Status Board; use raw/doi_dashboard.md")
     if not DOI_DASHBOARD.exists():
         errors.append("raw/doi_dashboard.md is missing")
         return
 
     text = read(DOI_DASHBOARD)
-    if BOARD_HEADER not in text and LEGACY_BOARD_HEADER not in text and LEGACY_DETAIL_BOARD_HEADER not in text and OLD_BOARD_HEADER not in text:
+    if BOARD_HEADER not in text and LEGACY_BOARD_HEADER not in text and LEGACY_DETAIL_BOARD_HEADER not in text and LEGACY_COMPACT_BOARD_HEADER not in text and OLD_BOARD_HEADER not in text:
         errors.append("raw/doi_dashboard.md is missing the DOI Status Board header")
 
     seen: set[str] = set()
     in_board = ""
     for line in text.splitlines():
-        if line.strip() in {BOARD_HEADER, LEGACY_BOARD_HEADER, LEGACY_DETAIL_BOARD_HEADER}:
+        if line.strip() == BOARD_HEADER:
             in_board = "new"
+            continue
+        if line.strip() in {LEGACY_BOARD_HEADER, LEGACY_DETAIL_BOARD_HEADER, LEGACY_COMPACT_BOARD_HEADER}:
+            in_board = "legacy"
             continue
         if line.strip() == OLD_BOARD_HEADER:
             in_board = "old"
@@ -108,7 +115,10 @@ def lint_doi_board(errors: list[str]) -> None:
         if line.strip().startswith("|---"):
             continue
         parts = split_row(line)
-        if in_board == "new" and len(parts) in {7, 10}:
+        if in_board == "new" and len(parts) == 6:
+            doi = normalize_doi(parts[2])
+            status = parts[3]
+        elif in_board == "legacy" and len(parts) in {7, 10}:
             doi = normalize_doi(parts[2])
             status = parts[3]
         elif in_board == "old" and len(parts) == 8:
@@ -149,6 +159,8 @@ def lint_full_text_qc(errors: list[str]) -> None:
             errors.append(
                 f"{path.relative_to(ROOT)}: raw/full_text may only contain QCed readable full text; use raw/staging/extracted_text and Paper intake for Codex conversion"
             )
+        if frontmatter.get("extraction_status") in {"codex_qc_done", "abstract_only"} and not frontmatter.get("table_quality"):
+            errors.append(f"{path.relative_to(ROOT)}: full_text frontmatter missing table_quality")
 
 
 def lint_wiki_pages(errors: list[str]) -> None:

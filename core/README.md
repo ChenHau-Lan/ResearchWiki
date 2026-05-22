@@ -3,8 +3,9 @@
 Research Wiki Core is the command-independent contract for this database.
 
 It defines the evidence model, page model, agent behavior, skill behavior, and
-test expectations that any interface must follow. `ResearchWiki.command` is one
-implementation of this core contract, not the source of truth.
+test expectations that any interface must follow. `ResearchWikiCodex.command` is
+the canonical command implementation of this core contract, not the source of
+truth.
 
 ## Core Files
 

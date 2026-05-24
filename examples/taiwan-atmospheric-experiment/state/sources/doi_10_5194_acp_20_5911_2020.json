@@ -1,0 +1,31 @@
+{
+  "schema": "rkf-source-record-v1",
+  "source_id": "doi_10_5194_acp_20_5911_2020",
+  "kind": "doi",
+  "value": "10.5194/acp-20-5911-2020",
+  "normalized_doi": "10.5194/acp-20-5911-2020",
+  "title": "Hygroscopic properties and cloud condensation nuclei activity of atmospheric aerosols under the influences of Asian continental outflow and new particle formation at a coastal site in eastern Asia",
+  "status": "wiki_done",
+  "topic_ids": [
+    "taiwan-atmospheric-field-campaigns"
+  ],
+  "gates": [
+    {
+      "gate_id": "pdf_acquisition_doi_10_5194_acp_20_5911_2020",
+      "type": "pdf_acquisition",
+      "status": "approved",
+      "path": "examples/taiwan-atmospheric-experiment/state/gates/pdf_acquisition/doi_10_5194_acp_20_5911_2020.md"
+    }
+  ],
+  "evidence_ids": [
+    "pdf_doi_10_5194_acp_20_5911_2020"
+  ],
+  "notes": [
+    {
+      "date": "2026-05-24",
+      "note": "Copernicus open PDF route checked for demonstration; actual PDF kept outside Git."
+    }
+  ],
+  "created": "2026-05-24",
+  "updated": "2026-05-24"
+}

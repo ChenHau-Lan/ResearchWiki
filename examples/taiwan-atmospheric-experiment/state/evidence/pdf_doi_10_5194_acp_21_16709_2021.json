@@ -1,0 +1,16 @@
+{
+  "schema": "rkf-evidence-artifact-v1",
+  "evidence_id": "pdf_doi_10_5194_acp_21_16709_2021",
+  "source_id": "doi_10_5194_acp_21_16709_2021",
+  "artifact_type": "pdf",
+  "status": "pdf_qc_done",
+  "qc_status": "codex_qc_done",
+  "storage_path": "PRIVATE_EVIDENCE_ROOT/doi_pdf/doi_10_5194_acp_21_16709_2021.pdf",
+  "public_safe_pointer": "private_evidence/doi_pdf/doi_10_5194_acp_21_16709_2021.pdf",
+  "locators": [
+    "ACP PDF pp. 16709-16710: abstract and Taiwan complex-topography motivation",
+    "ACP PDF pp. 16710-16711: object tracking and topographic locking rationale"
+  ],
+  "created": "2026-05-24",
+  "updated": "2026-05-24"
+}

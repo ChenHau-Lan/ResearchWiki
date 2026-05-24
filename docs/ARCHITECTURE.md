@@ -1,63 +1,98 @@
-# ResearchWiki Architecture
+# RKF Architecture
 
-ResearchWiki combines a GitHub-ready LLM Wiki with ARS-style skill routing and
-human checkpoints. The design goal is high automation without losing the
-evidence chain.
+RKF is an LLM Wiki-based research knowledge framework. It separates source
+candidates, evidence boundaries, verification gates, maintained wiki knowledge,
+topic review, graph export, ARS handoff proposals, and optional shared-database
+connections.
 
-## Pipeline
+PDFs remain the default strong artifact for peer-reviewed paper reading, but
+the framework also handles DOI/URL leads, official project documents, browser
+captures, OCR/visual reading notes, questions, concepts, claims, and synthesis.
 
-```mermaid
-flowchart LR
-    A["Idea / DOI / URL / Topic"] --> B["literature-discovery<br/>search + candidates"]
-    B --> C["source-intake<br/>source queue + dashboard"]
-    C --> D["acquisition checkpoint<br/>human approval"]
-    D --> E["raw evidence<br/>PDF / full text / indexes"]
-    E --> F["paper-ingest<br/>single-paper page"]
-    F --> G["knowledge-workbench<br/>query + save"]
-    G --> H["synthesis-research<br/>fan-out + thesis + synthesis"]
-    H --> I["wiki-lint<br/>structure + semantic health"]
-    I -. "source gaps" .-> B
-```
-
-## Data Layers
+## Layer Model
 
 | Layer | Purpose | Public Git Policy |
 |---|---|---|
-| `raw/` | Source pointers, status dashboards, public-safe indexes, local evidence roots | Commit pointers/indexes only; PDFs/full text ignored except placeholders |
-| `wiki/` | Paper pages, questions, concepts, topics, synthesis, meetings, seminars | Commit public-safe Markdown; no full articles |
-| `maintenance/` | Review queues, fan-out candidates, checkpoints, prompts, diagnostics | Commit templates and durable governance; ignore private runtime reports |
-| `core/` | Contracts, principles, agent rules, skill rules | Commit |
-| `skills/` | Project-local skill wrappers for discoverability | Commit |
-| `tools/` | Deterministic CLI/lint/index tooling | Commit |
+| Intake | Capture DOI, URL, topic, idea, question, PDF, or discussion leads | public-safe source records only |
+| Topic Governance | Match leads to existing topic scope or propose a new topic | topic registry and topic pages are public-safe |
+| Evidence Vault | Store private PDFs, authorized text, screenshots, OCR outputs, and acquisition/QC metadata | private artifacts stay outside Git |
+| Verification Gates | Check source identity, legal route, PDF/OCR/visual QC, claim support | public-safe gate summaries only |
+| Knowledge Objects | Maintain paper, question, concept, claim, topic, synthesis, overview, meeting, seminar pages | concise Markdown only |
+| Research Graph | Export typed source/evidence/wiki/topic edges | generated public-safe graph |
+| ARS Bridge | Convert ARS research/reasoning/writing/review output into RKF proposals | proposals only, not evidence |
+| Connect | Manage experimental shared RAW/wiki folders and external sandbox access boundaries | connection plans only; no private paths |
 
-## Quality Gates
-
-- Search can be automated; evidence promotion is gated.
-- Candidate PDFs, browser captures, and legal-source routes require a human
-  checkpoint before `pdf_downloaded`.
-- Machine extraction belongs in `raw/staging/extracted_text/` until reflow/QC.
-- `raw/full_text/` requires QC metadata and table/equation quality flags.
-- `paper-ingest` writes one paper page only.
-- Source fan-out becomes a reviewable candidate before multi-page edits.
-- Query never writes; Save must choose a target layer.
-
-## Skill Dependency Graph
+## Knowledge Flow
 
 ```mermaid
 flowchart TD
-    LD["literature-discovery"] --> SI["source-intake"]
-    SI --> PI["paper-ingest"]
-    PI --> KW["knowledge-workbench"]
-    TG["topic-governance"] --> LD
-    KW --> SR["synthesis-research"]
-    SR --> WL["wiki-lint"]
-    WL --> TG
-    WL --> LD
+    A["capture<br/>SourceRecord"] --> B["topic governance<br/>match or propose topic"]
+    B --> C["discover<br/>candidate routes and backlog"]
+    C --> D["acquire<br/>evidence checkpoint"]
+    D --> E["private evidence artifact"]
+    E --> F["verify<br/>identity + locator QC"]
+    F --> G["distill paper<br/>wiki page"]
+    G --> H["save / synthesize<br/>questions, concepts, claims"]
+    I["RKF query"] --> J["retrieve governed wiki context"]
+    J --> K["ARS reasoning"]
+    K --> L["RKF save or synthesis proposal"]
+    L --> H
+    M["lint maintenance"] --> B
+    M --> F
+    M --> H
+    N["topic review"] --> B
+    O["rkf-connect"] --> P["shared RAW/wiki access plan"]
+    P --> I
 ```
 
-## External References
+## Core Objects
 
-ResearchWiki adapts ideas from Karpathy's LLM Wiki framing, ARS-style mode and
-gate design, Oh My Paper-style survey memory, and public LLM Wiki repo patterns.
-See `docs/references/third_party_sources.md` for attribution and vendoring
-rules.
+- `SourceRecord`: candidate or resolved source identity. Metadata lives here,
+  but is not evidence.
+- `EvidenceArtifact`: public-safe pointer to private PDF, official document,
+  OCR/visual artifact, screenshot, or related reading artifact.
+- `KnowledgeObject`: Markdown page with type, status, review stage, topics, and
+  evidence boundary.
+- `Topic`: governed search scope with aliases, include/exclude rules, default
+  search strings, canonical pages, and review cadence.
+- `GateDecision`: source identity, acquisition, PDF/OCR/visual QC,
+  claim-support, or synthesis-merge checkpoint.
+- `GraphEdge`: typed relation among sources, evidence, topics, and wiki pages.
+
+## Evidence Rules
+
+- Search candidates are not evidence.
+- ARS outputs are not evidence by themselves.
+- Paper pages require a reviewed source artifact, usually a QCed PDF.
+- Missing-PDF papers remain candidates, review queue items, or topic backlog.
+- Claims need a locator, existing RKF page, or review blocker.
+- Durable full article text is not an RKF public knowledge layer.
+- Public pages must not contain copied article text or private evidence paths.
+- Topics should be reviewed regularly for drift, duplicate scopes, stale
+  candidates, missing canonical synthesis, and weak default search strings.
+
+## Storage And Connection Strategy
+
+RKF separates public memory from private or machine-specific artifacts:
+
+- Git root: framework code, schemas, templates, docs, public-safe knowledge
+  pages, graph exports, examples, and tests.
+- Private evidence root: PDFs, authorized full text, screenshots, browser
+  captures, OCR outputs, attachments, and other non-public evidence artifacts.
+
+The multi-computer version is an experimental `rkf-connect` concern. The
+current pattern is to keep real shared `RAW` and `wiki` folders in one Google
+Drive for desktop research folder, then link those folders into each local RKF
+project. Machine-specific links, local paths, and sandbox permissions stay out
+of the public repo.
+
+## ARS Integration
+
+ARS skills can produce research reports, paper drafts, reviews, and pipeline
+outputs. RKF stores only durable wiki knowledge. The bridge protocol turns ARS
+outputs into structured proposals with a target layer, evidence boundary,
+confidence, and recommended RKF mode.
+
+For wiki questions, RKF retrieves governed context first. ARS may reason over
+that context and suggest analysis, but RKF decides whether the result should be
+saved as a question, claim, concept, synthesis, or review item.

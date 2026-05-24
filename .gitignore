@@ -3,41 +3,21 @@ __pycache__/
 *.py[cod]
 .venv/
 venv/
-**/.obsidian/workspace.json
-**/.obsidian/workspace-mobile.json
-maintenance/codex_last_run.log
-maintenance/codex_app_last_run.log
-maintenance/codex_app_handoff_prompt.md
-maintenance/codex_first_feedback_issue_prompt.md
-maintenance/codex_first_synthesis_prompt.md
-maintenance/external_sandbox_sync_prompt.md
-maintenance/support_report.md
-maintenance/repair_plan_*.md
-maintenance/workflow_test_report_*.md
-maintenance/test_fixtures/doi_pdf/*.pdf
-references_old.bib
-researchwiki.config.toml
-researchwiki.local.toml
+
+rkf.workspace.toml
+workspace.toml
+framework.local.yaml
 *.local.toml
+
+.rkf_private/
 output/pdf/
 
-# Keep raw/evidence data out of Git. Sync it through the chosen data-sync
-# provider instead.
-raw/**
-!raw/
-!raw/**/
-!raw/**/.gitkeep
-!raw/paper_sources.md
-!raw/doi_list.md
-!raw/doi_dashboard.md
-!raw/full_text_index.md
-!raw/full_text_index.json
-!raw/files/
-!raw/files/.gitkeep
-!raw/doi_pdf/
-!raw/doi_pdf/.gitkeep
-!raw/full_text/
-!raw/full_text/.gitkeep
-!raw/staging/
-!raw/staging/**/
-!raw/staging/**/.gitkeep
+# RKF runtime state is generated per workspace. Commit schemas, docs,
+# templates, and examples; keep private source/evidence queues out of Git.
+state/**
+!state/
+!state/**/
+!state/**/.gitkeep
+graph/research_graph.json
+prompts/external_sandbox_context.md
+knowledge/**/*.private.md

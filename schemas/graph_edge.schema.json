@@ -1,0 +1,24 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://example.org/rkf/graph_edge.schema.json",
+  "title": "GraphEdge",
+  "type": "object",
+  "required": ["from", "to", "type"],
+  "properties": {
+    "from": { "type": "string" },
+    "to": { "type": "string" },
+    "type": {
+      "enum": [
+        "derived-from",
+        "supported-by",
+        "has-evidence",
+        "tagged-with",
+        "answers",
+        "refines",
+        "contradicts",
+        "supersedes",
+        "mentions"
+      ]
+    }
+  }
+}

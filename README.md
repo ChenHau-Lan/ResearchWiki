@@ -1,308 +1,137 @@
-# ResearchWiki [![Workflow](https://img.shields.io/badge/workflow-skill--first-green)](docs/ARCHITECTURE.md)
+# Research Knowledge Framework
 
-[繁體中文](README.zh-TW.md) | [User Guide](USER_GUIDE.md) | [Architecture](docs/ARCHITECTURE.md) | [Mode Registry](MODE_REGISTRY.md)
+[繁體中文](README.zh-TW.md) | [Architecture](docs/ARCHITECTURE.md) | [Mode Registry](MODE_REGISTRY.md) | [Manual](docs/manuals/rkf_manual.en.md)
 
-ResearchWiki is a GitHub-ready, skill-first LLM Wiki template for academic
-research. It turns DOI/URL/PDF sources into checkable evidence, evidence into
-curated wiki pages, and wiki pages into source-backed synthesis.
+Research Knowledge Framework, or RKF, is an LLM Wiki-based research knowledge
+framework. It turns research discussions, sources, topics, questions, claims,
+and synthesis into governed long-term memory.
+
+Current baseline: `v1.0.0`.
+
+PDFs are important evidence carriers for paper reading, but they are not the
+only source of knowledge. RKF keeps private evidence separate from public-safe
+Markdown knowledge pages, and it decides what is durable enough to enter the
+wiki.
+
+RKF is designed to work beside
+[Academic Research Skills](https://github.com/Imbad0202/academic-research-skills):
+ARS researches, reasons, writes, and reviews; RKF preserves durable memory,
+evidence boundaries, topic governance, and graph-safe wiki state.
 
 ```text
-raw/ keeps evidence
-wiki/ keeps understanding
-maintenance/ keeps governance
-pipeline skills decide what may write where
+candidate != evidence
+ARS output != evidence by itself
+paper page -> requires reviewed source artifact, usually a QCed PDF
+query answer != wiki page until saved as question, claim, or synthesis
+LLM discussion -> save/review proposal
 ```
-
-> **Codex is your research database copilot, not the evidence.** Research Wiki
-> lets Codex read, reflow, summarize, audit, and synthesize, but every durable
-> claim must point back to files or wiki pages that can be checked later.
 
 ## Quick Start
 
-Open Codex in this repository, or ask Codex to clone it for you, then paste:
+Use RKF through natural-language research requests:
 
-```text
-Please help me install and start Research Wiki. I do not know GitHub well.
-If I do not have the repository yet, help me clone git@github.com:ChenHau-Lan/ResearchWiki.git. If I am already inside the repo, use the current folder.
-Read README.md, USER_GUIDE.md, INSTALL.md, and AGENTS.md first.
-Check whether Git, Python 3, ripgrep/rg, Poppler/pdftotext, and the Codex CLI are available.
-If a tool is missing, explain what it is for. Ask me before using Homebrew, system installation commands, or permission-requiring steps.
-After installing or confirming tools, run the repository install check for me.
-When it succeeds, show me how to start with source-intake/add-source and guide me through the Skill-first illustrated quickstart.
-```
+- "Create a topic for Taiwan atmospheric field campaigns and find related SCI papers."
+- "Show which candidate papers still need a PDF or full text before ingest."
+- "This PDF is legally available. Check it and turn it into a paper wiki page."
+- "Ask the wiki what evidence-backed recommendations we have, and use ARS to analyze the retrieved context."
+- "Save this answer as a synthesis proposal if it is reusable."
+- "Review this topic registry and suggest merges, splits, stale candidates, and better search strings."
+- "Run maintenance checks for topic drift, evidence boundaries, graph links, and public safety."
+- "Connect this RKF wiki to another computer or external sandbox through my shared research folder."
 
-The optional clickable router is:
+## Skills At A Glance
 
-- macOS: `ResearchWikiCodex.command`
-- Windows: `ResearchWikiCodex.cmd`
+| Skill | Purpose |
+|---|---|
+| `rkf-evidence-vault` | Capture sources, stage discovery, manage legal evidence routes, verify paper-reading artifacts |
+| `rkf-knowledge-synthesis` | Distill reviewed evidence into paper pages and maintain questions, concepts, claims, topics, and synthesis |
+| `rkf-wiki-core` | Retrieve LLM Wiki context, coordinate ARS reasoning, save durable memory, export graph, generate sandbox capsule |
+| `rkf-lint` | Maintain structure, evidence boundaries, graph integrity, ARS handoff labels, public safety, and repair plans |
+| `rkf-connect` | Experimental shared-database setup for multiple computers and external sandbox access |
 
-You can also skip the router and talk to Codex directly by naming a skill/mode:
+`rkf-ars-bridge` is a protocol, not an active skill. It turns ARS output into
+RKF save/review/synthesis proposals.
 
-```text
-Use source-intake/add-source for this DOI URL: https://doi.org/10.xxxx/example
-```
+## Worked Example
 
-Deterministic local commands use the CLI:
+The example in
+[`examples/taiwan-atmospheric-experiment`](examples/taiwan-atmospheric-experiment/)
+walks through the request "I want to organize atmospheric experiments in
+Taiwan": topic setup, SCI paper candidates, missing-PDF checkpoints, evidence
+QC, paper wiki pages, and a synthesis answering what Taiwan should prioritize
+in a future meteorological observation experiment.
 
-```bash
-python3 tools/rw.py source add https://doi.org/10.xxxx/example
-python3 tools/rw.py source search "wildfire aerosol cloud interaction" --topic-id wildfire-cloud
-python3 tools/rw.py topic lint
-python3 tools/rw.py wiki lint
-```
-
-## Why Research Wiki
-
-Research material drifts easily: PDFs sit in folders, DOI lists live in chat
-messages, LLM summaries remain in old sessions, and notes lose track of their
-sources. Research Wiki keeps the evidence chain visible so you can later answer:
-
-- Was this paper fully read, abstract-only, or only metadata-checked?
-- Which source supports this claim?
-- Is this synthesis based on peer-reviewed literature, seminar context, or a
-  hypothesis?
-- Can another researcher clone the repo and understand the workflow?
-
-The goal is not full automation. The goal is **auditable human-AI research
-work**: local tools handle mechanical checks, Codex handles reading-heavy work,
-and the wiki preserves what was actually supported.
-
-## Architecture & Pipeline
-
-ResearchWiki uses seven pipeline skills. `ResearchWikiCodex.command` remains
-only as a thin skill/mode router; `tools/rw.py` handles deterministic local
-maintenance.
+## Knowledge Flow
 
 ```mermaid
 flowchart LR
-    A["literature-discovery<br/>topic / DOI / URL search"] --> B["source-intake<br/>source queue + dashboard"]
-    B --> C["acquisition checkpoint<br/>human approval"]
-    C --> D["paper-ingest<br/>QCed full text -> paper page"]
-    D --> E["knowledge-workbench<br/>Query / Save / review queue"]
-    E --> F["synthesis-research<br/>fan-out / thesis / synthesis"]
-    G["topic-governance<br/>scope + search rules"] --> A
-    F --> H["wiki-lint<br/>structure / semantic / graph"]
+    A["Research idea / DOI / URL / PDF / discussion"] --> B["Topic governance"]
+    B --> C["SourceRecord and candidate backlog"]
+    C --> D["Evidence route checkpoint"]
+    D --> E["Reviewed evidence artifact"]
+    E --> F["Wiki page: paper / question / concept / claim"]
+    F --> G["RKF retrieves governed wiki context"]
+    G --> H["ARS reasons over context"]
+    H --> I["RKF saves durable synthesis when warranted"]
+    B --> J["Topic review: merge / split / refresh search strings"]
+    J --> B
 ```
 
-The full design lives in [Architecture](docs/ARCHITECTURE.md), and the exact
-skill/mode table lives in [Mode Registry](MODE_REGISTRY.md).
+RKF does not keep durable full article text as a public knowledge layer. Tools
+may temporarily read PDF text, OCR output, or browser text to support analysis,
+but saved knowledge must keep locators, review status, and evidence boundaries.
 
-## Features At A Glance
-
-- **LLM Wiki memory**: Markdown pages compound across sessions instead of
-  leaving useful discussion trapped in chat history.
-- **High-automation discovery**: topic, DOI, and URL workflows can stage search
-  candidates and legal-source routes.
-- **Human evidence gates**: candidate PDFs stop at `pdf_checkpoint_required`
-  until a human approves the route.
-- **Single-paper ingest**: QCed full text becomes one concise paper page, never a
-  hidden cross-paper synthesis.
-- **Topic governance**: topic IDs, aliases, scope, include/exclude rules, and
-  default searches keep automated discovery from drifting.
-- **Question / concept / synthesis pages**: uncertainty, reusable concepts, and
-  cross-source judgment are separate page types.
-- **Git + Google Drive split**: Git stores public-safe wiki/code; Drive stores
-  real PDFs, attachments, and large raw evidence.
-- **External sandbox prompts**: generate a compact context capsule so another
-  sandbox can help and propose what deserves saving back.
-- **Public safety scan**: CI can catch PDFs, full text, local paths, and private
-  runtime files before publishing.
-
-## Individual Skills
-
-### `literature-discovery`
-
-Search from a topic, question, DOI, or URL; stage candidates; prepare legal
-source routes and acquisition checkpoints. It does not write paper pages.
-
-Common modes:
-
-- `topic-search`
-- `resolve-candidates`
-- `acquire-pdf`
-- `checkpoint`
-
-### Ingest Boundary
-
-`source-intake` and `paper-ingest` turn DOI/URL/PDF sources into checkable paper
-pages. Sources enter the queue first, readable full text is QCed before it enters
-`raw/full_text/`, and `paper-ingest` creates `wiki/literature/` pages.
-
-### `source-intake`
-
-Add DOI/URL/PDF source pointers, refresh the DOI dashboard, scan local PDFs,
-detect duplicate-looking files, and create QCed full text from legal or
-user-provided evidence.
-
-Common modes:
-
-- `add-source`
-- `refresh-dashboard`
-- `qced-full-text`
-
-Example:
-
-```text
-Use source-intake/refresh-dashboard and tell me which papers already have PDF evidence, which still need legal full text, and whether duplicate-looking PDFs were found.
-```
-
-### `paper-ingest`
-
-Turn one QCed `raw/full_text/<paper_file_key>.md` into one concise
-`wiki/literature/<slug>.md` paper page. It does not acquire sources and does not
-write cross-paper synthesis.
-
-Common mode:
-
-- `ingest-qced-full-text`
-
-Example:
-
-```text
-Use paper-ingest/ingest-qced-full-text for raw/full_text/example_2026_journal.md. Reject the ingest if readability_status, table_quality, or equation_quality makes it unsafe.
-```
-
-### `topic-governance`
-
-Owns `wiki/topics/topic_registry.md`, topic pages, aliases, default search
-strings, and review cadence.
-
-Common modes:
-
-- `add-topic`
-- `update-topic`
-- `lint-topics`
-- `topic-review`
-
-### `knowledge-workbench`
-
-Use the wiki without losing the read/write boundary. Query is read-only; Save is
-deliberate and must choose a target layer first.
-
-Common modes:
-
-- `query`
-- `query-to-save`
-- `save`
-- `review-queue`
-
-Example:
-
-```text
-Use knowledge-workbench/query. What do we know about wildfire smoke effects on warm rain? Label evidence tier and do not write files.
-```
-
-### `synthesis-research`
-
-Grow cross-paper understanding safely. A source that affects multiple pages
-should become a fan-out candidate or review item before formal wiki updates.
-
-Common modes:
-
-- `fanout-review`
-- `apply-approved-fanout`
-- `thesis-review`
-- `synthesis-page-start`
-- `external-sandbox-sync`
-
-Example:
-
-```text
-Use synthesis-research/fanout-review for wiki/literature/example_2026.md. Stage possible concept, synthesis, overview, hot-question, and supersession impacts.
-```
-
-### `wiki-lint`
-
-Keep the LLM Wiki healthy. Use this for structure checks, semantic checks,
-repair plans, and runtime graph/state exports.
-
-Common modes:
-
-- `structure-lint`
-- `semantic-lint`
-- `repair-plan`
-- `state-graph`
-
-Example:
-
-```text
-Use wiki-lint/semantic-lint to find stale claims, missing counter-evidence, and source leads.
-```
-
-## How To Use Modes
-
-There are two equivalent ways to start a mode:
-
-1. Ask Codex directly: `Use knowledge-workbench/query ...`
-2. Open the optional router and choose a skill, then a mode.
-
-Recommended first paper path:
-
-```text
-topic-governance/add-topic
-literature-discovery/topic-search
-source-intake/add-source
-source-intake/refresh-dashboard
-literature-discovery/checkpoint
-source-intake/qced-full-text
-paper-ingest/ingest-qced-full-text
-knowledge-workbench/query
-knowledge-workbench/query-to-save
-synthesis-research/fanout-review
-wiki-lint/semantic-lint
-```
-
-For illustrated step-by-step operation, use the [Skill-first illustrated quickstart](docs/manuals/research_wiki_skill_first_quickstart.en.md). For mode reference, use [USER_GUIDE.md](USER_GUIDE.md).
-
-## Storage Model
-
-Use Google Drive for desktop as the shared evidence root and Git as the public
-wiki/code root. A typical local config is:
+## Validation
 
 ```bash
-cp researchwiki.config.example.toml researchwiki.config.toml
+python3 -m py_compile tools/rk.py rkf/*.py tools/public_safety_scan.py
+python3 -m unittest discover -s tests
+python3 tools/rk.py topic lint
+python3 tools/rk.py lint
+python3 tools/public_safety_scan.py
 ```
 
-Keep real PDFs under a Drive path such as
-`Google Drive/My Drive/ResearchSync/literature/doi_pdf`. Do not use Drive's
-`Computers/My Mac/My PC` backup area as the shared workspace. If old tools need
-old paths, make local symlinks/junctions on each computer, but keep the real
-files in Drive and keep Git free of private evidence.
+## Experimental: Shared Database Across Computers
 
-## Current Release Focus
+This workflow is intentionally experimental and belongs at the edge of RKF,
+not in the basic onboarding path. Use `rkf-connect` when you want one shared
+research database across multiple computers or external sandboxes.
 
-- Seven pipeline skills cover literature discovery, source intake, paper ingest,
-  topic governance, knowledge workbench, synthesis research, and wiki lint.
-- `knowledge-workbench` keeps read-only answers and deliberate saves separated
-  by mode.
-- `wiki-lint` checks structure, evidence tiers, stale claims, missing links, and
-  repair leads.
-- `tools/rw.py` enforces acquisition/QC gates for deterministic operations.
+The current method is to use Google Drive for desktop as the shared folder. Put
+the real shared data under one Drive location, for example:
 
-See [VERSION_LOG.md](VERSION_LOG.md) for the full version record.
+```text
+<Drive ResearchSync>/
+  RAW/
+  wiki/
+```
 
-## Outputs And Examples
+Then each computer links those Drive folders into its local RKF project folder
+with that operating system's local link mechanism: `ln` or symlink on macOS and
+Linux, junction/symlink on Windows. The Drive folder stores the real RAW and
+wiki files; the local RKF folder only connects to them. Do not commit
+machine-specific links or private Drive paths as the public source of truth.
 
-- [Skill-first illustrated quickstart](docs/manuals/research_wiki_skill_first_quickstart.en.md)
-- [User Guide](USER_GUIDE.md)
-- [Architecture](docs/ARCHITECTURE.md)
-- [LLM Wiki content brief](docs/references/llm_wiki_video_content_brief.md)
+External sandbox access should be read-only by default. When a sandbox produces
+a useful question, claim, or synthesis, return it as an RKF save/review proposal
+with evidence boundaries instead of writing stable wiki knowledge directly.
 
-## Safety Commitments
+## Version Management
 
-- Do not automate unauthorized full-text acquisition.
-- Do not bypass paywalls, CAPTCHA, robots, or credential barriers.
-- Do not copy full articles into `wiki/`.
-- Do not mark a paper `full-read` unless full text was actually read.
-- Do not use recursive, wildcard, or bulk deletion commands.
-- Repair plans diagnose and suggest; they do not delete files.
+Current release target: `v1.0.0`.
 
-## More
+Version rules:
 
-- [User Guide](USER_GUIDE.md)
-- [Skill-first illustrated quickstart](docs/manuals/research_wiki_skill_first_quickstart.en.md)
-- [Pipeline Architecture](docs/guides/research_wiki_pipeline_architecture.en.md)
-- [Version Log](VERSION_LOG.md)
-- [Install Guide](INSTALL.md)
-- [Support Guide](SUPPORT.md)
-- [Agent Rules](AGENTS.md)
+- `v1.x`: compatible changes to docs, skill prompts, templates, lint checks,
+  examples, and experimental `rkf-connect` guidance.
+- `v2.0`: reserved for breaking schema changes, renamed core skills, or a new
+  storage contract.
+- Experimental features stay labeled experimental until they have stable tests
+  and migration guidance.
+
+Release notes:
+
+- `v1.0.0`: first public RKF baseline. Defines the LLM Wiki-based research
+  memory model, five active RKF skills, topic review, evidence gates, ARS bridge
+  protocol, shared-database experiment, bilingual manuals, page templates, and
+  the Taiwan atmospheric experiment example.

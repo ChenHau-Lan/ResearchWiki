@@ -1,0 +1,16 @@
+{
+  "schema": "rkf-evidence-artifact-v1",
+  "evidence_id": "pdf_doi_10_2151_jmsj1965_70_1_25",
+  "source_id": "doi_10_2151_jmsj1965_70_1_25",
+  "artifact_type": "pdf",
+  "status": "pdf_qc_done",
+  "qc_status": "codex_qc_done",
+  "storage_path": "PRIVATE_EVIDENCE_ROOT/doi_pdf/doi_10_2151_jmsj1965_70_1_25.pdf",
+  "public_safe_pointer": "private_evidence/doi_pdf/doi_10_2151_jmsj1965_70_1_25.pdf",
+  "locators": [
+    "JMSJ PDF pp. 25-26: title, abstract, TAMEX observing systems",
+    "JMSJ PDF pp. 25-26: midlevel vortex structure and heavy-rainfall interpretation"
+  ],
+  "created": "2026-05-24",
+  "updated": "2026-05-24"
+}

@@ -1,0 +1,183 @@
+{
+  "schema": "rkf-graph-v1",
+  "generated": "2026-05-24",
+  "nodes": [
+    {
+      "id": "taiwan-atmospheric-field-campaigns",
+      "type": "topic",
+      "status": "draft"
+    },
+    {
+      "id": "doi_10_2151_jmsj1965_70_1_25",
+      "type": "source",
+      "status": "wiki_done"
+    },
+    {
+      "id": "doi_10_3390_rs12183004",
+      "type": "source",
+      "status": "wiki_done"
+    },
+    {
+      "id": "doi_10_1029_2024jd042375",
+      "type": "source",
+      "status": "wiki_done"
+    },
+    {
+      "id": "url_exp_pccu_edu_tw_tahope_2019_data_tahope_introduction_pdf",
+      "type": "source",
+      "status": "wiki_done"
+    },
+    {
+      "id": "doi_10_1175_mwr_d_24_0049_1",
+      "type": "source",
+      "status": "candidate_found"
+    },
+    {
+      "id": "doi_10_5194_acp_20_5911_2020",
+      "type": "source",
+      "status": "wiki_done"
+    },
+    {
+      "id": "doi_10_5194_acp_21_16709_2021",
+      "type": "source",
+      "status": "wiki_done"
+    },
+    {
+      "id": "doi_10_5194_acp_26_2083_2026",
+      "type": "source",
+      "status": "wiki_done"
+    },
+    {
+      "id": "knowledge/papers/chen-liang-1992-tamex-midlevel-vortex",
+      "type": "paper",
+      "status": "draft"
+    },
+    {
+      "id": "knowledge/papers/you-et-al-2020-sowmex-iop8-dual-pol-model-validation",
+      "type": "paper",
+      "status": "draft"
+    },
+    {
+      "id": "knowledge/papers/miao-et-al-2025-tahope-iop2-convective-cell-merger",
+      "type": "paper",
+      "status": "draft"
+    },
+    {
+      "id": "knowledge/overviews/tahope-project-overview",
+      "type": "overview",
+      "status": "draft"
+    },
+    {
+      "id": "knowledge/papers/cheung-et-al-2020-cafe-ccn-hygroscopicity",
+      "type": "paper",
+      "status": "draft"
+    },
+    {
+      "id": "knowledge/papers/chang-et-al-2021-ccn-diurnal-precipitation",
+      "type": "paper",
+      "status": "draft"
+    },
+    {
+      "id": "knowledge/papers/lin-et-al-2026-lulin-aerosol-cloud-mixing-ratio",
+      "type": "paper",
+      "status": "draft"
+    },
+    {
+      "id": "knowledge/concepts/multi-platform-atmospheric-field-campaign",
+      "type": "concept",
+      "status": "draft"
+    },
+    {
+      "id": "knowledge/concepts/observation-to-prediction-campaign-design",
+      "type": "concept",
+      "status": "draft"
+    },
+    {
+      "id": "knowledge/questions/future-taiwan-meteorological-observation-experiment",
+      "type": "question",
+      "status": "draft"
+    },
+    {
+      "id": "knowledge/synthesis/future-taiwan-meteorological-observation-experiment",
+      "type": "synthesis",
+      "status": "draft"
+    }
+  ],
+  "edges": [
+    {
+      "from": "doi_10_2151_jmsj1965_70_1_25",
+      "to": "pdf_doi_10_2151_jmsj1965_70_1_25",
+      "type": "has-evidence"
+    },
+    {
+      "from": "doi_10_3390_rs12183004",
+      "to": "pdf_doi_10_3390_rs12183004",
+      "type": "has-evidence"
+    },
+    {
+      "from": "doi_10_1029_2024jd042375",
+      "to": "pdf_doi_10_1029_2024jd042375",
+      "type": "has-evidence"
+    },
+    {
+      "from": "url_exp_pccu_edu_tw_tahope_2019_data_tahope_introduction_pdf",
+      "to": "pdf_url_exp_pccu_edu_tw_tahope_2019_data_tahope_introduction_pdf",
+      "type": "has-evidence"
+    },
+    {
+      "from": "knowledge/papers/chen-liang-1992-tamex-midlevel-vortex",
+      "to": "pdf_doi_10_2151_jmsj1965_70_1_25",
+      "type": "supported-by"
+    },
+    {
+      "from": "knowledge/papers/you-et-al-2020-sowmex-iop8-dual-pol-model-validation",
+      "to": "pdf_doi_10_3390_rs12183004",
+      "type": "supported-by"
+    },
+    {
+      "from": "knowledge/papers/miao-et-al-2025-tahope-iop2-convective-cell-merger",
+      "to": "pdf_doi_10_1029_2024jd042375",
+      "type": "supported-by"
+    },
+    {
+      "from": "knowledge/overviews/tahope-project-overview",
+      "to": "pdf_url_exp_pccu_edu_tw_tahope_2019_data_tahope_introduction_pdf",
+      "type": "supported-by"
+    },
+    {
+      "from": "knowledge/papers/cheung-et-al-2020-cafe-ccn-hygroscopicity",
+      "to": "pdf_doi_10_5194_acp_20_5911_2020",
+      "type": "supported-by"
+    },
+    {
+      "from": "knowledge/papers/chang-et-al-2021-ccn-diurnal-precipitation",
+      "to": "pdf_doi_10_5194_acp_21_16709_2021",
+      "type": "supported-by"
+    },
+    {
+      "from": "knowledge/papers/lin-et-al-2026-lulin-aerosol-cloud-mixing-ratio",
+      "to": "pdf_doi_10_5194_acp_26_2083_2026",
+      "type": "supported-by"
+    },
+    {
+      "from": "knowledge/concepts/multi-platform-atmospheric-field-campaign",
+      "to": "taiwan-atmospheric-field-campaigns",
+      "type": "tagged-with"
+    },
+    {
+      "from": "knowledge/concepts/observation-to-prediction-campaign-design",
+      "to": "taiwan-atmospheric-field-campaigns",
+      "type": "tagged-with"
+    },
+    {
+      "from": "knowledge/questions/future-taiwan-meteorological-observation-experiment",
+      "to": "knowledge/synthesis/future-taiwan-meteorological-observation-experiment",
+      "type": "answered-by"
+    },
+    {
+      "from": "knowledge/synthesis/future-taiwan-meteorological-observation-experiment",
+      "to": "taiwan-atmospheric-field-campaigns",
+      "type": "tagged-with"
+    }
+  ]
+}

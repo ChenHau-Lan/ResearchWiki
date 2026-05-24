@@ -1,0 +1,16 @@
+{
+  "schema": "rkf-evidence-artifact-v1",
+  "evidence_id": "pdf_doi_10_3390_rs12183004",
+  "source_id": "doi_10_3390_rs12183004",
+  "artifact_type": "pdf",
+  "status": "pdf_qc_done",
+  "qc_status": "human_qc_done",
+  "storage_path": "PRIVATE_EVIDENCE_ROOT/doi_pdf/doi_10_3390_rs12183004.pdf",
+  "public_safe_pointer": "private_evidence/doi_pdf/doi_10_3390_rs12183004.pdf",
+  "locators": [
+    "MDPI article/PDF pp. 1-2: title, abstract, SoWMEX IOP8 case identity",
+    "MDPI article/PDF section 2: SoWMEX purpose, S-POL deployment, and IOP8 case overview"
+  ],
+  "created": "2026-05-24",
+  "updated": "2026-05-24"
+}

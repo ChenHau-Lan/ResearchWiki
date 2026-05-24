@@ -1,0 +1,31 @@
+{
+  "schema": "rkf-source-record-v1",
+  "source_id": "url_exp_pccu_edu_tw_tahope_2019_data_tahope_introduction_pdf",
+  "kind": "url",
+  "value": "https://exp.pccu.edu.tw/TAHOPE_2019/data/TAHOPE_Introduction.pdf",
+  "normalized_doi": "",
+  "title": "Taiwan-Area Heavy rain Observation and Prediction Experiment (TAHOPE) Introduction",
+  "status": "wiki_done",
+  "topic_ids": [
+    "taiwan-atmospheric-field-campaigns"
+  ],
+  "gates": [
+    {
+      "gate_id": "pdf_acquisition_url_exp_pccu_edu_tw_tahope_2019_data_tahope_introduction_pdf",
+      "type": "pdf_acquisition",
+      "status": "approved",
+      "path": "examples/taiwan-atmospheric-experiment/state/gates/pdf_acquisition/url_exp_pccu_edu_tw_tahope_2019_data_tahope_introduction_pdf.md"
+    }
+  ],
+  "evidence_ids": [
+    "pdf_url_exp_pccu_edu_tw_tahope_2019_data_tahope_introduction_pdf"
+  ],
+  "notes": [
+    {
+      "date": "2026-05-24",
+      "note": "Official project introduction PDF used as campaign context, not SCI paper evidence."
+    }
+  ],
+  "created": "2026-05-24",
+  "updated": "2026-05-24"
+}

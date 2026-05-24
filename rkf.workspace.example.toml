@@ -1,0 +1,27 @@
+# Research Knowledge Framework experimental connection template.
+#
+# Copy this file to `rkf.workspace.toml` on each computer. The copied file is
+# ignored by Git because it may contain machine-specific Google Drive paths.
+
+[storage]
+# Experimental shared-database pattern:
+# keep real RAW and wiki folders in one Google Drive for desktop research sync
+# folder, then link them into the local RKF project per computer.
+sync_root = "~/Google Drive/My Drive/ResearchSync"
+raw_root = "~/Google Drive/My Drive/ResearchSync/RAW"
+wiki_root = "~/Google Drive/My Drive/ResearchSync/wiki"
+
+# PDFs, screenshots, browser captures, and attachments live outside the public
+# repo. The RKF repo stores only public-safe indexes, schemas, templates, and
+# knowledge pages.
+private_evidence_root = "~/Google Drive/My Drive/ResearchSync/evidence"
+
+[gates]
+require_pdf_checkpoint = true
+require_pdf_qc = true
+require_claim_support = true
+require_synthesis_review = true
+
+[knowledge]
+schema_version = "rkf-v1"
+default_review_cadence = "monthly"

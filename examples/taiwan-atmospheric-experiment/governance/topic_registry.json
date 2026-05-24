@@ -1,0 +1,47 @@
+{
+  "schema": "rkf-topic-registry-v1",
+  "updated": "2026-05-24",
+  "topics": [
+    {
+      "topic_id": "taiwan-atmospheric-field-campaigns",
+      "name": "Taiwan Atmospheric Field Campaigns",
+      "aliases": [
+        "台灣大氣實驗",
+        "台灣氣象觀測實驗",
+        "TAMEX",
+        "SOMEX",
+        "SoWMEX/TiMREX",
+        "TAHOPE",
+        "Taiwan aerosol-cloud observation"
+      ],
+      "scope": "Taiwan atmospheric observation campaigns and field studies involving terrain rainfall, monsoon flow, aerosol, cloud microphysics, CCN, radar, sounding, lidar, or in-situ measurements.",
+      "include": [
+        "TAMEX and terrain/Mei-yu precipitation observations",
+        "SoWMEX/TiMREX rainfall and microphysics observations",
+        "TAHOPE/PRECIP severe rainfall, radar, aircraft, and data-assimilation observations",
+        "Cape Fuguei aerosol and CCN field observations",
+        "Lulin aerosol-cloud microphysics observations",
+        "Taiwan complex-terrain precipitation and local circulation studies"
+      ],
+      "exclude": [
+        "pure global modeling with no Taiwan observation component",
+        "non-atmospheric environmental monitoring",
+        "news-only claims without paper, official data, or project documentation"
+      ],
+      "default_search_strings": [
+        "Taiwan atmospheric field experiment TAMEX DOI",
+        "SoWMEX TiMREX Taiwan rainfall experiment DOI",
+        "TAHOPE PRECIP Taiwan heavy rain experiment DOI",
+        "TAHOPE S-Pol Taiwan DOI",
+        "Taiwan cloud condensation nuclei observation DOI",
+        "Taiwan aerosol cloud microphysics Lulin DOI",
+        "Taiwan complex topography precipitation observation"
+      ],
+      "canonical_pages": [
+        "knowledge/topics/taiwan-atmospheric-field-campaigns.md",
+        "knowledge/synthesis/future-taiwan-meteorological-observation-experiment.md"
+      ],
+      "review_cadence": "monthly"
+    }
+  ]
+}

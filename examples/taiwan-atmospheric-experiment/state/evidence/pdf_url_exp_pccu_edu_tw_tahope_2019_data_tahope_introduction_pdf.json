@@ -1,0 +1,16 @@
+{
+  "schema": "rkf-evidence-artifact-v1",
+  "evidence_id": "pdf_url_exp_pccu_edu_tw_tahope_2019_data_tahope_introduction_pdf",
+  "source_id": "url_exp_pccu_edu_tw_tahope_2019_data_tahope_introduction_pdf",
+  "artifact_type": "pdf",
+  "status": "pdf_qc_done",
+  "qc_status": "codex_qc_done",
+  "storage_path": "PRIVATE_EVIDENCE_ROOT/doi_pdf/url_exp_pccu_edu_tw_tahope_2019_data_tahope_introduction_pdf.pdf",
+  "public_safe_pointer": "private_evidence/doi_pdf/url_exp_pccu_edu_tw_tahope_2019_data_tahope_introduction_pdf.pdf",
+  "locators": [
+    "TAHOPE introduction PDF pp. 1-3: project title, background, abstract, and international collaboration",
+    "TAHOPE introduction PDF pp. 6-8: observing facilities, timeline, and expected achievements"
+  ],
+  "created": "2026-05-24",
+  "updated": "2026-05-24"
+}

@@ -1,0 +1,34 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://example.org/rkf/knowledge_object.schema.json",
+  "title": "KnowledgeObjectFrontmatter",
+  "type": "object",
+  "required": ["type", "status", "review_stage", "topics", "created", "updated"],
+  "properties": {
+    "type": {
+      "enum": [
+        "paper",
+        "question",
+        "concept",
+        "claim",
+        "topic",
+        "synthesis",
+        "overview",
+        "project-synthesis",
+        "meeting",
+        "seminar"
+      ]
+    },
+    "status": { "enum": ["draft", "reviewed", "needs-verification", "deprecated"] },
+    "source_id": { "type": "string" },
+    "source_status": { "type": "string" },
+    "reading_status": { "enum": ["metadata-only", "abstract-only", "skimmed", "full-read", "reproduced", "mixed"] },
+    "review_stage": { "enum": ["ai-extracted", "human-checked", "discussed", "integrated", "cited"] },
+    "evidence_boundary": { "enum": ["pdf-evidence", "wiki-page", "ars-proposal", "review-blocker", "not-applicable"] },
+    "evidence_ids": { "type": "array", "items": { "type": "string" } },
+    "topics": { "type": "array", "items": { "type": "string" } },
+    "created": { "type": "string" },
+    "updated": { "type": "string" },
+    "sources": { "type": "array" }
+  }
+}

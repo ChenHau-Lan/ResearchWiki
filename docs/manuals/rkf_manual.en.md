@@ -288,15 +288,38 @@ Current method:
 - macOS/Linux can use `ln` or symlink; Windows can use junction or symlink.
 - Do not commit cross-platform links, private Drive paths, or licensed evidence
   into the public repo.
-- External sandboxes are read-only by default. If a sandbox produces a useful
-  question, claim, or synthesis, return a `sandbox-save-proposal` and let RKF
-  decide whether to save it.
+- External sandboxes are read-only by default. Generate the `external-sandbox`
+  context capsule, then use `prompts/external_sandbox_bootstrap.en.md` or
+  `prompts/external_sandbox_bootstrap.zh-TW.md` to start the other sandbox.
+- A trusted sandbox can receive the RKF repo as a writable workspace and operate
+  through RKF CLI: `capture -> acquire -> verify-pdf -> distill`. This still
+  must pass the evidence gates.
+- If the sandbox only has search results, unclear topic fit, missing PDF QC,
+  weak locators, unclear claim support, or no write access, return a
+  `sandbox-save-proposal` and let RKF decide whether to save it.
+
+For external sandbox literature search and reading, use this path:
+
+```text
+literature search
+  -> source candidate
+  -> capture DOI/URL/PDF pointer
+  -> legal acquisition checkpoint
+  -> PDF/OCR/visual QC with locators
+  -> paper wiki distillation
+```
+
+Remember: candidates are not evidence, and ARS/deep-research reports are not
+evidence by themselves. Temporary PDF text or OCR text may be used for reading,
+but do not write full article text, PDFs, browser captures, private Drive paths,
+tokens, or local secrets into RKF.
 
 Useful `rkf-connect` requests:
 
 - "Plan a Google Drive shared database so my Mac and Windows machines use the same RAW/wiki."
 - "Check this machine's RKF links and make sure private paths are not in the repo."
 - "Generate sandbox instructions for reading the wiki and proposing saves."
+- "Start RKF mode in another sandbox so it can search papers and add wiki pages through gates."
 - "Turn a useful sandbox question into an RKF question proposal."
 
 ## Reference Sources

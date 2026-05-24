@@ -112,9 +112,21 @@ Linux, junction/symlink on Windows. The Drive folder stores the real RAW and
 wiki files; the local RKF folder only connects to them. Do not commit
 machine-specific links or private Drive paths as the public source of truth.
 
-External sandbox access should be read-only by default. When a sandbox produces
-a useful question, claim, or synthesis, return it as an RKF save/review proposal
-with evidence boundaries instead of writing stable wiki knowledge directly.
+External sandbox access should be read-only by default. For read-only use, run
+`python3 tools/rk.py prompt external-sandbox` to generate the local context
+capsule, then paste `prompts/external_sandbox_bootstrap.en.md` or
+`prompts/external_sandbox_bootstrap.zh-TW.md` into the other sandbox as its
+startup instructions.
+
+A trusted research sandbox can also receive the RKF repo as a writable workspace
+and operate through the RKF CLI directly. This does not skip governance: paper
+intake still follows `capture -> acquire -> verify-pdf -> distill`. Search
+results are candidates, not evidence; without a legal artifact, PDF/OCR/visual
+QC, and locator notes, the sandbox must not create a stable paper wiki page.
+
+When a sandbox lacks write access, or when topic fit, PDF QC, locators, or claim
+support are incomplete, it should return an RKF save/review proposal with the
+evidence boundary and let RKF decide whether to save stable wiki knowledge.
 
 ## Version Management
 

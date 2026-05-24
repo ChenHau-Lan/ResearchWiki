@@ -19,12 +19,18 @@ jobs:
         run: sudo apt-get update && sudo apt-get install -y ripgrep poppler-utils
       - name: Python syntax
         run: python3 -m py_compile tools/*.py
+      - name: CLI unit tests
+        run: python3 -m unittest discover -s tests
       - name: Install check
         run: python3 tools/check_install.py --strict
+      - name: Topic lint
+        run: python3 tools/rw.py topic lint
       - name: Wiki lint
         run: python3 tools/wiki_lint.py
       - name: Wiki doctor
         run: python3 tools/wiki_doctor.py
+      - name: Public safety scan
+        run: python3 tools/public_safety_scan.py
       - name: Repair plan
         run: python3 tools/generate_repair_plan.py
       - name: Codex-first workflow test

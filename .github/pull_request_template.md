@@ -3,12 +3,22 @@
 - What changed?
 - Which layer changed: core, command, personal, docs, GitHub/support?
 
+# Upload Inventory
+
+- Intentionally uploaded:
+- Intentionally not uploaded:
+- Generated PDFs refreshed or unchanged:
+- README/USER_GUIDE links changed or unchanged:
+
 # Checks
 
 - [ ] I read `core/principles.md` and `core/data_contract.md`.
 - [ ] I did not add private raw PDFs or full text to Git.
 - [ ] I did not move personal research state into the template branch.
 - [ ] I updated docs when workflow behavior changed.
+- [ ] I updated `VERSION_LOG.md` / `VERSION_LOG.zh-TW.md` when the change is release-visible.
+- [ ] I checked generated PDF outputs when user-facing long-form docs changed.
+- [ ] I recorded intentional non-uploaded artifacts, generated files, or private data exclusions in the PR body.
 
 # Tests
 

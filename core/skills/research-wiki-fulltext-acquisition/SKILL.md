@@ -5,9 +5,11 @@ description: Use when acquiring authorized full text for paper-source Research W
 
 # Research Wiki Full-Text Acquisition
 
-Use this skill for DOI, DOI URL, article URL, PDF URL, or local PDF intake when
-the task is to obtain legal evidence and produce complete, readable, QCed
-full-text Markdown for a Research Wiki database.
+Compatibility note: in the v2 skill-first pipeline, this behavior is owned by
+`source-intake/qced-full-text`. Use this skill for DOI, DOI URL, article URL,
+PDF URL, or local PDF intake when the task is to obtain legal evidence and
+produce complete, readable, QCed full-text Markdown for a Research Wiki
+database.
 
 ## Core Rules
 

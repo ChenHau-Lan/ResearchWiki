@@ -1,156 +1,131 @@
-# User Guide 中文摘要
+# 使用指南
 
 [English User Guide](USER_GUIDE.md)
 
-這份文件是給第一次拿到 Research Wiki 的人。你不需要先懂 GitHub、Markdown database 或 Obsidian；先照這份走就可以。
+Research Wiki 的正式操作面是 **pipeline skills + modes**。這份文件是 reference：告訴你每個 mode 何時使用、可以讀寫哪裡、需要什麼人工確認。第一次操作請先看 [Skill-first 圖文快速開始](docs/manuals/research_wiki_skill_first_quickstart.zh-TW.md)。
 
-## 1. 先記住兩件事
-
-Research Wiki 做的是這條流程：
-
-```mermaid
-flowchart LR
-    A["來源<br/>DOI / URL / PDF"] --> B["raw/<br/>證據 + QC 後全文"]
-    B --> C["wiki/literature/<br/>paper page"]
-    C --> D["wiki/synthesis/<br/>跨文獻判斷"]
-```
-
-- `raw/` 放證據：來源、PDF、暫存抽字、QC 後全文、meeting transcript、seminar slides。
-- `wiki/` 放理解：單篇文獻頁、跨文獻 synthesis、meeting、project、seminar。
-
-不要把剛從 PDF 機械抽出的文字當成正式全文。正式全文只放在 `raw/full_text/`，而且必須已經由 Codex 重排與 QC。
-
-## 2. 第一次安裝
-
-最簡單的方式是把安裝交給 Codex 帶你做。打開 Codex，貼上：
+## 1. 核心心智模型
 
 ```text
-請幫我安裝並啟動 Research Wiki。我不熟 GitHub。
-如果我還沒有 repository，請協助 clone git@github.com:ChenHau-Lan/wiki_research.git；如果已在 repo 中，請直接使用目前目錄。
-請先讀 README.zh-TW.md、USER_GUIDE.zh-TW.md、INSTALL.zh-TW.md、AGENTS.md。
-請檢查 Git、Python 3、ripgrep/rg、Poppler/pdftotext、Codex CLI 是否可用。
-如果缺工具，請先說明用途；需要 Homebrew、系統安裝或權限時先問我再執行。
-安裝或確認後，請執行 python3 tools/check_install.py --strict。
-成功後請告訴我怎麼打開 ResearchWikiCodex.command。不要上傳 private PDF、全文、本機路徑、敏感 DOI 清單或 Codex logs。
+source-intake -> paper-ingest -> knowledge-workbench -> synthesis-research -> wiki-lint
 ```
 
-需要的工具是 Codex、Git、Python 3、ripgrep。建議安裝 Poppler / `pdftotext`、Obsidian、Chrome。
+- `raw/` 是 evidence layer：DOI/URL/PDF queue、dashboard、PDF、staging extraction、QCed full text、原始 meeting/seminar 檔案。
+- `wiki/` 是 curated knowledge layer：purpose、overview、hot、literature、concepts、synthesis、meetings、project synthesis、seminars。
+- `maintenance/` 是 governance layer：review queue、fan-out candidates、repair plan、runtime state/graph、support report、release hygiene notes。
+- `ResearchWikiCodex.command` / `.cmd` 是相容 router；規則來源是 `core/`、`core/skills/` 與 pipeline architecture。
 
-## 3. 資料放在哪裡
+## 2. Mode 總表
 
-README 只講最短流程；細節放在這裡。
+| Skill/mode | 何時使用 | 主要輸入 | 允許寫入 | 人工 checkpoint |
+| --- | --- | --- | --- | --- |
+| `source-intake/add-source` | 加入 DOI、DOI URL、article URL、PDF URL 或來源註記 | 使用者提供的 source pointer | `raw/paper_sources.md`、dashboard 狀態 | source 是否真的是你要追蹤的研究材料 |
+| `source-intake/refresh-dashboard` | 同步 source queue、PDF evidence、index 與狀態看板 | `raw/paper_sources.md`、`raw/doi_pdf/` | `raw/doi_dashboard.md`、`raw/full_text_index.*` | dashboard 只代表狀態，不代表已讀證據 |
+| `source-intake/qced-full-text` | 從合法或使用者提供來源建立可讀 Markdown 全文 | PDF、authorized HTML/XML/DOM、使用者提供 text | `raw/full_text/paper_file_key.md` | 來源合法性、metadata、段落、表格、公式、圖說可讀性 |
+| `paper-ingest/ingest-qced-full-text` | 把 QCed full text 轉成單篇 paper page | `raw/full_text/paper_file_key.md` | `wiki/literature/paper_slug.md`、dashboard 狀態 | full text 是否真的 QC 完成；paper page 不寫 synthesis |
+| `knowledge-workbench/query` | 問既有知識庫問題 | `wiki/`、已 index 的 evidence | 不寫檔 | answer 必須標示 evidence tier 與缺口 |
+| `knowledge-workbench/query-to-save` | 把 query 結果整理成保存提案 | 上一個 answer 或討論 | 通常不寫正式 wiki；可提 review item | 是否值得保存、target layer 是否明確 |
+| `knowledge-workbench/save` | 明確保存 durable knowledge | 已核准內容、target layer | `wiki/concepts/`、`wiki/synthesis/`、`wiki/project_synthesis/`、`maintenance/*` | 寫入前必須選 target layer |
+| `knowledge-workbench/review-queue` | 暫存不確定、衝突、低 confidence 或 supersession candidate | 待審內容 | `maintenance/review_queue.md` | 不要把未審 claim 升級成正式 wiki |
+| `synthesis-research/fanout-review` | 一篇 source 可能影響多頁時 | paper page、full text、claim | `maintenance/fanout_candidates.md` 或 review proposal | target pages、支持/反對 claim、confidence、counter-evidence |
+| `synthesis-research/apply-approved-fanout` | 套用已批准 fan-out item | 明確核准項目 | 核准範圍內的 wiki pages | 每次只套用已批准的一個範圍 |
+| `synthesis-research/thesis-review` | 檢查一個研究論點是否成立 | claim、scope、wiki evidence | thesis report、review queue 或 Save proposal | supporting、opposing、mechanistic、meta-review、adjacent evidence 都要看 |
+| `synthesis-research/synthesis-page-start` | 開新 synthesis 或 project synthesis 討論 | research question、source set | `wiki/synthesis/` 或 `wiki/project_synthesis/` draft | claim 不可超過 evidence tier |
+| `wiki-lint/structure-lint` | 檢查 wiki 結構健康 | repo files | 不寫正式 wiki | frontmatter、index、path、wikilink、Graph Links、orphan pages |
+| `wiki-lint/semantic-lint` | 檢查 stale claims、contradictions、evidence tier、反證與 supersession | `wiki/` | audit report / review queue | 不直接把 lint 建議套進正式 wiki |
+| `wiki-lint/repair-plan` | 產生人工修復計劃 | repo diagnostics | `maintenance/repair_plan_*.md` | 不自動刪除檔案 |
+| `wiki-lint/state-graph` | 更新 runtime state 與 graph export | repo files | `maintenance/state.json`、`maintenance/graph.json` | export 不是正式證據 |
+| `wiki-lint/support-report` | 進階支援資訊 | repo diagnostics | support report | 不包含 private raw evidence、完整全文、Codex logs |
+| `wiki-lint/feedback-issue` | 進階 GitHub issue 草稿 | 使用者回饋、diagnostics | issue draft / prefilled URL | 不自動送出 issue |
 
-| 位置 | 放什麼 | 注意 |
-| --- | --- | --- |
-| `core/` | 規則、原理、contract、skills | command 如果和 core 衝突，以 core 為準 |
-| `raw/paper_sources.md` | 新 DOI、DOI URL、article URL、PDF URL | 這是待處理來源 queue |
-| `raw/doi_pdf/` | 合法取得或使用者提供的論文 PDF | 檔名應整理成 `<paper_file_key>.pdf` |
-| `raw/staging/extracted_text/` | PDF/HTML/XML 機械抽字暫存 | 不是正式全文，不進 index，不產生 wiki |
-| `raw/full_text/` | 已重排、已 QC、可閱讀的全文 Markdown | 這才是 wiki ingest 的正式輸入 |
-| `wiki/literature/` | 單篇論文閱讀頁 | 不複製全文，只放閱讀判斷與來源指標 |
-| `wiki/synthesis/` | 跨文獻判斷 | 有新理解時更新這裡 |
-| `maintenance/` | 診斷、repair plan、support report | 不屬於正式 wiki 知識層 |
+## 3. 如何選 Mode
 
-個人研究狀態、私人 DOI batch、還不能公開的 raw evidence，應留在 ignored files 或 `personal/*` branch，不要混進可發布的 template/main。
+| 你的意圖 | 選這個 |
+| --- | --- |
+| 我有一個 DOI/URL/PDF 想放進 queue | `source-intake/add-source` |
+| 我放了 PDF，想知道 dashboard 是否看到它 | `source-intake/refresh-dashboard` |
+| 我想把合法全文變成可閱讀 Markdown | `source-intake/qced-full-text` |
+| 我已經有 QCed full text，想做 paper page | `paper-ingest/ingest-qced-full-text` |
+| 我只是問問題，不想改檔 | `knowledge-workbench/query` |
+| 我想把回答整理成保存前草稿 | `knowledge-workbench/query-to-save` |
+| 我已決定要保存，而且知道寫到哪一層 | `knowledge-workbench/save` |
+| 我不確定答案是否可靠 | `knowledge-workbench/review-queue` |
+| 一篇 paper 會影響很多頁 | `synthesis-research/fanout-review` |
+| 我要測試一個 claim 是否站得住 | `synthesis-research/thesis-review` |
+| 我要檢查資料庫健康 | `wiki-lint/structure-lint` 或 `wiki-lint/semantic-lint` |
+| 我要產生人工修復計劃 | `wiki-lint/repair-plan` |
 
-## 4. 論文怎麼進資料庫
+直接對 Codex 說像 `Use source-intake/add-source ...` 這樣的 skill/mode 句子即可；如果想用點擊式入口，再打開 `ResearchWikiCodex.command` 或 `ResearchWikiCodex.cmd`。
 
-大多數時候先記住兩段：
+## 4. Knowledge Workbench 規則
 
-1. 用 `ResearchWikiCodex.command` 先把 DOI/URL/PDF 整理成合法 evidence、PDF 與 QC 後全文；這個正式入口不會新增持久的未 QC staging text。
-2. 用 `Ingest QCed full_text to wiki` 把已 QC 的 `raw/full_text/` 變成 `wiki/literature/`。
+`knowledge-workbench` 合併 Query 與 Save，但用 mode 保留清楚邊界：
 
-更完整的流程是：
+- `query`：只讀，不寫檔；回答要標 evidence tier、confidence、missing evidence。
+- `query-to-save`：把 answer 轉成 proposal；如果 evidence 不足，應轉入 review queue。
+- `save`：寫入前必須選 target layer；不可讓聊天內容直接落到正式 wiki。
+- `review-queue`：maintenance-only write，用於低信心、衝突、缺反證、可能取代舊結論的內容。
 
-1. 把 DOI、DOI URL、article URL、PDF URL 或來源註記貼到 `raw/paper_sources.md`，或在 command 中貼上。
-2. macOS 打開 `ResearchWikiCodex.command`，Windows 打開 `ResearchWikiCodex.cmd`。
-3. 選 `Open/add paper sources`，或直接把來源貼到 `raw/paper_sources.md`。
-4. 只使用合法來源：publisher、作者頁、open-access、institutional access、你已授權的 browser session、或你自己提供的 PDF/text。
-5. 如果需要手動下載 PDF，把合法 PDF 放到 `raw/doi_pdf/`，再重新跑同一個 intake。
-6. 執行 `Refresh DOI dashboard + scan PDFs`：更新 dashboard、整理檔名、掃 orphan/duplicate PDFs、重建 index，並打開 dashboard 檢查。
-7. 執行 `Create QCed full_text with Codex`。它會優先找合法線上全文，需要 PDF 時先開來源頁讓你手動下載；只有 QC 成功才寫入 `raw/full_text/`，只能取得摘要時會標成 `abstract_only`。
-8. 再選 `Ingest QCed full_text to wiki` 產生 paper page。
+正式保存時優先考慮：這是單篇 paper 事實、反覆出現的 concept、跨文獻 synthesis、project decision，還是只是一則 maintenance note。
 
-進度看 `raw/doi_dashboard.md`。主表只放快速判讀欄位：
+## 5. Evidence 與寫入位置
 
-```text
-Last Name_Year | Journal | DOI | Wiki Status | PDF | Full Text
-```
+| Evidence 狀態 | 可以支持什麼 |
+| --- | --- |
+| `metadata-only` | 只可支持 bibliographic / intake 狀態，不支持內容 claim |
+| `abstract-only` | 可做低 tier 摘要線索，不可標 full-read |
+| `full-read` | 可支持 paper page 與 synthesis，但仍需反證與範圍限制 |
+| seminar / talk | 可作討論脈絡，evidence tier 低於 peer-reviewed full-read literature |
+| personal note / hypothesis | 可進 review queue 或 project context，不可偽裝成 literature evidence |
 
-`PDF` 和 `Full Text` 只是確認 evidence 有無的 checkbox。較長的下一步、來源路徑、失敗原因與備註會放在同檔案下方的 `DOI Notes`。
+| 要保存的內容 | 目標位置 |
+| --- | --- |
+| 單篇論文事實 | `wiki/literature/` |
+| 反覆使用的術語、方法、資料集、變數 | `wiki/concepts/` |
+| 跨文獻判斷 | `wiki/synthesis/` |
+| project decision、會議後演化 | `wiki/project_synthesis/` 或 `wiki/meetings/` |
+| 不確定、衝突、低 confidence | `maintenance/review_queue.md` |
+| 工具執行與維護紀錄 | `maintenance/log.md` |
 
-## 5. Command 選項
+## 6. 截圖與教學手冊
 
-`ResearchWikiCodex.command` 是正式入口：
+圖文 walkthrough 放在 `docs/manuals/`，PDF 成品放在 `output/pdf/`。README 只連到最重要入口，不承擔長篇教學。
 
-1. `Open/add paper sources`：打開或加入 DOI、URL、PDF URL、來源註記。
-2. `Refresh DOI dashboard + scan PDFs`：同步 dashboard、重建 index、掃描 `raw/doi_pdf/`；若發現 byte-identical 重複 PDF，會要求確認清理，然後開啟 dashboard 供檢查；不啟動 Codex，也不建立 staging full text。
-3. `Create QCed full_text with Codex`：一次只處理小批量，優先找合法線上全文；需要 PDF 時先開 DOI/source 頁面讓使用者下載，再交給 Codex 只建立已 QC 的 `raw/full_text/`；若只能取得摘要，標成 `abstract_only`。
-4. `Ingest QCed full_text to wiki`：沿用穩定版 command 的 QC-only wiki ingest 邊界，並拒絕明顯還有 PDF 抽字雜訊的全文。
-5. `Prepare synthesis page + Codex prompt`：先建立 synthesis 草稿頁，複製適合展開討論的 prompt，並開啟 Codex 進入新對話。
-6. `Prepare feedback issue Codex prompt`：只輸入問題建議標題，複製 prompt 並開啟 Codex；完整描述、圖片和送出確認都在接下來的對話補齊。
-7. `Prepare external sandbox sync prompt`：建立 synthesis/project 草稿頁，複製給同一台電腦上另一個 Codex sandbox 使用的 prompt，要求它直接讀寫這個資料庫的同一路徑。
-option 2 發現重複 PDF 時，會列出 byte-identical groups，保留 canonical file；只有在你輸入 `DELETE ALL DUPLICATE PDFS`，或逐一輸入明確路徑確認句時，才刪除列出的 duplicate candidates。
+提交截圖前確認沒有暴露：
 
-第一次設定 topic 或需要受保護的本機資料重置時，macOS 用 `InitializeResearchWiki.command`，Windows 用 `InitializeResearchWiki.cmd`。
+- private PDF 或完整 article text；
+- 本機 home path；
+- 敏感 DOI/source batches；
+- browser session、credentials 或 account details；
+- Codex logs 或 private conversations。
 
-全文 QC 現在把表格當成獨立可靠性層。寬表、跨頁表、數值表可以保留為 fenced text，並標 `table_quality: partial`；需要重用精確表格數值時，先回查 PDF、HTML/XML table 或 supplement。重複的 publisher PDF 檔名會被回報並略過，不會再建立重複 DOI row。可執行 `python3 tools/check_full_text_tables.py` 取得 advisory table-QC report。
+## 7. 安全與清理
 
-## 6. Wiki 分區
+- 不自動化未授權全文取得。
+- 不繞過 paywall、CAPTCHA、robots 或 credential barriers。
+- 不把完整 article 複製進 `wiki/`。
+- 不把 dashboard row 當成 evidence。
+- 不把 abstract-only、seminar、personal-note 或 hypothesis material 升級成 full-read peer-reviewed evidence。
+- 不使用 recursive、wildcard 或批量刪除命令。
+- Repair plan 只診斷與建議，不刪除檔案。
 
-- `wiki/literature/`：單篇文獻。
-- `wiki/synthesis/`：跨文獻判斷。
-- `wiki/seminars/`：seminar / talk，證據層級低於 literature。
-- `wiki/meetings/`：單次 meeting。
-- `wiki/project_synthesis/`：跨 meeting 的 project 整合。
+若目錄需要清理，先產出明確候選清單：每個候選都要有 exact path、刪除理由、風險與替代保留位置。真正刪除時一次只處理一個明確路徑。
 
-一般研究問題優先看：
+## 8. Advanced Maintenance
 
-```text
-synthesis > literature > seminars
-```
+`audit-release` 是進階相容入口。既有名稱仍可理解為：
 
-問 project history 或 meeting decision 時優先看：
+- `audit-release/semantic-audit` -> `wiki-lint/semantic-lint`
+- `audit-release/runtime-state-graph` -> `wiki-lint/state-graph`
+- `audit-release/release-hygiene` -> `wiki-lint/repair-plan`
 
-```text
-project_synthesis > meetings
-```
+支援報告與 issue 草稿屬於 support workflow。它們可透過 `wiki-lint/support-report`、`wiki-lint/feedback-issue` 或 SUPPORT 文件使用，但不是新手主流程。
 
-## 7. Obsidian Graph
+## 9. 相關文件
 
-把 `wiki/` 當成 Obsidian vault 打開。
-
-正式頁應有 `Graph Links`，並使用 `[[...]]` wikilinks。這樣 Obsidian graph 才能看出文獻、synthesis、seminar、project、topic、subtopic 的關係。
-
-## 8. 維護與修復
-
-平常可以跑：
-
-```bash
-python3 tools/wiki_lint.py
-python3 tools/wiki_doctor.py
-python3 tools/generate_repair_plan.py
-```
-
-修復計畫只列建議，不會自動刪除。若 repair plan 提到 `.DS_Store` 或其他雜訊，先檢查明確路徑，確認安全後一次只刪除一個指定檔案；不要使用 recursive、wildcard 或批量清理命令。
-
-`InitializeResearchWiki.command` 可用於第一次設定 topic；只有真的要重測流程時才進入 reset mode。Reset mode 會要求輸入 `INIT TEST DATABASE`，再重置 scoped test evidence、生成 raw artifacts 與生成 wiki pages；不要拿它當日常清理工具。
-
-## 9. 遇到問題或要發 Issue
-
-可以讓 Codex 產生 issue 草稿。貼上：
-
-```text
-Research Wiki 安裝或執行遇到問題，請幫我產生 GitHub issue 草稿。
-請先讀 SUPPORT.zh-TW.md，然後執行 python3 tools/support_report.py --issue-url。
-請檢查 maintenance/support_report.md 和產生的 issue URL 是否已遮蔽本機路徑、private PDF、全文、敏感 DOI 清單、Codex logs 和個人研究狀態。
-不要自動送出 issue；請把草稿交給我確認。
-```
-
-手動執行時：
-
-```bash
-python3 tools/support_report.py --issue-url
-```
-
-它會產生 `maintenance/support_report.md`，遮蔽常見 private 資訊，並開啟 GitHub issue 草稿。送出前仍要人工確認。
+- [Skill-first 圖文快速開始](docs/manuals/research_wiki_skill_first_quickstart.zh-TW.md)
+- [Pipeline Architecture](docs/guides/research_wiki_pipeline_architecture.zh-TW.md)
+- [README](README.zh-TW.md)
+- [安裝指南](INSTALL.zh-TW.md)
+- [支援回報](SUPPORT.zh-TW.md)
+- [版本紀錄](VERSION_LOG.zh-TW.md)

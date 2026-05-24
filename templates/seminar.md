@@ -4,6 +4,18 @@ status: draft
 source_status: talk
 reading_status: mixed
 review_stage: ai-extracted
+confidence: low
+evidence_scope: seminar-context
+evidence_tier: talk
+claim_status: needs-literature-check
+counter_evidence: required-before-synthesis
+source_hash:
+source_lines: []
+provenance_state: extracted
+review_queue: false
+review_priority: low
+last_reviewed: YYYY-MM-DD
+review_due: YYYY-MM-DD
 topics: []
 subtopics: []
 keywords: []
@@ -52,6 +64,7 @@ sources: []
 - Topics:
 - Subtopics:
 - Related literature:
+- Related concepts:
 - Related synthesis:
 - Related seminars:
 - Related projects:

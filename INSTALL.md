@@ -13,7 +13,8 @@ Read README.md, USER_GUIDE.md, INSTALL.md, and AGENTS.md first.
 Check whether Git, Python 3, ripgrep/rg, Poppler/pdftotext, and the Codex CLI are available.
 If a tool is missing, explain what it is for. Ask me before using Homebrew, system installation commands, or permission-requiring steps.
 After installing or confirming tools, run python3 tools/check_install.py --strict.
-When it succeeds, tell me how to open ResearchWikiCodex.command. Do not upload private PDFs, full text, local paths, sensitive DOI lists, or Codex logs.
+When it succeeds, tell me how to use the Research Wiki pipeline skills and the optional ResearchWikiCodex.command router.
+Do not upload private PDFs, full text, local paths, sensitive DOI lists, or Codex logs.
 ```
 
 This prompt can complete most of the install flow, but it should still ask before installing system tools or submitting any GitHub issue.
@@ -34,8 +35,15 @@ This prompt can complete most of the install flow, but it should still ask befor
    python3 tools/check_install.py --strict
    ```
 
-4. Open `ResearchWikiCodex.command` on macOS, or `ResearchWikiCodex.cmd` on Windows.
+4. Open `ResearchWikiCodex.command` on macOS, or `ResearchWikiCodex.cmd` on Windows, only if you want the thin skill/mode router.
 5. Optionally open `InitializeResearchWiki.command` or `InitializeResearchWiki.cmd` to set initial topics.
+6. Optional runtime smoke check:
+
+   ```bash
+   python3 tools/wiki_lint.py
+   python3 tools/wiki_doctor.py
+   python3 tools/build_runtime_state.py
+   ```
 
 ## Tools
 
@@ -43,6 +51,10 @@ This prompt can complete most of the install flow, but it should still ask befor
 - Recommended: Poppler / `pdftotext`, Obsidian, Chrome.
 
 For where data lives and how papers enter the wiki, read [USER_GUIDE.md](USER_GUIDE.md). The README intentionally stays short.
+
+For vNext usage, remember the four actions: Query is read-only, Save persists
+source-backed knowledge, Lint checks structure and meaning, and Research
+produces evidence-labeled updates or review items.
 
 ## If Install Fails
 

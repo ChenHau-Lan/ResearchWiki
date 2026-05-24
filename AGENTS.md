@@ -5,16 +5,17 @@
 - `core/` 是 command-independent source of truth，保存資料庫原理、資料契約、agent 契約、skills 與測試契約。
 - `raw/` 是 evidence layer，保存 paper source pointers、DOI dashboard、原始檔、staging extraction、QC 後可讀全文與索引。
 - `wiki/` 是 LLM-curated knowledge layer，保存單篇文獻事實、跨文獻判斷、meeting/project 脈絡與 seminar context。
-- `ResearchWikiCodex.command` 是 core contract 的正式 command/UI implementation，負責低 token / 無 token 的本地操作，也負責把需要理解的任務交接給 Codex。
+- ResearchWiki 的正式操作面是 pipeline skills + modes；`ResearchWikiCodex.command` 只保留為薄路由器與相容入口，`tools/rw.py` 負責 deterministic local operations、acquisition checkpoints、topic lint 與 prompt handoff。
 - Codex / LLM token 應用在真正需要理解的任務：文獻攝入、全文理解、paper page 萃取、synthesis、project discussion。
 
 與一般 LLM Wiki 不同處：
 
 1. 有客製化 paper source queue、DOI dashboard、full text cache 與 full text index。
 2. Paper wiki page 對文獻閱讀最佳化，但不複製全文。
-3. Command 讓使用者快速操作，避免把機械檢查浪費在 LLM token；正式流程以 `ResearchWikiCodex.command` 為入口。加入來源、刷新 dashboard、掃描 PDF、查重、重建 index 是 local/no-token 步驟；線上全文判斷、PDF 內容 QC、abstract-only 判斷、paper page 與 synthesis 是明確 LLM 步驟。正式 command 不新增持久未 QC staging full text。
+3. Pipeline skills/modes 讓使用者依研究任務操作，避免把機械檢查浪費在 LLM token；`ResearchWikiCodex.command` 僅路由到 skills/modes。加入來源、刷新 dashboard、掃描 PDF、查重、重建 index 是 local/no-token 步驟；線上全文判斷、PDF 內容 QC、abstract-only 判斷、paper page 與 synthesis 是明確 LLM 步驟。正式 source-intake 不新增持久未 QC staging full text。
 4. Obsidian graph 是一級功能，正式頁必須有 explicit wikilinks。
-5. 資料庫要能被定期診斷、產生 repair plan，但不可自動批量刪除。
+5. 資料庫要能用 `wiki-lint` 定期診斷、產生 repair plan，但不可自動批量刪除；`audit-release` 只作為 advanced compatibility alias。
+6. vNext 把資料庫視為 research compiler：`wiki/purpose.md` 定義邊界、`wiki/overview.md` 做研究地圖、`wiki/hot.md` 追蹤活躍問題；`wiki/questions/` 保存未決問題，`wiki/topics/` 控管搜尋範圍，多頁 source impact 先進 `maintenance/fanout_candidates.md`。
 
 ## Research Wiki Dev Mode
 
@@ -31,16 +32,17 @@
 - README 只放第一眼需要知道的研究材料流程、安裝入口與支援入口；不要把詳細資料分層、branch policy、測試觀察或架構討論塞進 README。資料位置與操作細節放 USER_GUIDE，規則與契約放 `core/`，維護紀錄放 `maintenance/`。
 - 安裝與支援文件若提供 Codex prompt，README、USER_GUIDE、INSTALL、SUPPORT 必須保持一致；prompt 可以協助安裝與開 issue 草稿，但系統工具安裝需使用者確認，issue 不得自動送出。
 - 處理 review comment 或使用者修正時，先抽象成資料模型、workflow、產品原則或契約規則，再整合進既有架構；不可把回饋中的反應式問句、例子或修正文直接變成 README/USER_GUIDE 段落標題。版本變更、PR 回應與測試觀察應留在 PR、release notes 或 `maintenance/`，不要塞進 onboarding 文件。
-- 實作時同步更新 README / USER_GUIDE / AGENTS / command menu，並跑最小必要驗證。
+- 實作時同步更新 README / USER_GUIDE / AGENTS / skill/mode router，並跑最小必要驗證。
 - 回應風格保持溫和、直接、有判斷力；不只照做，也要指出會讓資料庫長期壞掉的設計。
 
 ## Core / Command / Personal Boundary
 
 - 核心規則優先讀 `core/principles.md`、`core/data_contract.md`、`core/agent_contract.md`、`core/test_contract.md` 與 `core/skills/`。
-- Command prompt 或工具若需要規則，必須引用 `core/*`；不要讓 `ResearchWikiCodex.command` 成為唯一規則來源。
-- `main` 是 private protected integration branch 的目標狀態，應保持 template-safe。
+- Skill/mode prompt 或工具若需要規則，必須引用 `core/*` 與相關 `core/skills/*`；不要讓 `ResearchWikiCodex.command` 成為唯一規則來源。
+- `main` 是 public protected integration branch 的目標狀態，必須保持 template-safe、public-safe。
 - `codex/core-*` 用於 core contract；`codex/command-*` 用於 command/UI；`personal/*` 用於個人研究狀態。
 - Issue 回報採 redacted prefilled URL；不自動送出，也不貼 private raw PDF/full_text/Codex logs。
+- `researchwiki.config.toml` 是每台電腦自己的 Google Drive/local path 設定，永遠不進 Git；只提交 `researchwiki.config.example.toml`。
 
 ## Updating AGENTS.md During Tests
 
@@ -75,7 +77,11 @@ Repair tools must never delete files automatically. They may only write a human-
 
 正式主流程只維護：
 
+- Purpose / overview / hot pages：資料庫邊界、研究地圖與活躍問題，放在 `wiki/` root。
 - Paper page：單篇論文閱讀頁，放在 `wiki/literature/`。
+- Question page：未決研究問題、假說、search plan 與 answer draft，放在 `wiki/questions/`。
+- Concept page：反覆出現的方法、機制、資料集、儀器、模型或變數，放在 `wiki/concepts/`。
+- Topic page / registry：topic ID、aliases、scope、include/exclude、default search 與 review cadence，放在 `wiki/topics/`。
 - Synthesis page：跨文獻研究判斷，放在 `wiki/synthesis/`。
 - Meeting page：單次會議紀錄，放在 `wiki/meetings/`。
 - Project synthesis page：跨會議、project evolution、decision history、project 間關聯，放在 `wiki/project_synthesis/`。
@@ -95,7 +101,11 @@ Repair tools must never delete files automatically. They may only write a human-
 - `raw/full_text/`：已重排、已 QC、可供閱讀與 wiki ingest 的全文 Markdown，命名為 `<paper_file_key>.md`。
 - `raw/full_text_index.md` 與 `raw/full_text_index.json`：全文、DOI、paper page 的 dispatch index。
 - `raw/files/`：seminar slides、meeting transcript 或使用者提供的其他原始檔；DOI 論文 PDF 優先放 `raw/doi_pdf/`。
-- `wiki/literature/topic_registry.md`：topics、subtopics 與 graph hub 規則。
+- `wiki/purpose.md`、`wiki/overview.md`、`wiki/hot.md`：compiler navigation pages，不取代 source-backed synthesis。
+- `wiki/questions/`：active research questions，不取代 source-backed synthesis。
+- `wiki/concepts/`：promoted recurring concepts。
+- `wiki/topics/topic_registry.md`：canonical topic governance。`wiki/literature/topic_registry.md` 保留 legacy graph hub 相容性。
+- `maintenance/fanout_candidates.md`：source fan-out 的 deterministic staging area。
 - `references.bib`：後期正式 citation registry。
 
 真正證據永遠是實際存在的 raw/doi_pdf、raw/staging、raw/full_text、wiki/literature、raw/full_text_index.* 與 raw/files。Dashboard 只記錄處理狀態；若 dashboard 指到不存在的檔案，工具必須降級狀態。
@@ -121,6 +131,9 @@ Seminar 可作為 synthesis 的討論材料，但 evidence tier 低於 peer-revi
 
 - `new`：剛加入，尚未處理。
 - `metadata_ok`：已確認 title/authors/year/venue/DOI。
+- `candidate_found`：已有 metadata、DOI、PDF 或合法 source candidates，但尚未核准作 evidence。
+- `pdf_checkpoint_required`：candidate PDF、URL、screenshot 或 local file 需要人工核准。
+- `pdf_downloaded`：approved PDF evidence 已在 configured PDF root。
 - `full_text_needed`：metadata 有了，但還沒有可讀全文。
 - `full_text_done`：已生成 `raw/full_text/<paper_file_key>.md`。
 - `wiki_done`：已生成 `wiki/literature/<slug>.md`。
@@ -138,7 +151,7 @@ Dashboard 主看板欄位固定為 `Last Name_Year`、`Journal`、`DOI`、`Wiki 
 1. 從 `raw/paper_sources.md` 讀取 DOI、DOI URL、article URL、PDF URL 或來源註記；legacy `raw/doi_list.md` 仍可讀取 DOI。
 2. 查重：`raw/doi_dashboard.md`、`raw/doi_pdf/`、`raw/staging/`、`raw/full_text/`、`raw/full_text_index.*`、`raw/files/`。
 3. 驗證 citation metadata；不可捏造 title、authors、venue/year、DOI 或 URL。
-4. 優先採用 source-first 半自動流程：開啟 DOI/publisher/article/source 頁面，讓使用者從 publisher、作者、open-access、institutional access 或使用者已授權來源下載 PDF 到 `raw/doi_pdf/`，或確認合法 HTML/XML/full text。Codex fallback 才處理 publisher HTML/XML、授權瀏覽器 PDF download、授權瀏覽器 DOM 或特殊來源判斷。不要自動化 shadow-library 或未授權 PDF 下載。
+4. 可採 high-automation source-first 流程：metadata/search API、Playwright screenshot、authorized browser DOM、合法 PDF URL、使用者提供 PDF 或 institutional access 都可以作候選來源；但任何 candidate PDF/URL/screenshot 在成為 evidence 前必須先進 `pdf_checkpoint_required` human gate。不要自動化 shadow-library 或未授權 PDF 下載。
 5. DOI PDF 若能合法取得，統一存到 `raw/doi_pdf/<paper_file_key>.pdf`。PDF 是原始版面 evidence，建議保存，但若 publisher HTML/XML/DOM 已提供完整全文，PDF 缺失不應阻止 wiki ingest；應標為 PDF backfill。
 6. PDF/HTML/XML 機械抽字不得寫入 `raw/full_text/`，也不得進 full_text index。正式 Codex-first command 不新增持久 staging；若 legacy 或人工工具建立 staging，必須只寫到 `raw/staging/extracted_text/<paper_file_key>.md` 並標明未 QC。
 7. 若使用者手動下載 PDF，直接放到 `raw/doi_pdf/`。本地 command 應掃描該資料夾中的額外 PDF；若 PDF 內有 DOI 但 dashboard 沒有 row，必須建立 dashboard row，之後改名為 `<paper_file_key>.pdf`，下一步設為 Codex-first full_text QC 或 `authorized_source_or_pdf_needed`。
@@ -171,7 +184,7 @@ Dashboard 主看板欄位固定為 `Last Name_Year`、`Journal`、`DOI`、`Wiki 
 
 ```yaml
 ---
-type: paper | synthesis | meeting | project-synthesis | seminar
+type: paper | question | concept | topic | synthesis | overview | hot | purpose | meeting | project-synthesis | seminar
 status: draft | reviewed | needs-verification | deprecated
 source_status: peer-reviewed | preprint | dataset | software | talk | personal-note | non-academic
 reading_status: metadata-only | abstract-only | skimmed | full-read | reproduced | mixed
@@ -185,7 +198,7 @@ sources: []
 ---
 ```
 
-Navigation/support pages may keep support metadata, but they must not introduce new content categories.
+vNext page type 可包含 `concept`、`overview`、`hot`、`purpose`。Navigation/support pages may keep support metadata, but they must not introduce unrelated content categories.
 
 ## Topics, Subtopics, Keywords
 

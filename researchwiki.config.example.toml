@@ -1,0 +1,28 @@
+# ResearchWiki local configuration template.
+#
+# Copy this file to `researchwiki.config.toml` on each computer. The copied file
+# is ignored by Git because it may contain machine-specific Google Drive paths.
+
+[storage]
+# Keep the real shared research data in one Google Drive for desktop root.
+# Do not use Google Drive "Computers/My Mac/My PC" backup folders as the shared
+# workspace.
+sync_root = "~/Google Drive/My Drive/ResearchSync"
+
+# PDF and attachment roots may live outside this Git repository. The CLI writes
+# to these folders when configured, while Git keeps only public-safe indexes and
+# Markdown.
+doi_pdf_dir = "~/Google Drive/My Drive/ResearchSync/literature/doi_pdf"
+full_text_dir = "~/Google Drive/My Drive/ResearchSync/literature/full_text"
+files_dir = "~/Google Drive/My Drive/ResearchSync/literature/files"
+
+[acquisition]
+# Network-backed metadata/download helpers are opt-in per command. They must not
+# bypass paywalls, CAPTCHA, robots, or credential barriers.
+default_live_search = false
+require_pdf_checkpoint = true
+require_full_text_qc = true
+
+[topics]
+registry = "wiki/topics/topic_registry.md"
+legacy_registry = "wiki/literature/topic_registry.md"

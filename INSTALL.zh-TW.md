@@ -13,7 +13,8 @@
 請檢查 Git、Python 3、ripgrep/rg、Poppler/pdftotext、Codex CLI 是否可用。
 如果缺工具，請先說明用途；需要 Homebrew、系統安裝或權限時先問我再執行。
 安裝或確認後，請執行 python3 tools/check_install.py --strict。
-成功後請告訴我怎麼打開 ResearchWikiCodex.command。不要上傳 private PDF、全文、本機路徑、敏感 DOI 清單或 Codex logs。
+成功後請告訴我怎麼使用 Research Wiki pipeline skills，以及可選的 ResearchWikiCodex.command router。
+不要上傳 private PDF、全文、本機路徑、敏感 DOI 清單或 Codex logs。
 ```
 
 這個 prompt 可以完成大部分安裝流程，但它不應該在沒有你確認的情況下安裝系統工具或送出任何 GitHub issue。
@@ -34,8 +35,15 @@
    python3 tools/check_install.py --strict
    ```
 
-4. macOS 打開 `ResearchWikiCodex.command`，Windows 打開 `ResearchWikiCodex.cmd`。
+4. 如果想使用薄 skill/mode router，macOS 打開 `ResearchWikiCodex.command`，Windows 打開 `ResearchWikiCodex.cmd`。
 5. 需要初始 topic 時，打開 `InitializeResearchWiki.command` 或 `InitializeResearchWiki.cmd`。
+6. 可選的 runtime smoke check：
+
+   ```bash
+   python3 tools/wiki_lint.py
+   python3 tools/wiki_doctor.py
+   python3 tools/build_runtime_state.py
+   ```
 
 ## 需要的工具
 
@@ -43,6 +51,8 @@
 - 建議：Poppler / `pdftotext`、Obsidian、Chrome。
 
 資料怎麼放、論文怎麼進 wiki，請看 [USER_GUIDE.zh-TW.md](USER_GUIDE.zh-TW.md)。README 只保留最短流程。
+
+vNext 使用上先記住四個 action：Query 只讀不寫，Save 保存有來源支撐的知識，Lint 檢查結構與語義，Research 產出 evidence-labeled 更新或 review item。
 
 ## 遇到問題
 

@@ -4,6 +4,18 @@ status: draft
 source_status: personal-note
 reading_status: mixed
 review_stage: discussed
+confidence: mixed
+evidence_scope: project-history
+evidence_tier: personal-note
+claim_status: provisional
+counter_evidence: required-for-stable-decisions
+source_hash:
+source_lines: []
+provenance_state: merged
+review_queue: false
+review_priority: low
+last_reviewed: YYYY-MM-DD
+review_due: YYYY-MM-DD
 topics: []
 subtopics: []
 keywords: []
@@ -56,6 +68,7 @@ sources: []
 - Topics:
 - Subtopics:
 - Related literature:
+- Related concepts:
 - Related synthesis:
 - Related seminars:
 - Related projects:

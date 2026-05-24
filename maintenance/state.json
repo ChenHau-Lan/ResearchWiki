@@ -1,0 +1,36 @@
+{
+  "fanout_candidates": "maintenance/fanout_candidates.md",
+  "full_text_dispatch": [],
+  "generated": "2026-05-24",
+  "graph_edge_count": 61,
+  "review_queue": "maintenance/review_queue.md",
+  "runtime_log": "maintenance/log.md",
+  "schema": "research-wiki-state-v1",
+  "tracked_files": {
+    "maintenance/fanout_candidates.md": {
+      "exists": true,
+      "sha256": "f06e367062ed0ad0116ca1113d15b1801ce81f27e29641a6aa07fda431163cbb"
+    },
+    "maintenance/log.md": {
+      "exists": true,
+      "sha256": "da272e61e53a3d8acd03dae2283c4373c09b14ab144750d6647c478a69ec8d0c"
+    },
+    "maintenance/review_queue.md": {
+      "exists": true,
+      "sha256": "cb4b7b006322e46ff48251d6b45d47351e8cae93549fd77dd3ddc20d417de667"
+    },
+    "raw/doi_dashboard.md": {
+      "exists": true,
+      "sha256": "531ae33e1534d4e2c9066d8b373133804d22a3974b3999cdb23943636ce3b5bc"
+    },
+    "raw/full_text_index.json": {
+      "exists": true,
+      "sha256": "0173ff52e04bdfd6b2c884d6cd23036ecd12dd673fa925b90e9bba5115f40cc8"
+    },
+    "raw/paper_sources.md": {
+      "exists": true,
+      "sha256": "5ad3b75d4fff961b17644ad7eae351b074184ac6dd1bf29410c4e55a0159e9cc"
+    }
+  },
+  "wiki_page_count": 13
+}

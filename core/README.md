@@ -1,11 +1,11 @@
 # Research Wiki Core
 
-Research Wiki Core is the command-independent contract for this database.
+Research Wiki Core is the interface-independent contract for this database.
 
 It defines the evidence model, page model, agent behavior, skill behavior, and
-test expectations that any interface must follow. `ResearchWikiCodex.command` is
-the canonical command implementation of this core contract, not the source of
-truth.
+test expectations that any interface must follow. Pipeline skills and modes are
+the canonical user-facing workflow model; `ResearchWikiCodex.command` is only a
+thin router and compatibility entrypoint, not the source of truth.
 
 ## Core Files
 
@@ -18,8 +18,10 @@ truth.
 ## Layer Model
 
 1. Core: rules, principles, contracts, skills, and tests.
-2. Command: local UI and automation that implements the core contract.
-3. Personal: user-specific research state, preferences, private evidence, and
+2. Pipeline skills/modes: the official workflow surface.
+3. Command: thin local router and low-token automation that implements the core
+   contract.
+4. Personal: user-specific research state, preferences, private evidence, and
    project history.
 
 Branch discipline mirrors this model:

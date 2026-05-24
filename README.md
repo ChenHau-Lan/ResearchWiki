@@ -1,102 +1,308 @@
-# Research Wiki
+# ResearchWiki [![Workflow](https://img.shields.io/badge/workflow-skill--first-green)](docs/ARCHITECTURE.md)
 
-[中文快速說明](README.zh-TW.md)
+[繁體中文](README.zh-TW.md) | [User Guide](USER_GUIDE.md) | [Architecture](docs/ARCHITECTURE.md) | [Mode Registry](MODE_REGISTRY.md)
 
-Research Wiki is a GitHub-ready LLM Wiki template for academic research. It is not just a PDF folder and not just a one-off chat summary. It organizes sources, full text, paper pages, meetings, seminars, and synthesis into a version-controlled database that local tools and Codex can maintain together.
+ResearchWiki is a GitHub-ready, skill-first LLM Wiki template for academic
+research. It turns DOI/URL/PDF sources into checkable evidence, evidence into
+curated wiki pages, and wiki pages into source-backed synthesis.
 
-Short version:
-
-> `raw/` keeps evidence, `wiki/` keeps understanding, commands handle mechanical work, and Codex handles reading and judgment.
-
-## Why GitHub-Ready LLM Wiki?
-
-Research material drifts easily: PDFs sit in folders, DOI lists live in messages, LLM summaries stay in old chats, and wiki notes often lose track of their sources. After a while, it is hard to tell whether a paper was fully read, where a claim came from, or whether another user can install and run the same workflow.
-
-Research Wiki is designed around an evidence chain:
-
-- Sources enter `raw/`: DOI/URL/PDF source pointers, legal PDFs, staging extraction, QCed full text, meeting transcripts, seminar slides, or other original files.
-- Understanding enters `wiki/`: paper pages, synthesis pages, meeting notes, project synthesis, and seminar notes.
-- GitHub manages rules and versions: README, core contracts, templates, tools, CI, and issues can all be reviewed.
-- Codex is reserved for understanding-heavy work: full-text QC, reflow, paper pages, synthesis, and project discussion.
-
-## How Research Material Enters
-
-```mermaid
-flowchart LR
-    A["Source<br/>DOI / URL / PDF"] --> B["raw/<br/>evidence + QCed full text"]
-    B --> C["wiki/literature/<br/>paper page"]
-    C --> D["wiki/synthesis/<br/>cross-paper judgment"]
+```text
+raw/ keeps evidence
+wiki/ keeps understanding
+maintenance/ keeps governance
+pipeline skills decide what may write where
 ```
 
-A paper may start from a DOI, URL, PDF URL, or local PDF. The database first turns it into a checkable evidence package in `raw/`. Only reflowed and QCed readable Markdown belongs in `raw/full_text/`, and only that full text should feed `wiki/literature/` paper pages.
+> **Codex is your research database copilot, not the evidence.** Research Wiki
+> lets Codex read, reflow, summarize, audit, and synthesize, but every durable
+> claim must point back to files or wiki pages that can be checked later.
 
-PDF is an important part of the evidence package because it preserves layout, tables, equations, captions, and publisher formatting. Paper pages should not copy the whole PDF or full text; they keep reading judgment and source pointers so the evidence can be checked later.
+## Quick Start
 
-Machine extraction may briefly live in `raw/staging/extracted_text/`; it is not official full text, is not indexed, and should not be used to create wiki pages.
-
-## Install And Start
-
-Required:
-
-- Codex
-- Git
-- Python 3
-- ripgrep (`rg`)
-
-Recommended:
-
-- Poppler / `pdftotext` for PDF extraction.
-- Obsidian for graph browsing.
-- Chrome for authenticated or authorized publisher sessions.
-
-If you are new to GitHub, Codex can do most of the install check in one pass. Open Codex and paste:
+Open Codex in this repository, or ask Codex to clone it for you, then paste:
 
 ```text
 Please help me install and start Research Wiki. I do not know GitHub well.
-If I do not have the repository yet, help me clone git@github.com:ChenHau-Lan/wiki_research.git. If I am already inside the repo, use the current folder.
+If I do not have the repository yet, help me clone git@github.com:ChenHau-Lan/ResearchWiki.git. If I am already inside the repo, use the current folder.
 Read README.md, USER_GUIDE.md, INSTALL.md, and AGENTS.md first.
 Check whether Git, Python 3, ripgrep/rg, Poppler/pdftotext, and the Codex CLI are available.
 If a tool is missing, explain what it is for. Ask me before using Homebrew, system installation commands, or permission-requiring steps.
-After installing or confirming tools, run python3 tools/check_install.py --strict.
-When it succeeds, tell me how to open ResearchWikiCodex.command. Do not upload private PDFs, full text, local paths, sensitive DOI lists, or Codex logs.
+After installing or confirming tools, run the repository install check for me.
+When it succeeds, show me how to start with source-intake/add-source and guide me through the Skill-first illustrated quickstart.
 ```
 
-Open `ResearchWikiCodex.command` on macOS, or `ResearchWikiCodex.cmd` on Windows, when working manually. It is the canonical Codex-first launcher: local/no-token steps refresh the dashboard, scan PDFs, open source files, rebuild indexes, and prepare prompts; Codex handles source judgment, full-text QC, paper pages, synthesis, and issue discussion. See [USER_GUIDE.md](USER_GUIDE.md) for the command menu.
+The optional clickable router is:
 
-Use `InitializeResearchWiki.command` on macOS, or `InitializeResearchWiki.cmd` on Windows, for first-time topic setup or an explicitly confirmed local reset.
+- macOS: `ResearchWikiCodex.command`
+- Windows: `ResearchWikiCodex.cmd`
 
-## What The Command Does
-
-`ResearchWikiCodex.command` is the low-token / no-token entrypoint. It exists so Codex does not spend time scanning folders, renaming files, rebuilding indexes, or running diagnostics.
-
-The command is the default interface for this data model, not the source of the database rules. It can refresh and open the dashboard, scan PDFs, hand full-text QC directly to Codex, prepare synthesis discussion pages/prompts, prepare same-computer external sandbox prompts, and prepare a Codex issue-reporting prompt. Local/no-token steps must not secretly launch Codex; Codex is for source judgment, full-text reflow/QC, paper pages, synthesis, and project discussion. Full menu details live in [USER_GUIDE.md](USER_GUIDE.md).
-
-## Support
-
-The easiest path is to ask Codex to prepare a redacted issue draft. Paste:
+You can also skip the router and talk to Codex directly by naming a skill/mode:
 
 ```text
-Research Wiki install or execution failed. Please help me prepare a GitHub issue draft.
-Read SUPPORT.md, then run python3 tools/support_report.py --issue-url.
-Check maintenance/support_report.md and the generated issue URL for local paths, private PDFs, full text, sensitive DOI lists, Codex logs, and personal research state.
-Do not submit the issue automatically. Give me the draft for review.
+Use source-intake/add-source for this DOI URL: https://doi.org/10.xxxx/example
 ```
 
-Manual command:
+Deterministic local commands use the CLI:
 
 ```bash
-python3 tools/support_report.py --issue-url
+python3 tools/rw.py source add https://doi.org/10.xxxx/example
+python3 tools/rw.py source search "wildfire aerosol cloud interaction" --topic-id wildfire-cloud
+python3 tools/rw.py topic lint
+python3 tools/rw.py wiki lint
 ```
 
-It runs install, lint, and doctor checks; writes `maintenance/support_report.md`; and opens a GitHub issue draft. It redacts common private details such as local paths, DOI values, raw PDF/full-text paths, and Codex logs.
+## Why Research Wiki
 
-It does not submit the issue automatically. Review the draft before submitting, and make sure it does not include private PDFs, full article text, sensitive DOI lists, or personal research state.
+Research material drifts easily: PDFs sit in folders, DOI lists live in chat
+messages, LLM summaries remain in old sessions, and notes lose track of their
+sources. Research Wiki keeps the evidence chain visible so you can later answer:
+
+- Was this paper fully read, abstract-only, or only metadata-checked?
+- Which source supports this claim?
+- Is this synthesis based on peer-reviewed literature, seminar context, or a
+  hypothesis?
+- Can another researcher clone the repo and understand the workflow?
+
+The goal is not full automation. The goal is **auditable human-AI research
+work**: local tools handle mechanical checks, Codex handles reading-heavy work,
+and the wiki preserves what was actually supported.
+
+## Architecture & Pipeline
+
+ResearchWiki uses seven pipeline skills. `ResearchWikiCodex.command` remains
+only as a thin skill/mode router; `tools/rw.py` handles deterministic local
+maintenance.
+
+```mermaid
+flowchart LR
+    A["literature-discovery<br/>topic / DOI / URL search"] --> B["source-intake<br/>source queue + dashboard"]
+    B --> C["acquisition checkpoint<br/>human approval"]
+    C --> D["paper-ingest<br/>QCed full text -> paper page"]
+    D --> E["knowledge-workbench<br/>Query / Save / review queue"]
+    E --> F["synthesis-research<br/>fan-out / thesis / synthesis"]
+    G["topic-governance<br/>scope + search rules"] --> A
+    F --> H["wiki-lint<br/>structure / semantic / graph"]
+```
+
+The full design lives in [Architecture](docs/ARCHITECTURE.md), and the exact
+skill/mode table lives in [Mode Registry](MODE_REGISTRY.md).
+
+## Features At A Glance
+
+- **LLM Wiki memory**: Markdown pages compound across sessions instead of
+  leaving useful discussion trapped in chat history.
+- **High-automation discovery**: topic, DOI, and URL workflows can stage search
+  candidates and legal-source routes.
+- **Human evidence gates**: candidate PDFs stop at `pdf_checkpoint_required`
+  until a human approves the route.
+- **Single-paper ingest**: QCed full text becomes one concise paper page, never a
+  hidden cross-paper synthesis.
+- **Topic governance**: topic IDs, aliases, scope, include/exclude rules, and
+  default searches keep automated discovery from drifting.
+- **Question / concept / synthesis pages**: uncertainty, reusable concepts, and
+  cross-source judgment are separate page types.
+- **Git + Google Drive split**: Git stores public-safe wiki/code; Drive stores
+  real PDFs, attachments, and large raw evidence.
+- **External sandbox prompts**: generate a compact context capsule so another
+  sandbox can help and propose what deserves saving back.
+- **Public safety scan**: CI can catch PDFs, full text, local paths, and private
+  runtime files before publishing.
+
+## Individual Skills
+
+### `literature-discovery`
+
+Search from a topic, question, DOI, or URL; stage candidates; prepare legal
+source routes and acquisition checkpoints. It does not write paper pages.
+
+Common modes:
+
+- `topic-search`
+- `resolve-candidates`
+- `acquire-pdf`
+- `checkpoint`
+
+### Ingest Boundary
+
+`source-intake` and `paper-ingest` turn DOI/URL/PDF sources into checkable paper
+pages. Sources enter the queue first, readable full text is QCed before it enters
+`raw/full_text/`, and `paper-ingest` creates `wiki/literature/` pages.
+
+### `source-intake`
+
+Add DOI/URL/PDF source pointers, refresh the DOI dashboard, scan local PDFs,
+detect duplicate-looking files, and create QCed full text from legal or
+user-provided evidence.
+
+Common modes:
+
+- `add-source`
+- `refresh-dashboard`
+- `qced-full-text`
+
+Example:
+
+```text
+Use source-intake/refresh-dashboard and tell me which papers already have PDF evidence, which still need legal full text, and whether duplicate-looking PDFs were found.
+```
+
+### `paper-ingest`
+
+Turn one QCed `raw/full_text/<paper_file_key>.md` into one concise
+`wiki/literature/<slug>.md` paper page. It does not acquire sources and does not
+write cross-paper synthesis.
+
+Common mode:
+
+- `ingest-qced-full-text`
+
+Example:
+
+```text
+Use paper-ingest/ingest-qced-full-text for raw/full_text/example_2026_journal.md. Reject the ingest if readability_status, table_quality, or equation_quality makes it unsafe.
+```
+
+### `topic-governance`
+
+Owns `wiki/topics/topic_registry.md`, topic pages, aliases, default search
+strings, and review cadence.
+
+Common modes:
+
+- `add-topic`
+- `update-topic`
+- `lint-topics`
+- `topic-review`
+
+### `knowledge-workbench`
+
+Use the wiki without losing the read/write boundary. Query is read-only; Save is
+deliberate and must choose a target layer first.
+
+Common modes:
+
+- `query`
+- `query-to-save`
+- `save`
+- `review-queue`
+
+Example:
+
+```text
+Use knowledge-workbench/query. What do we know about wildfire smoke effects on warm rain? Label evidence tier and do not write files.
+```
+
+### `synthesis-research`
+
+Grow cross-paper understanding safely. A source that affects multiple pages
+should become a fan-out candidate or review item before formal wiki updates.
+
+Common modes:
+
+- `fanout-review`
+- `apply-approved-fanout`
+- `thesis-review`
+- `synthesis-page-start`
+- `external-sandbox-sync`
+
+Example:
+
+```text
+Use synthesis-research/fanout-review for wiki/literature/example_2026.md. Stage possible concept, synthesis, overview, hot-question, and supersession impacts.
+```
+
+### `wiki-lint`
+
+Keep the LLM Wiki healthy. Use this for structure checks, semantic checks,
+repair plans, and runtime graph/state exports.
+
+Common modes:
+
+- `structure-lint`
+- `semantic-lint`
+- `repair-plan`
+- `state-graph`
+
+Example:
+
+```text
+Use wiki-lint/semantic-lint to find stale claims, missing counter-evidence, and source leads.
+```
+
+## How To Use Modes
+
+There are two equivalent ways to start a mode:
+
+1. Ask Codex directly: `Use knowledge-workbench/query ...`
+2. Open the optional router and choose a skill, then a mode.
+
+Recommended first paper path:
+
+```text
+topic-governance/add-topic
+literature-discovery/topic-search
+source-intake/add-source
+source-intake/refresh-dashboard
+literature-discovery/checkpoint
+source-intake/qced-full-text
+paper-ingest/ingest-qced-full-text
+knowledge-workbench/query
+knowledge-workbench/query-to-save
+synthesis-research/fanout-review
+wiki-lint/semantic-lint
+```
+
+For illustrated step-by-step operation, use the [Skill-first illustrated quickstart](docs/manuals/research_wiki_skill_first_quickstart.en.md). For mode reference, use [USER_GUIDE.md](USER_GUIDE.md).
+
+## Storage Model
+
+Use Google Drive for desktop as the shared evidence root and Git as the public
+wiki/code root. A typical local config is:
+
+```bash
+cp researchwiki.config.example.toml researchwiki.config.toml
+```
+
+Keep real PDFs under a Drive path such as
+`Google Drive/My Drive/ResearchSync/literature/doi_pdf`. Do not use Drive's
+`Computers/My Mac/My PC` backup area as the shared workspace. If old tools need
+old paths, make local symlinks/junctions on each computer, but keep the real
+files in Drive and keep Git free of private evidence.
+
+## Current Release Focus
+
+- Seven pipeline skills cover literature discovery, source intake, paper ingest,
+  topic governance, knowledge workbench, synthesis research, and wiki lint.
+- `knowledge-workbench` keeps read-only answers and deliberate saves separated
+  by mode.
+- `wiki-lint` checks structure, evidence tiers, stale claims, missing links, and
+  repair leads.
+- `tools/rw.py` enforces acquisition/QC gates for deterministic operations.
+
+See [VERSION_LOG.md](VERSION_LOG.md) for the full version record.
+
+## Outputs And Examples
+
+- [Skill-first illustrated quickstart](docs/manuals/research_wiki_skill_first_quickstart.en.md)
+- [User Guide](USER_GUIDE.md)
+- [Architecture](docs/ARCHITECTURE.md)
+- [LLM Wiki content brief](docs/references/llm_wiki_video_content_brief.md)
+
+## Safety Commitments
+
+- Do not automate unauthorized full-text acquisition.
+- Do not bypass paywalls, CAPTCHA, robots, or credential barriers.
+- Do not copy full articles into `wiki/`.
+- Do not mark a paper `full-read` unless full text was actually read.
+- Do not use recursive, wildcard, or bulk deletion commands.
+- Repair plans diagnose and suggest; they do not delete files.
 
 ## More
 
 - [User Guide](USER_GUIDE.md)
+- [Skill-first illustrated quickstart](docs/manuals/research_wiki_skill_first_quickstart.en.md)
+- [Pipeline Architecture](docs/guides/research_wiki_pipeline_architecture.en.md)
+- [Version Log](VERSION_LOG.md)
 - [Install Guide](INSTALL.md)
 - [Support Guide](SUPPORT.md)
 - [Agent Rules](AGENTS.md)
-- [Current GitHub arrangement](maintenance/github_current_arrangement.md)
-- [Branch strategy](maintenance/branch_strategy.md)

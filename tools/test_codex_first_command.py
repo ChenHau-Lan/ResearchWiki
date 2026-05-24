@@ -181,8 +181,11 @@ def read(path: Path) -> str:
 
 def scenario_smoke_menu_exit(work: Path) -> None:
     out = run_command(work, "0\n")
-    assert_contains(out, "ResearchWiki Codex-first")
-    assert_contains(out, "Open/add paper sources")
+    assert_contains(out, "ResearchWiki Skill-First Router")
+    assert_contains(out, "source-intake")
+    assert_contains(out, "knowledge-workbench")
+    if "14. Build runtime state + graph" in out:
+        raise AssertionError("old 14-option command menu should not be the primary UI")
 
 
 def scenario_no_deleted_command_reference(work: Path) -> None:
@@ -226,28 +229,58 @@ def scenario_windows_launchers_are_repo_relative(work: Path) -> None:
     assert_contains(init_cmd, "tools\\init_research_wiki.py")
 
 
+def scenario_skill_first_pipeline_docs(work: Path) -> None:
+    architecture = read(work / "docs" / "guides" / "research_wiki_pipeline_architecture.en.md")
+    for value in [
+        "literature-discovery",
+        "source-intake",
+        "paper-ingest",
+        "topic-governance",
+        "knowledge-workbench",
+        "synthesis-research",
+        "wiki-lint",
+        "audit-release",
+        "`query` is read-only",
+        "`save`",
+        "`query-to-save`",
+        "`review-queue`",
+    ]:
+        assert_contains(architecture, value)
+    for rel in [
+        "core/skills/literature-discovery/SKILL.md",
+        "core/skills/source-intake/SKILL.md",
+        "core/skills/paper-ingest/SKILL.md",
+        "core/skills/topic-governance/SKILL.md",
+        "core/skills/knowledge-workbench/SKILL.md",
+        "core/skills/synthesis-research/SKILL.md",
+        "core/skills/wiki-lint/SKILL.md",
+        "core/skills/audit-release/SKILL.md",
+    ]:
+        assert_file(work / rel)
+
+
 def scenario_topic_setup_blank_and_custom(work: Path) -> None:
     proc = run(work, [sys.executable, "tools/init_research_wiki.py"], input_text="1\n\n\n")
     if proc.returncode != 0:
         raise AssertionError(proc.stdout)
-    registry = read(work / "wiki" / "literature" / "topic_registry.md")
-    assert_contains(registry, "## Active Topics")
+    registry = read(work / "wiki" / "topics" / "topic_registry.md")
+    assert_contains(registry, "## Topic Table")
     if "aerosol" in registry or "wildfire" in registry:
         raise AssertionError(registry)
 
     proc = run(work, [sys.executable, "tools/init_research_wiki.py"], input_text="1\ncloud physics, wildfire smoke\nmicrophysics\n")
     if proc.returncode != 0:
         raise AssertionError(proc.stdout)
-    registry = read(work / "wiki" / "literature" / "topic_registry.md")
-    assert_contains(registry, "`cloud_physics`")
-    assert_contains(registry, "`wildfire_smoke`")
-    assert_contains(registry, "`microphysics`")
+    registry = read(work / "wiki" / "topics" / "topic_registry.md")
+    assert_contains(registry, "| cloud-physics |")
+    assert_contains(registry, "| wildfire-smoke |")
+    assert_contains(registry, "microphysics")
 
 
 def scenario_option2_pdf_scan_no_staging(work: Path) -> None:
     reset_database(work)
     add_fixture_pdf(work)
-    out = run_command(work, "2\n\n0\n")
+    out = run_command(work, "2\n2\n\n0\n")
     assert_contains(out, "No persistent staging full text was created")
     assert_contains(out, "Open skipped because RESEARCHWIKI_NO_OPEN=1")
     assert_contains(read(work / "raw" / "doi_dashboard.md"), "10.5194/acp-8-15-2008")
@@ -260,7 +293,7 @@ def scenario_option2_pdf_scan_no_staging(work: Path) -> None:
 def scenario_option3_stub_success_no_staging(work: Path) -> None:
     reset_database(work)
     add_fixture_pdf(work)
-    out = run_command(work, "3\n\n0\n", extra_env={"RESEARCHWIKI_TEST_CODEX_FIRST_QC_STUB": "1"})
+    out = run_command(work, "2\n3\n\n0\n", extra_env={"RESEARCHWIKI_TEST_CODEX_FIRST_QC_STUB": "1"})
     assert_contains(out, "Created QCed full_text")
     assert_file(work / "raw" / "full_text" / "altaratz_2008_acp.md")
     assert_contains(read(work / "raw" / "doi_dashboard.md"), "full_text_done")
@@ -270,7 +303,7 @@ def scenario_option3_stub_success_no_staging(work: Path) -> None:
 def scenario_option3_stub_failure_no_artifacts(work: Path) -> None:
     reset_database(work)
     add_fixture_pdf(work)
-    out = run_command(work, "3\n\n0\n", extra_env={"RESEARCHWIKI_TEST_CODEX_FIRST_QC_FAIL": "1"})
+    out = run_command(work, "2\n3\n\n0\n", extra_env={"RESEARCHWIKI_TEST_CODEX_FIRST_QC_FAIL": "1"})
     assert_contains(out, "Test-mode QC failure")
     assert_no_generated_files(work / "raw" / "staging" / "extracted_text")
     assert_no_generated_files(work / "raw" / "full_text")
@@ -282,7 +315,7 @@ def scenario_option3_missing_pdf_opens_download_pages(work: Path) -> None:
     add_source_doi(work, "10.5194/acp-8-15-2008")
     out = run_command(
         work,
-        "3\n1\n\n\n0\n",
+        "2\n3\n1\n\n\n0\n",
         extra_env={"RESEARCHWIKI_TEST_CODEX_FIRST_QC_FAIL": "1"},
     )
     assert_contains(out, "Download / Full-Text Pages")
@@ -296,7 +329,7 @@ def scenario_option2_duplicate_pdf_suffix_no_fake_doi(work: Path) -> None:
     reset_database(work)
     add_source_doi(work, "10.5194/acp-8-15-2008")
     add_copernicus_duplicate_pdf_fixtures(work)
-    out = run_command(work, "2\n\n0\n\n0\n", extra_env={"RESEARCHWIKI_DISABLE_PDF_TEXT": "1"})
+    out = run_command(work, "2\n2\n\n\n\n0\n", extra_env={"RESEARCHWIKI_DISABLE_PDF_TEXT": "1"})
     assert_contains(out, "duplicate-looking PDF")
     dashboard = read(work / "raw" / "doi_dashboard.md")
     if "10.5194/acp-8-15-2008-3" in dashboard:
@@ -358,7 +391,7 @@ CO2
 def scenario_option2_bulk_delete_duplicate_pdfs(work: Path) -> None:
     reset_database(work)
     add_duplicate_cleanup_fixtures(work)
-    out = run_command(work, "2\nDELETE ALL DUPLICATE PDFS\n\n0\n")
+    out = run_command(work, "2\n2\nDELETE ALL DUPLICATE PDFS\n\n0\n")
     assert_contains(out, "Duplicate PDF Review")
     assert_contains(out, "Deleted raw/doi_pdf/acp-8-15-2008.pdf")
     assert_contains(out, "Deleted raw/doi_pdf/acp-8-15-2008-3.pdf")
@@ -370,9 +403,55 @@ def scenario_option2_bulk_delete_duplicate_pdfs(work: Path) -> None:
         raise AssertionError("duplicate PDF was not deleted")
 
 
-def scenario_option5_creates_synthesis_prompt(work: Path) -> None:
+def scenario_option5_read_only_query_prompt(work: Path) -> None:
     reset_database(work)
-    out = run_command(work, "5\nSmoke microphysics question\n\n0\n")
+    out = run_command(work, "5\n1\nWhat do we know about smoke microphysics?\n\n0\n")
+    assert_contains(out, "Read-only Query Handoff")
+    assert_contains(out, "Do not write, edit, stage, or generate any repo files")
+    if (work / "maintenance" / "codex_first_query_prompt.md").exists():
+        raise AssertionError("read-only query should not write a prompt file")
+
+
+def scenario_option6_save_prompt(work: Path) -> None:
+    reset_database(work)
+    out = run_command(work, "5\n2\nreview_queue\nSmoke answer\n\n0\n")
+    assert_contains(out, "Save Answer / Discussion Handoff")
+    prompt = read(work / "maintenance" / "codex_first_save_prompt.md")
+    assert_contains(prompt, "Save is an explicit write action")
+    assert_contains(prompt, "Requested target layer:")
+
+
+def scenario_option7_fanout_prompt(work: Path) -> None:
+    reset_database(work)
+    out = run_command(work, "6\n1\nraw/full_text/example.md\n\n0\n")
+    assert_contains(out, "Source Fan-out Review Handoff")
+    fanout_candidates = read(work / "maintenance" / "fanout_candidates.md")
+    assert_contains(fanout_candidates, "raw/full_text/example.md")
+    assert_contains(fanout_candidates, "FO-")
+    prompt = read(work / "maintenance" / "codex_first_fanout_prompt.md")
+    assert_contains(prompt, "maintenance/fanout_candidates.md")
+    assert_contains(prompt, "Fan-out candidate ID")
+    assert_contains(prompt, "Do not update formal synthesis")
+    assert_contains(prompt, "maintenance/review_queue.md")
+
+
+def scenario_option10_thesis_prompt(work: Path) -> None:
+    reset_database(work)
+    out = run_command(work, "6\n3\nAerosol effects always suppress warm rain\n\n0\n")
+    assert_contains(out, "Thesis Review Handoff")
+    prompt = read(work / "maintenance" / "codex_first_thesis_prompt.md")
+    assert_contains(prompt, "supporting, opposing, mechanistic, meta-review, and adjacent")
+    assert_contains(prompt, "must be one of")
+    runs = list((work / "maintenance" / "thesis_runs").glob("*aerosol_effects_always_suppress_warm_rain"))
+    if not runs:
+        raise AssertionError("missing thesis run directory")
+    for name in ["thesis.md", "supporting.md", "opposing.md", "mechanistic.md", "meta_review.md", "adjacent.md", "evidence_table.md", "verdict.md"]:
+        assert_file(runs[0] / name)
+
+
+def scenario_option11_creates_synthesis_prompt(work: Path) -> None:
+    reset_database(work)
+    out = run_command(work, "6\n4\nSmoke microphysics question\n\n0\n")
     assert_contains(out, "Synthesis Conversation Handoff")
     assert_file(work / "wiki" / "synthesis" / "smoke_microphysics_question.md")
     prompt = read(work / "maintenance" / "codex_first_synthesis_prompt.md")
@@ -380,18 +459,29 @@ def scenario_option5_creates_synthesis_prompt(work: Path) -> None:
     assert_contains(prompt, "Ask me questions first")
 
 
-def scenario_option6_feedback_prompt(work: Path) -> None:
+def scenario_wiki_lint_structure_and_repair_modes(work: Path) -> None:
     reset_database(work)
-    out = run_command(work, "6\n[feedback] dry run\n\n0\n")
+    out = run_command(work, "7\n1\n\n0\n")
+    assert_contains(out, "Wiki Structure Lint")
+    assert_contains(out, "wiki_lint passed")
+    out = run_command(work, "7\n3\n\n0\n")
+    assert_contains(out, "Wiki Repair Plan")
+    if not list((work / "maintenance").glob("repair_plan_*.md")):
+        raise AssertionError("missing repair plan")
+
+
+def scenario_option12_feedback_prompt(work: Path) -> None:
+    reset_database(work)
+    out = run_command(work, "7\n6\n[feedback] dry run\n\n0\n")
     assert_contains(out, "Feedback Issue Handoff")
     prompt = read(work / "maintenance" / "codex_first_feedback_issue_prompt.md")
     assert_contains(prompt, "I will provide the full description before sending")
     assert_contains(prompt, "Do not submit the issue until I explicitly confirm")
 
 
-def scenario_option7_external_sandbox_prompt(work: Path) -> None:
+def scenario_option13_external_sandbox_prompt(work: Path) -> None:
     reset_database(work)
-    out = run_command(work, "7\nSmoke coupling across models\nsynthesis\n\n0\n")
+    out = run_command(work, "6\n5\nSmoke coupling across models\nsynthesis\n\n0\n")
     assert_contains(out, "External Sandbox Handoff")
     assert_file(work / "wiki" / "synthesis" / "smoke_coupling_across_models.md")
     prompt = read(work / "maintenance" / "external_sandbox_sync_prompt.md")
@@ -402,12 +492,42 @@ def scenario_option7_external_sandbox_prompt(work: Path) -> None:
     assert_contains(prompt, "I may paste current results")
 
 
+def scenario_option14_build_runtime_state_graph(work: Path) -> None:
+    reset_database(work)
+    out = run_command(work, "7\n4\n\n0\n")
+    assert_contains(out, "Runtime State + Graph")
+    assert_file(work / "maintenance" / "state.json")
+    assert_file(work / "maintenance" / "graph.json")
+    assert_contains(read(work / "maintenance" / "state.json"), "research-wiki-state-v1")
+    assert_contains(read(work / "maintenance" / "state.json"), "fanout_candidates")
+    assert_contains(read(work / "maintenance" / "graph.json"), "research-wiki-graph-v1")
+
+
+def scenario_prepare_fanout_candidate_dry_run(work: Path) -> None:
+    reset_database(work)
+    proc = run(
+        work,
+        [
+            sys.executable,
+            "tools/prepare_fanout_candidates.py",
+            "--source",
+            "raw/full_text/example.md",
+            "--dry-run",
+        ],
+    )
+    if proc.returncode != 0:
+        raise AssertionError(proc.stdout)
+    assert_contains(proc.stdout, "FO-")
+    assert_contains(proc.stdout, "concept, synthesis, overview, hot")
+
+
 def main() -> int:
     work = copy_repo_to_temp()
     scenarios = [
         scenario_smoke_menu_exit,
         scenario_no_deleted_command_reference,
         scenario_windows_launchers_are_repo_relative,
+        scenario_skill_first_pipeline_docs,
         scenario_topic_setup_blank_and_custom,
         scenario_option2_pdf_scan_no_staging,
         scenario_option3_stub_success_no_staging,
@@ -416,9 +536,16 @@ def main() -> int:
         scenario_option2_duplicate_pdf_suffix_no_fake_doi,
         scenario_table_checker_reports_fragmented_table,
         scenario_option2_bulk_delete_duplicate_pdfs,
-        scenario_option5_creates_synthesis_prompt,
-        scenario_option6_feedback_prompt,
-        scenario_option7_external_sandbox_prompt,
+        scenario_option5_read_only_query_prompt,
+        scenario_option6_save_prompt,
+        scenario_prepare_fanout_candidate_dry_run,
+        scenario_option7_fanout_prompt,
+        scenario_wiki_lint_structure_and_repair_modes,
+        scenario_option10_thesis_prompt,
+        scenario_option11_creates_synthesis_prompt,
+        scenario_option12_feedback_prompt,
+        scenario_option13_external_sandbox_prompt,
+        scenario_option14_build_runtime_state_graph,
     ]
     for scenario in scenarios:
         scenario(work)

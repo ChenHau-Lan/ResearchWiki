@@ -59,6 +59,60 @@ def issue_guidance(issue: str, *, required: bool) -> tuple[str, str, str]:
             "Add the standard `## Graph Links` section with explicit wikilinks that match the page evidence.",
             "no deletion needed.",
         )
+    if "missing governance review queue" in lowered:
+        return (
+            "uncertain, conflicting, or low-confidence knowledge has no durable review intake.",
+            "Create `maintenance/review_queue.md` from the governance template and rerun diagnostics.",
+            "no deletion needed.",
+        )
+    if "missing source fan-out candidate queue" in lowered or "fan-out candidate queue missing" in lowered:
+        return (
+            "source impacts may jump directly from one paper into multiple formal pages without a reviewable staging record.",
+            "Create or repair `maintenance/fanout_candidates.md`, then use `python3 tools/prepare_fanout_candidates.py --source <source>` for deterministic source-impact staging.",
+            "no deletion needed.",
+        )
+    if "missing compiler navigation page" in lowered:
+        return (
+            "the wiki may lack the compiler-style map pages that separate purpose, overview, and active questions from evidence-bearing synthesis.",
+            "Create the missing page from `templates/purpose.md`, `templates/overview.md`, or `templates/hot.md` and link it from `wiki/index.md`.",
+            "no deletion needed.",
+        )
+    if "missing runtime log" in lowered:
+        return (
+            "durable Save, fan-out, semantic-lint, and thesis-review actions may not be auditable.",
+            "Create `maintenance/log.md` from the runtime log template and record future durable actions there.",
+            "no deletion needed.",
+        )
+    if "missing runtime state export" in lowered or "runtime state stale" in lowered:
+        return (
+            "runtime dispatch, dirty-state, or review tracking may not reflect current files.",
+            "Run `python3 tools/build_runtime_state.py` and inspect the generated `maintenance/state.json`.",
+            "do not edit raw evidence to satisfy state; regenerate or review the specific stale file.",
+        )
+    if "missing knowledge graph export" in lowered or "knowledge graph export stale" in lowered:
+        return (
+            "machine-readable graph export may not match current wiki frontmatter and wikilinks.",
+            "Run `python3 tools/build_runtime_state.py` and inspect `maintenance/graph.json`; remember this differs from Obsidian view config.",
+            "no deletion needed.",
+        )
+    if "semantic lint candidate" in lowered:
+        return (
+            "a high-confidence or otherwise sensitive claim may be missing counter-evidence review.",
+            "Inspect the page, add counter-evidence or lower confidence, and place unresolved items in `maintenance/review_queue.md`.",
+            "do not auto-edit the claim; review evidence first.",
+        )
+    if "review queue flag without queue reference" in lowered:
+        return (
+            "a page says it needs review but the queue does not make that work discoverable.",
+            "Add a concise item to `maintenance/review_queue.md` linking the page and describing the needed review.",
+            "no deletion needed.",
+        )
+    if "potential orphan concept page" in lowered:
+        return (
+            "a concept page may not be discoverable from the graph or related evidence pages.",
+            "Add meaningful links from related literature, synthesis, topic registry, or the concepts index.",
+            "do not delete concept pages automatically.",
+        )
     if "potential orphan page" in lowered:
         return (
             "the page may be hard to discover from the graph or index pages.",

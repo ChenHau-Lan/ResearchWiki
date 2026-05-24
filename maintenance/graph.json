@@ -1,0 +1,558 @@
+{
+  "edge_count": 61,
+  "edges": [
+    {
+      "kind": "wikilink",
+      "label": "literature/literature",
+      "source": "wiki/concepts/concepts.md",
+      "target": "wiki/literature/literature.md"
+    },
+    {
+      "kind": "wikilink",
+      "label": "synthesis/synthesis",
+      "source": "wiki/concepts/concepts.md",
+      "target": "wiki/synthesis/synthesis.md"
+    },
+    {
+      "kind": "wikilink",
+      "label": "seminars/seminars",
+      "source": "wiki/concepts/concepts.md",
+      "target": "wiki/seminars/seminars.md"
+    },
+    {
+      "kind": "wikilink",
+      "label": "project_synthesis/project_synthesis",
+      "source": "wiki/concepts/concepts.md",
+      "target": "wiki/project_synthesis/project_synthesis.md"
+    },
+    {
+      "kind": "wikilink",
+      "label": "literature/literature",
+      "source": "wiki/hot.md",
+      "target": "wiki/literature/literature.md"
+    },
+    {
+      "kind": "wikilink",
+      "label": "concepts/concepts",
+      "source": "wiki/hot.md",
+      "target": "wiki/concepts/concepts.md"
+    },
+    {
+      "kind": "wikilink",
+      "label": "synthesis/synthesis",
+      "source": "wiki/hot.md",
+      "target": "wiki/synthesis/synthesis.md"
+    },
+    {
+      "kind": "wikilink",
+      "label": "seminars/seminars",
+      "source": "wiki/hot.md",
+      "target": "wiki/seminars/seminars.md"
+    },
+    {
+      "kind": "wikilink",
+      "label": "project_synthesis/project_synthesis",
+      "source": "wiki/hot.md",
+      "target": "wiki/project_synthesis/project_synthesis.md"
+    },
+    {
+      "kind": "wikilink",
+      "label": "purpose",
+      "source": "wiki/index.md",
+      "target": "wiki/purpose.md"
+    },
+    {
+      "kind": "wikilink",
+      "label": "overview",
+      "source": "wiki/index.md",
+      "target": "wiki/overview.md"
+    },
+    {
+      "kind": "wikilink",
+      "label": "hot",
+      "source": "wiki/index.md",
+      "target": "wiki/hot.md"
+    },
+    {
+      "kind": "wikilink",
+      "label": "literature/literature",
+      "source": "wiki/index.md",
+      "target": "wiki/literature/literature.md"
+    },
+    {
+      "kind": "wikilink",
+      "label": "questions/questions",
+      "source": "wiki/index.md",
+      "target": "wiki/questions/questions.md"
+    },
+    {
+      "kind": "wikilink",
+      "label": "concepts/concepts",
+      "source": "wiki/index.md",
+      "target": "wiki/concepts/concepts.md"
+    },
+    {
+      "kind": "wikilink",
+      "label": "topics/topic_registry",
+      "source": "wiki/index.md",
+      "target": "wiki/topics/topic_registry.md"
+    },
+    {
+      "kind": "wikilink",
+      "label": "synthesis/synthesis",
+      "source": "wiki/index.md",
+      "target": "wiki/synthesis/synthesis.md"
+    },
+    {
+      "kind": "wikilink",
+      "label": "meetings/meetings",
+      "source": "wiki/index.md",
+      "target": "wiki/meetings/meetings.md"
+    },
+    {
+      "kind": "wikilink",
+      "label": "project_synthesis/project_synthesis",
+      "source": "wiki/index.md",
+      "target": "wiki/project_synthesis/project_synthesis.md"
+    },
+    {
+      "kind": "wikilink",
+      "label": "seminars/seminars",
+      "source": "wiki/index.md",
+      "target": "wiki/seminars/seminars.md"
+    },
+    {
+      "kind": "wikilink",
+      "label": "questions/questions",
+      "source": "wiki/index.md",
+      "target": "wiki/questions/questions.md"
+    },
+    {
+      "kind": "wikilink",
+      "label": "concepts/concepts",
+      "source": "wiki/index.md",
+      "target": "wiki/concepts/concepts.md"
+    },
+    {
+      "kind": "wikilink",
+      "label": "overview",
+      "source": "wiki/index.md",
+      "target": "wiki/overview.md"
+    },
+    {
+      "kind": "wikilink",
+      "label": "hot",
+      "source": "wiki/index.md",
+      "target": "wiki/hot.md"
+    },
+    {
+      "kind": "wikilink",
+      "label": "project_synthesis/project_synthesis",
+      "source": "wiki/index.md",
+      "target": "wiki/project_synthesis/project_synthesis.md"
+    },
+    {
+      "kind": "wikilink",
+      "label": "literature/topic_registry",
+      "source": "wiki/literature/literature.md",
+      "target": "wiki/literature/topic_registry.md"
+    },
+    {
+      "kind": "wikilink",
+      "label": "project_synthesis/project_synthesis",
+      "source": "wiki/literature/literature.md",
+      "target": "wiki/project_synthesis/project_synthesis.md"
+    },
+    {
+      "kind": "wikilink",
+      "label": "literature/literature",
+      "source": "wiki/literature/topic_registry.md",
+      "target": "wiki/literature/literature.md"
+    },
+    {
+      "kind": "wikilink",
+      "label": "synthesis/synthesis",
+      "source": "wiki/literature/topic_registry.md",
+      "target": "wiki/synthesis/synthesis.md"
+    },
+    {
+      "kind": "wikilink",
+      "label": "seminars/seminars",
+      "source": "wiki/literature/topic_registry.md",
+      "target": "wiki/seminars/seminars.md"
+    },
+    {
+      "kind": "wikilink",
+      "label": "project_synthesis/project_synthesis",
+      "source": "wiki/literature/topic_registry.md",
+      "target": "wiki/project_synthesis/project_synthesis.md"
+    },
+    {
+      "kind": "wikilink",
+      "label": "project_synthesis/project_synthesis",
+      "source": "wiki/meetings/meetings.md",
+      "target": "wiki/project_synthesis/project_synthesis.md"
+    },
+    {
+      "kind": "wikilink",
+      "label": "purpose",
+      "source": "wiki/overview.md",
+      "target": "wiki/purpose.md"
+    },
+    {
+      "kind": "wikilink",
+      "label": "hot",
+      "source": "wiki/overview.md",
+      "target": "wiki/hot.md"
+    },
+    {
+      "kind": "wikilink",
+      "label": "literature/literature",
+      "source": "wiki/overview.md",
+      "target": "wiki/literature/literature.md"
+    },
+    {
+      "kind": "wikilink",
+      "label": "questions/questions",
+      "source": "wiki/overview.md",
+      "target": "wiki/questions/questions.md"
+    },
+    {
+      "kind": "wikilink",
+      "label": "concepts/concepts",
+      "source": "wiki/overview.md",
+      "target": "wiki/concepts/concepts.md"
+    },
+    {
+      "kind": "wikilink",
+      "label": "topics/topic_registry",
+      "source": "wiki/overview.md",
+      "target": "wiki/topics/topic_registry.md"
+    },
+    {
+      "kind": "wikilink",
+      "label": "synthesis/synthesis",
+      "source": "wiki/overview.md",
+      "target": "wiki/synthesis/synthesis.md"
+    },
+    {
+      "kind": "wikilink",
+      "label": "seminars/seminars",
+      "source": "wiki/overview.md",
+      "target": "wiki/seminars/seminars.md"
+    },
+    {
+      "kind": "wikilink",
+      "label": "project_synthesis/project_synthesis",
+      "source": "wiki/overview.md",
+      "target": "wiki/project_synthesis/project_synthesis.md"
+    },
+    {
+      "kind": "wikilink",
+      "label": "literature/literature",
+      "source": "wiki/overview.md",
+      "target": "wiki/literature/literature.md"
+    },
+    {
+      "kind": "wikilink",
+      "label": "questions/questions",
+      "source": "wiki/overview.md",
+      "target": "wiki/questions/questions.md"
+    },
+    {
+      "kind": "wikilink",
+      "label": "concepts/concepts",
+      "source": "wiki/overview.md",
+      "target": "wiki/concepts/concepts.md"
+    },
+    {
+      "kind": "wikilink",
+      "label": "topics/topic_registry",
+      "source": "wiki/overview.md",
+      "target": "wiki/topics/topic_registry.md"
+    },
+    {
+      "kind": "wikilink",
+      "label": "synthesis/synthesis",
+      "source": "wiki/overview.md",
+      "target": "wiki/synthesis/synthesis.md"
+    },
+    {
+      "kind": "wikilink",
+      "label": "hot",
+      "source": "wiki/overview.md",
+      "target": "wiki/hot.md"
+    },
+    {
+      "kind": "wikilink",
+      "label": "literature/literature",
+      "source": "wiki/overview.md",
+      "target": "wiki/literature/literature.md"
+    },
+    {
+      "kind": "wikilink",
+      "label": "questions/questions",
+      "source": "wiki/overview.md",
+      "target": "wiki/questions/questions.md"
+    },
+    {
+      "kind": "wikilink",
+      "label": "concepts/concepts",
+      "source": "wiki/overview.md",
+      "target": "wiki/concepts/concepts.md"
+    },
+    {
+      "kind": "wikilink",
+      "label": "topics/topic_registry",
+      "source": "wiki/overview.md",
+      "target": "wiki/topics/topic_registry.md"
+    },
+    {
+      "kind": "wikilink",
+      "label": "synthesis/synthesis",
+      "source": "wiki/overview.md",
+      "target": "wiki/synthesis/synthesis.md"
+    },
+    {
+      "kind": "wikilink",
+      "label": "seminars/seminars",
+      "source": "wiki/overview.md",
+      "target": "wiki/seminars/seminars.md"
+    },
+    {
+      "kind": "wikilink",
+      "label": "project_synthesis/project_synthesis",
+      "source": "wiki/overview.md",
+      "target": "wiki/project_synthesis/project_synthesis.md"
+    },
+    {
+      "kind": "wikilink",
+      "label": "literature/literature",
+      "source": "wiki/purpose.md",
+      "target": "wiki/literature/literature.md"
+    },
+    {
+      "kind": "wikilink",
+      "label": "concepts/concepts",
+      "source": "wiki/purpose.md",
+      "target": "wiki/concepts/concepts.md"
+    },
+    {
+      "kind": "wikilink",
+      "label": "synthesis/synthesis",
+      "source": "wiki/purpose.md",
+      "target": "wiki/synthesis/synthesis.md"
+    },
+    {
+      "kind": "wikilink",
+      "label": "seminars/seminars",
+      "source": "wiki/purpose.md",
+      "target": "wiki/seminars/seminars.md"
+    },
+    {
+      "kind": "wikilink",
+      "label": "project_synthesis/project_synthesis",
+      "source": "wiki/purpose.md",
+      "target": "wiki/project_synthesis/project_synthesis.md"
+    },
+    {
+      "kind": "wikilink",
+      "label": "project_synthesis/project_synthesis",
+      "source": "wiki/seminars/seminars.md",
+      "target": "wiki/project_synthesis/project_synthesis.md"
+    },
+    {
+      "kind": "wikilink",
+      "label": "project_synthesis/project_synthesis",
+      "source": "wiki/synthesis/synthesis.md",
+      "target": "wiki/project_synthesis/project_synthesis.md"
+    }
+  ],
+  "generated": "2026-05-24",
+  "node_count": 13,
+  "nodes": [
+    {
+      "claim_status": "",
+      "confidence": "",
+      "evidence_tier": "",
+      "id": "wiki/concepts/concepts.md",
+      "path": "wiki/concepts/concepts.md",
+      "provenance_state": "",
+      "review_queue": "false",
+      "status": "draft",
+      "subtopics": "[]",
+      "title": "Concepts",
+      "topics": "[]",
+      "type": "maintenance"
+    },
+    {
+      "claim_status": "open",
+      "confidence": "mixed",
+      "evidence_tier": "mixed",
+      "id": "wiki/hot.md",
+      "path": "wiki/hot.md",
+      "provenance_state": "authored",
+      "review_queue": "false",
+      "status": "draft",
+      "subtopics": "[]",
+      "title": "Hot Questions",
+      "topics": "[]",
+      "type": "hot"
+    },
+    {
+      "claim_status": "",
+      "confidence": "",
+      "evidence_tier": "",
+      "id": "wiki/index.md",
+      "path": "wiki/index.md",
+      "provenance_state": "",
+      "review_queue": "false",
+      "status": "draft",
+      "subtopics": "[]",
+      "title": "Research Wiki Index",
+      "topics": "[]",
+      "type": "synthesis"
+    },
+    {
+      "claim_status": "",
+      "confidence": "",
+      "evidence_tier": "",
+      "id": "wiki/literature/literature.md",
+      "path": "wiki/literature/literature.md",
+      "provenance_state": "",
+      "review_queue": "false",
+      "status": "draft",
+      "subtopics": "[]",
+      "title": "Literature",
+      "topics": "[]",
+      "type": "paper"
+    },
+    {
+      "claim_status": "",
+      "confidence": "",
+      "evidence_tier": "",
+      "id": "wiki/literature/topic_registry.md",
+      "path": "wiki/literature/topic_registry.md",
+      "provenance_state": "",
+      "review_queue": "false",
+      "status": "draft",
+      "subtopics": "[]",
+      "title": "Topic Registry",
+      "topics": "[]",
+      "type": "maintenance"
+    },
+    {
+      "claim_status": "",
+      "confidence": "",
+      "evidence_tier": "",
+      "id": "wiki/meetings/meetings.md",
+      "path": "wiki/meetings/meetings.md",
+      "provenance_state": "",
+      "review_queue": "false",
+      "status": "draft",
+      "subtopics": "[]",
+      "title": "Meetings",
+      "topics": "[]",
+      "type": "meeting"
+    },
+    {
+      "claim_status": "map",
+      "confidence": "mixed",
+      "evidence_tier": "mixed",
+      "id": "wiki/overview.md",
+      "path": "wiki/overview.md",
+      "provenance_state": "authored",
+      "review_queue": "false",
+      "status": "draft",
+      "subtopics": "[]",
+      "title": "Research Overview",
+      "topics": "[]",
+      "type": "overview"
+    },
+    {
+      "claim_status": "",
+      "confidence": "",
+      "evidence_tier": "",
+      "id": "wiki/project_synthesis/project_synthesis.md",
+      "path": "wiki/project_synthesis/project_synthesis.md",
+      "provenance_state": "",
+      "review_queue": "false",
+      "status": "draft",
+      "subtopics": "[]",
+      "title": "Project Synthesis",
+      "topics": "[]",
+      "type": "project-synthesis"
+    },
+    {
+      "claim_status": "stable",
+      "confidence": "not-applicable",
+      "evidence_tier": "personal-note",
+      "id": "wiki/purpose.md",
+      "path": "wiki/purpose.md",
+      "provenance_state": "authored",
+      "review_queue": "false",
+      "status": "reviewed",
+      "subtopics": "[]",
+      "title": "Research Wiki Purpose",
+      "topics": "[]",
+      "type": "purpose"
+    },
+    {
+      "claim_status": "open",
+      "confidence": "mixed",
+      "evidence_tier": "hypothesis",
+      "id": "wiki/questions/questions.md",
+      "path": "wiki/questions/questions.md",
+      "provenance_state": "authored",
+      "review_queue": "false",
+      "status": "reviewed",
+      "subtopics": "[]",
+      "title": "Questions",
+      "topics": "[]",
+      "type": "question"
+    },
+    {
+      "claim_status": "",
+      "confidence": "",
+      "evidence_tier": "",
+      "id": "wiki/seminars/seminars.md",
+      "path": "wiki/seminars/seminars.md",
+      "provenance_state": "",
+      "review_queue": "false",
+      "status": "draft",
+      "subtopics": "[]",
+      "title": "Seminars",
+      "topics": "[]",
+      "type": "seminar"
+    },
+    {
+      "claim_status": "",
+      "confidence": "",
+      "evidence_tier": "",
+      "id": "wiki/synthesis/synthesis.md",
+      "path": "wiki/synthesis/synthesis.md",
+      "provenance_state": "",
+      "review_queue": "false",
+      "status": "draft",
+      "subtopics": "[]",
+      "title": "Synthesis",
+      "topics": "[]",
+      "type": "synthesis"
+    },
+    {
+      "claim_status": "map",
+      "confidence": "not-applicable",
+      "evidence_tier": "not-applicable",
+      "id": "wiki/topics/topic_registry.md",
+      "path": "wiki/topics/topic_registry.md",
+      "provenance_state": "authored",
+      "review_queue": "false",
+      "status": "reviewed",
+      "subtopics": "[]",
+      "title": "Topic Registry",
+      "topics": "[]",
+      "type": "topic"
+    }
+  ],
+  "schema": "research-wiki-graph-v1"
+}

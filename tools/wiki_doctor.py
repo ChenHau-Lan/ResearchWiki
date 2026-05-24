@@ -20,13 +20,43 @@ PAPER_SOURCES = RAW / "paper_sources.md"
 DOI_PDF_DIR = RAW / "doi_pdf"
 FULL_TEXT_DIR = RAW / "full_text"
 FULL_TEXT_INDEX_JSON = RAW / "full_text_index.json"
+REVIEW_QUEUE = ROOT / "maintenance" / "review_queue.md"
+FANOUT_CANDIDATES = ROOT / "maintenance" / "fanout_candidates.md"
+RUNTIME_LOG = ROOT / "maintenance" / "log.md"
+STATE_JSON = ROOT / "maintenance" / "state.json"
+GRAPH_JSON = ROOT / "maintenance" / "graph.json"
+COMPILER_NAV_PAGES = [
+    WIKI / "purpose.md",
+    WIKI / "overview.md",
+    WIKI / "hot.md",
+]
 CORE_REQUIRED = [
     "core/principles.md",
     "core/data_contract.md",
     "core/agent_contract.md",
     "core/test_contract.md",
+    "core/skills/literature-discovery/SKILL.md",
+    "core/skills/source-intake/SKILL.md",
+    "core/skills/paper-ingest/SKILL.md",
+    "core/skills/topic-governance/SKILL.md",
+    "core/skills/knowledge-workbench/SKILL.md",
+    "core/skills/synthesis-research/SKILL.md",
+    "core/skills/wiki-lint/SKILL.md",
+    "core/skills/audit-release/SKILL.md",
     "core/skills/research-wiki-fulltext-acquisition/SKILL.md",
     "core/skills/research-wiki-academic-writer/SKILL.md",
+    "docs/ARCHITECTURE.md",
+    "docs/guides/research_wiki_pipeline_architecture.en.md",
+    "docs/guides/research_wiki_pipeline_architecture.zh-TW.md",
+    "docs/manuals/research_wiki_skill_first_quickstart.en.md",
+    "docs/manuals/research_wiki_skill_first_quickstart.zh-TW.md",
+    "skills/wiki-lint/SKILL.md",
+    "MODE_REGISTRY.md",
+    "researchwiki.config.example.toml",
+    "tools/rw.py",
+    "tools/public_safety_scan.py",
+    "tools/render_markdown_pdf.py",
+    "tools/render_skill_first_manual_assets.py",
 ]
 OLD_BOARD_HEADER = "| DOI | Status | Title | Full Text | Wiki Page | Next Action | Updated | Note |"
 LEGACY_BOARD_HEADER = "| Paper | Journal | DOI | Wiki Status | Access Legality | PDF | Full Text | Next Action | Updated | Note |"
@@ -45,6 +75,20 @@ def rel(path: Path) -> str:
 
 def read(path: Path) -> str:
     return path.read_text(encoding="utf-8", errors="replace")
+
+
+def parse_frontmatter(text: str) -> dict[str, str] | None:
+    if not text.startswith("---\n"):
+        return None
+    end = text.find("\n---", 4)
+    if end == -1:
+        return None
+    result: dict[str, str] = {}
+    for line in text[4:end].strip().splitlines():
+        if ":" in line and not line.startswith(" "):
+            key, value = line.split(":", 1)
+            result[key.strip()] = value.strip()
+    return result
 
 
 def normalize_doi(value: str) -> str:
@@ -172,6 +216,22 @@ def collect_issues() -> tuple[list[str], list[str]]:
         if not (ROOT / rel_path).exists():
             errors.append(f"Missing core contract file: {rel_path}")
 
+    if not REVIEW_QUEUE.exists():
+        warnings.append("Missing governance review queue: maintenance/review_queue.md")
+    if not FANOUT_CANDIDATES.exists():
+        warnings.append("Missing source fan-out candidate queue: maintenance/fanout_candidates.md")
+    elif "## Candidates" not in read(FANOUT_CANDIDATES) or "## Candidate Details" not in read(FANOUT_CANDIDATES):
+        warnings.append("Fan-out candidate queue missing required sections: maintenance/fanout_candidates.md")
+    if not RUNTIME_LOG.exists():
+        warnings.append("Missing runtime log: maintenance/log.md")
+    if not STATE_JSON.exists():
+        warnings.append("Missing runtime state export: maintenance/state.json")
+    if not GRAPH_JSON.exists():
+        warnings.append("Missing knowledge graph export: maintenance/graph.json")
+    for page in COMPILER_NAV_PAGES:
+        if not page.exists():
+            warnings.append(f"Missing compiler navigation page: {rel(page)}")
+
     if not PAPER_SOURCES.exists():
         errors.append("Missing paper source intake file: raw/paper_sources.md")
     elif "## Add Sources Here" not in read(PAPER_SOURCES):
@@ -207,6 +267,28 @@ def collect_issues() -> tuple[list[str], list[str]]:
             errors.append("raw/full_text_index.json is not valid JSON")
     else:
         errors.append("raw/full_text_index.json is missing")
+
+    if STATE_JSON.exists():
+        try:
+            state = json.loads(read(STATE_JSON))
+            tracked = state.get("tracked_files", {})
+            for rel_path, details in tracked.items():
+                path = ROOT / rel_path
+                if path.exists() and details.get("sha256") and details.get("sha256") != file_digest(path):
+                    warnings.append(f"Runtime state stale for tracked file: {rel_path}")
+        except json.JSONDecodeError:
+            errors.append("maintenance/state.json is not valid JSON")
+
+    if GRAPH_JSON.exists():
+        try:
+            graph = json.loads(read(GRAPH_JSON))
+            graph_nodes = {node.get("path") for node in graph.get("nodes", []) if isinstance(node, dict)}
+            current_nodes = {rel(path) for path in wiki_pages()}
+            missing_nodes = sorted(current_nodes - graph_nodes)
+            if missing_nodes:
+                warnings.append("Knowledge graph export stale; missing nodes: " + ", ".join(missing_nodes[:5]))
+        except json.JSONDecodeError:
+            errors.append("maintenance/graph.json is not valid JSON")
 
     pending_markers = {
         "machine_extracted_needs_codex_qc",
@@ -254,11 +336,17 @@ def collect_issues() -> tuple[list[str], list[str]]:
     pages_by_vault_rel = {path.relative_to(WIKI).as_posix() for path in pages}
     pages_by_stem = {path.stem: path for path in pages}
     incoming: dict[str, int] = {rel(path): 0 for path in pages}
+    review_queue_text = read(REVIEW_QUEUE) if REVIEW_QUEUE.exists() else ""
     for path in pages:
         text = read(path)
         page_rel = rel(path)
+        meta = parse_frontmatter(text) or {}
         if "## Graph Links" not in text:
             warnings.append(f"Missing Graph Links section: {page_rel}")
+        if meta.get("confidence") == "high" and "Counter-evidence" not in text and "counter-evidence" not in text:
+            warnings.append(f"Semantic lint candidate: high-confidence page missing counter-evidence: {page_rel}")
+        if meta.get("review_queue") == "true" and REVIEW_QUEUE.exists() and page_rel not in review_queue_text:
+            warnings.append(f"Review queue flag without queue reference: {page_rel}")
         for target in WIKILINK_RE.findall(text):
             if not link_target_exists(target, pages_by_stem, pages_by_repo_rel, pages_by_vault_rel):
                 warnings.append(f"Unresolved wikilink in {page_rel}: [[{target}]]")
@@ -272,7 +360,10 @@ def collect_issues() -> tuple[list[str], list[str]]:
 
     for path in pages:
         page_rel = rel(path)
-        if path.name in {"index.md", "maintenance.md", "codex_app_handoff_prompt.md"} or path.name.startswith("repair_plan_"):
+        if path.name in {"index.md", "maintenance.md", "concepts.md", "codex_app_handoff_prompt.md"} or path.name.startswith("repair_plan_"):
+            continue
+        if path.parent.name == "concepts" and incoming.get(page_rel, 0) == 0:
+            warnings.append(f"Potential orphan concept page: {page_rel}")
             continue
         if incoming.get(page_rel, 0) == 0 and path.parent != WIKI:
             warnings.append(f"Potential orphan page: {page_rel}")
@@ -283,7 +374,7 @@ def collect_issues() -> tuple[list[str], list[str]]:
         if path.name == ".DS_Store":
             warnings.append(f"Release hygiene: .DS_Store present at {rel(path)}")
         if path.is_file():
-            if path == ROOT / "tools" / "wiki_doctor.py":
+            if path in {ROOT / "tools" / "wiki_doctor.py", ROOT / "tools" / "public_safety_scan.py"}:
                 continue
             try:
                 text = path.read_text(encoding="utf-8", errors="ignore")

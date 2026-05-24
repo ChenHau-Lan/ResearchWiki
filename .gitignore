@@ -16,6 +16,10 @@ maintenance/repair_plan_*.md
 maintenance/workflow_test_report_*.md
 maintenance/test_fixtures/doi_pdf/*.pdf
 references_old.bib
+researchwiki.config.toml
+researchwiki.local.toml
+*.local.toml
+output/pdf/
 
 # Keep raw/evidence data out of Git. Sync it through the chosen data-sync
 # provider instead.
@@ -34,3 +38,6 @@ raw/**
 !raw/doi_pdf/.gitkeep
 !raw/full_text/
 !raw/full_text/.gitkeep
+!raw/staging/
+!raw/staging/**/
+!raw/staging/**/.gitkeep

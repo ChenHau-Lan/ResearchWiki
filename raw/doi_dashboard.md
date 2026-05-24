@@ -16,6 +16,11 @@ This board tracks where each resolved DOI is in the paper-source ingest process.
 
 - `new`: newly added, not processed yet.
 - `metadata_ok`: title/authors/year/venue/DOI checked.
+- `candidate_found`: metadata, DOI, PDF, or legal source candidates exist but
+  have not been approved for evidence use.
+- `pdf_checkpoint_required`: a candidate PDF, URL, screenshot, or local file
+  needs human approval before being treated as evidence.
+- `pdf_downloaded`: approved PDF evidence is present in the configured PDF root.
 - `full_text_needed`: metadata exists, readable full text is missing.
 - `full_text_done`: QCed `raw/full_text/<paper_file_key>.md` exists.
 - `wiki_done`: `wiki/literature/<slug>.md` exists.

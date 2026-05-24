@@ -35,7 +35,11 @@ DOI_PDF_DIR = ROOT / "raw" / "doi_pdf"
 RAW_FILES_DIR = ROOT / "raw" / "files"
 STAGING_TEXT_DIR = ROOT / "raw" / "staging" / "extracted_text"
 WIKI_LIT = ROOT / "wiki" / "literature"
-TOPICS = ROOT / "wiki" / "literature" / "topic_registry.md"
+WIKI_QUESTIONS = ROOT / "wiki" / "questions"
+WIKI_CONCEPTS = ROOT / "wiki" / "concepts"
+WIKI_TOPICS = ROOT / "wiki" / "topics"
+TOPICS = WIKI_TOPICS / "topic_registry.md"
+LEGACY_TOPICS = ROOT / "wiki" / "literature" / "topic_registry.md"
 WIKI_SYNTHESIS = ROOT / "wiki" / "synthesis"
 WIKI_MEETINGS = ROOT / "wiki" / "meetings"
 WIKI_PROJECT_SYNTHESIS = ROOT / "wiki" / "project_synthesis"
@@ -60,6 +64,9 @@ NOTE_SEPARATOR = "|---|---|---|---|"
 STATUSES = {
     "new",
     "metadata_ok",
+    "candidate_found",
+    "pdf_checkpoint_required",
+    "pdf_downloaded",
     "full_text_needed",
     "full_text_done",
     "wiki_done",
@@ -333,7 +340,7 @@ def start_codex_prompt(prompt_text: str, task_label: str, *, background: bool = 
             print(f"Started Codex background task for {task_label}.")
             print(f"PID: {proc.pid} ({status})")
             print(f"Log: {CODEX_LAST_LOG.relative_to(ROOT)}")
-            print("The command menu is ready again; check the log or refresh the dashboard later.")
+            print("The skill/mode router is ready again; check the log or refresh the dashboard later.")
         else:
             print(f"Starting Codex for {task_label}.")
             print("Codex output will stay visible in this terminal until the session exits.")
@@ -541,6 +548,9 @@ This board tracks where each resolved DOI is in the paper-source ingest process.
 
 - `new`: newly added, not processed yet.
 - `metadata_ok`: title/authors/year/venue/DOI checked.
+- `candidate_found`: metadata, DOI, PDF, or legal source candidates exist but have not been approved for evidence use.
+- `pdf_checkpoint_required`: a candidate PDF, URL, screenshot, or local file needs human approval before being treated as evidence.
+- `pdf_downloaded`: approved PDF evidence is present in the configured PDF root.
 - `full_text_needed`: metadata exists, readable full text is missing.
 - `full_text_done`: QCed `raw/full_text/<paper_file_key>.md` exists.
 - `wiki_done`: `wiki/literature/<slug>.md` exists.
@@ -555,12 +565,17 @@ def ensure_core_files() -> None:
     RAW_FILES_DIR.mkdir(parents=True, exist_ok=True)
     STAGING_TEXT_DIR.mkdir(parents=True, exist_ok=True)
     WIKI_LIT.mkdir(parents=True, exist_ok=True)
+    WIKI_QUESTIONS.mkdir(parents=True, exist_ok=True)
+    WIKI_CONCEPTS.mkdir(parents=True, exist_ok=True)
+    WIKI_TOPICS.mkdir(parents=True, exist_ok=True)
     WIKI_SYNTHESIS.mkdir(parents=True, exist_ok=True)
     WIKI_MEETINGS.mkdir(parents=True, exist_ok=True)
     WIKI_PROJECT_SYNTHESIS.mkdir(parents=True, exist_ok=True)
     WIKI_SEMINARS.mkdir(parents=True, exist_ok=True)
     MAINTENANCE_DIR.mkdir(parents=True, exist_ok=True)
     (STAGING_TEXT_DIR / ".gitkeep").touch()
+    for folder in [DOI_PDF_DIR, FULL_TEXT_DIR, RAW_FILES_DIR, WIKI_LIT, WIKI_QUESTIONS, WIKI_CONCEPTS, WIKI_TOPICS, WIKI_SYNTHESIS, WIKI_MEETINGS, WIKI_PROJECT_SYNTHESIS, WIKI_SEMINARS]:
+        (folder / ".gitkeep").touch()
     if not DOI_LIST.exists():
         DOI_LIST.write_text(default_doi_list(), encoding="utf-8")
     if not PAPER_SOURCES.exists():
@@ -839,7 +854,10 @@ def local_path_exists(value: str) -> bool:
 STATUS_RANK = {
     "new": 0,
     "metadata_ok": 1,
+    "candidate_found": 1,
     "blocked": 1,
+    "pdf_checkpoint_required": 2,
+    "pdf_downloaded": 2,
     "full_text_needed": 2,
     "abstract_only": 2,
     "full_text_done": 3,
@@ -2122,7 +2140,7 @@ Target DOI rows:
 {app_log_rule}
 
 Goal:
-Source/full-text finding for rows that need authorized evidence. Acquire or identify missing authorized evidence only: PDF, publisher HTML/XML, readable full text, or a clear legal source route. Do not create or update wiki/literature paper pages in this task. Wiki-page ingest is a separate command option.
+Source/full-text finding for rows that need authorized evidence. Acquire or identify missing authorized evidence only: PDF, publisher HTML/XML, readable full text, or a clear legal source route. Do not create or update wiki/literature paper pages in this task. Wiki-page ingest is the separate paper-ingest/ingest-qced-full-text mode.
 
 Rules:
 0. Core contract is authoritative. If these command instructions conflict with core/*, follow core/* and report the mismatch.
@@ -2296,9 +2314,10 @@ First read and follow the command-independent core contract:
 - core/principles.md
 - core/data_contract.md
 - core/agent_contract.md
+- core/skills/paper-ingest/SKILL.md
 - core/skills/research-wiki-academic-writer/SKILL.md
 
-Then use AGENTS.md, USER_GUIDE.md, and templates/paper.md for repository-specific implementation details. The command is only a UI implementation of the core contract.
+Then use docs/guides/research_wiki_pipeline_architecture.en.md, AGENTS.md, USER_GUIDE.md, and templates/paper.md for repository-specific implementation details. The command is only a thin router for the core skill/mode contract.
 
 Target DOI rows ready for full-text QC and/or wiki ingest:
 {doi_lines}
@@ -2351,7 +2370,7 @@ Console output protocol:
 def manage_topics() -> None:
     ensure_core_files()
     if not TOPICS.exists():
-        print("Topic registry missing: wiki/literature/topic_registry.md")
+        print("Topic registry missing: wiki/topics/topic_registry.md")
         return
     action = prompt("Type a candidate subtopic to append, or press Enter to open registry")
     if not action:

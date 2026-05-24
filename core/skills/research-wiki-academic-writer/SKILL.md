@@ -5,7 +5,9 @@ description: Use when drafting paper pages, literature reviews, proposals, repor
 
 # Research Wiki Academic Writer
 
-Use this skill to write from Research Wiki evidence while preserving citation
+Compatibility note: in the v2 skill-first pipeline, single-paper writing belongs
+to `paper-ingest`, and Query/Save writing belongs to `knowledge-workbench`. Use
+this skill to write from Research Wiki evidence while preserving citation
 integrity and evidence tiers.
 
 ## Non-Negotiables

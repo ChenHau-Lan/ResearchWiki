@@ -1,9 +1,10 @@
 #!/usr/bin/env python3
-"""Codex-first canonical command helper for Research Wiki.
+"""Skill-first command router for Research Wiki.
 
-This helper is the primary command entrypoint. It performs local bookkeeping
-when possible and asks Codex to make judgment-heavy decisions. It never creates
-new persistent staging full text.
+This helper is a thin compatibility entrypoint. The official user-facing model
+is the Research Wiki pipeline skill/mode registry; this script only routes to
+those modes and runs low-token local checks when useful. It never creates new
+persistent staging full text.
 """
 
 from __future__ import annotations
@@ -11,6 +12,7 @@ from __future__ import annotations
 import hashlib
 import os
 import re
+import subprocess
 import sys
 from pathlib import Path
 from urllib.parse import quote
@@ -21,11 +23,17 @@ import research_wiki_shortcut as base
 SYNTHESIS_PROMPT = base.MAINTENANCE_DIR / "codex_first_synthesis_prompt.md"
 FEEDBACK_PROMPT = base.MAINTENANCE_DIR / "codex_first_feedback_issue_prompt.md"
 EXTERNAL_SANDBOX_PROMPT = base.MAINTENANCE_DIR / "external_sandbox_sync_prompt.md"
+SAVE_PROMPT = base.MAINTENANCE_DIR / "codex_first_save_prompt.md"
+FANOUT_PROMPT = base.MAINTENANCE_DIR / "codex_first_fanout_prompt.md"
+APPLY_FANOUT_PROMPT = base.MAINTENANCE_DIR / "codex_first_apply_fanout_prompt.md"
+SEMANTIC_LINT_PROMPT = base.MAINTENANCE_DIR / "codex_first_semantic_lint_prompt.md"
+THESIS_PROMPT = base.MAINTENANCE_DIR / "codex_first_thesis_prompt.md"
+FANOUT_CANDIDATES = base.MAINTENANCE_DIR / "fanout_candidates.md"
 
 
 def print_header() -> None:
-    print("\nResearchWiki Codex-first")
-    print("=" * 24)
+    print("\nResearchWiki Skill-First Router")
+    print("=" * 31)
     print(f"Root: {base.ROOT}\n")
 
 
@@ -395,10 +403,12 @@ First read and follow the command-independent core contract:
 - core/principles.md
 - core/data_contract.md
 - core/agent_contract.md
+- core/skills/source-intake/SKILL.md
 - core/skills/research-wiki-fulltext-acquisition/SKILL.md
+- docs/guides/research_wiki_pipeline_architecture.en.md
 
 Goal:
-Create QCed readable full_text Markdown for the target DOI rows. This is the canonical Codex-first command path optimized for speed: prefer complete web full text, use PDF only when needed, and avoid long route chasing.
+Create QCed readable full_text Markdown for the target DOI rows. This is the source-intake/qced-full-text path optimized for speed: prefer complete web full text, use PDF only when needed, and avoid long route chasing.
 
 Target DOI rows:
 {target_lines}
@@ -417,7 +427,7 @@ Rules:
 10. If no complete full text or PDF can be obtained quickly but a reliable abstract is available, write an abstract-only Markdown file to raw/full_text/<paper_file_key>.md with extraction_status: abstract_only, readability_status: abstract-only, qc_status: abstract_only, table_quality: not_applicable, and a clear note that complete full text is still needed. Update raw/doi_dashboard.md Status = abstract_only and Next Action = authorized_source_or_pdf_needed.
 11. If neither complete text, PDF, nor abstract is available, do not write raw/full_text. Update raw/doi_dashboard.md with Status = full_text_needed, Full Text empty, Next Action = codex_first_qc_needs_authorized_source or codex_convert_to_full_text, and a concise blocker.
 12. Use only legal publisher, author, open-access, institutional, or user-provided access. Do not bypass paywalls, CAPTCHA, robots, or credential barriers.
-13. Do not create or update wiki/literature pages. Wiki ingest is a separate command option.
+13. Do not create or update wiki/literature pages. Wiki ingest is the separate paper-ingest/ingest-qced-full-text mode.
 14. Run python3 tools/build_full_text_index.py after writing or changing final full_text.
 
 Console output protocol:
@@ -556,7 +566,7 @@ Synthesis topic / idea:
 Draft synthesis page:
 {base.repo_relative(page)}
 
-First read core/principles.md, core/data_contract.md, core/agent_contract.md, AGENTS.md, USER_GUIDE.md, wiki/index.md, and wiki/literature/topic_registry.md.
+First read core/principles.md, core/data_contract.md, core/agent_contract.md, core/skills/synthesis-research/SKILL.md, docs/guides/research_wiki_pipeline_architecture.en.md, AGENTS.md, USER_GUIDE.md, wiki/index.md, and wiki/literature/topic_registry.md.
 
 Start a new conversation with me about this idea. Do not assume the final synthesis title or thesis yet.
 
@@ -743,32 +753,672 @@ Workflow:
         print("Codex app has been asked to open this project.")
 
 
+def query_research_wiki_read_only() -> None:
+    question = prompt("Read-only question")
+    if not question:
+        print("No question entered.")
+        return
+    prompt_text = f"""You are working inside this Research Wiki project.
+
+Action: Query Research Wiki (read-only)
+
+Question:
+{question}
+
+First read:
+- core/principles.md
+- core/data_contract.md
+- core/agent_contract.md
+- core/skills/knowledge-workbench/SKILL.md
+- docs/guides/research_wiki_pipeline_architecture.en.md
+- USER_GUIDE.md
+- wiki/index.md
+- raw/full_text_index.md
+- raw/doi_dashboard.md
+
+Rules:
+1. This is a Query action. Do not write, edit, stage, or generate any repo files.
+2. Use the evidence priority in core/data_contract.md.
+3. For ordinary research questions, check wiki/synthesis, wiki/literature, then wiki/seminars.
+4. For project history, check wiki/project_synthesis, then wiki/meetings.
+5. Clearly label evidence tier: peer-reviewed full-read, abstract-only, seminar-context, project-history, raw evidence, or hypothesis.
+6. If the answer should be saved, suggest a Save target instead of writing it.
+7. If evidence is insufficient, list missing DOI/source leads or review-queue candidates.
+
+Output:
+- Answer
+- Evidence used
+- Evidence gaps / counter-evidence
+- Save candidate: no / paper / synthesis / concept / project-synthesis / review_queue / log
+"""
+    copied = base.copy_to_clipboard(prompt_text)
+    launched = base.launch_codex()
+    print("\n== Read-only Query Handoff ==")
+    print("Prompt copied to clipboard." if copied else "Clipboard copy was unavailable; copy the prompt from this terminal.")
+    print(prompt_text if not copied else "Paste the prompt into Codex. No repo file was written for this read-only query.")
+    if launched:
+        print("Codex app has been asked to open this project.")
+
+
+def write_prompt_handoff(path: Path, prompt_text: str, label: str) -> None:
+    base.MAINTENANCE_DIR.mkdir(parents=True, exist_ok=True)
+    path.write_text(prompt_text, encoding="utf-8")
+    copied = base.copy_to_clipboard(prompt_text)
+    base.open_path(path)
+    launched = base.launch_codex()
+    print(f"\n== {label} Handoff ==")
+    print(f"Prompt file: {base.repo_relative(path)}")
+    print("Prompt copied to clipboard." if copied else "Clipboard copy was unavailable; open the prompt file and paste it into Codex.")
+    if launched:
+        print("Codex app has been asked to open this project.")
+
+
+def save_answer_or_discussion() -> None:
+    target = prompt("Save target: synthesis / concept / project_synthesis / review_queue / log", "review_queue")
+    topic = prompt("Answer/discussion topic or short title")
+    if not topic:
+        print("No topic entered.")
+        return
+    prompt_text = f"""You are working inside this Research Wiki project.
+
+Action: Save answer / discussion
+
+Requested target layer:
+{target}
+
+Topic:
+{topic}
+
+First read:
+- core/principles.md
+- core/data_contract.md
+- core/agent_contract.md
+- core/skills/knowledge-workbench/SKILL.md
+- docs/guides/research_wiki_pipeline_architecture.en.md
+- USER_GUIDE.md
+- maintenance/review_queue.md
+- maintenance/log.md
+
+Rules:
+1. Save is an explicit write action. Before writing, verify the target layer is valid.
+2. Do not save unsupported chat claims into formal wiki pages.
+3. If the material lacks source-backed evidence, write only to maintenance/review_queue.md or maintenance/log.md.
+4. Paper-specific facts belong in paper pages; cross-source judgment belongs in synthesis; recurring methods/mechanisms/datasets/models belong in concept pages.
+5. Every important synthesis or concept claim needs evidence tier, evidence links, confidence, and counter-evidence or a missing-evidence note.
+6. Update maintenance/log.md with a concise action entry when durable knowledge is saved.
+7. Run python3 tools/wiki_lint.py and python3 tools/wiki_doctor.py after edits.
+
+Output:
+- Target chosen
+- Files changed
+- Evidence links used
+- Review queue items added
+- Remaining uncertainty
+"""
+    write_prompt_handoff(SAVE_PROMPT, prompt_text, "Save Answer / Discussion")
+
+
+def query_to_save_proposal() -> None:
+    target = prompt("Proposed Save target: synthesis / concept / project_synthesis / review_queue / log", "review_queue")
+    topic = prompt("Query answer / discussion topic or short title")
+    if not topic:
+        print("No topic entered.")
+        return
+    prompt_text = f"""You are working inside this Research Wiki project.
+
+Action: Knowledge Workbench query-to-save
+
+Proposed target layer:
+{target}
+
+Query answer / discussion topic:
+{topic}
+
+First read:
+- core/principles.md
+- core/data_contract.md
+- core/agent_contract.md
+- AGENTS.md
+- USER_GUIDE.md
+- docs/guides/research_wiki_pipeline_architecture.en.md
+- maintenance/review_queue.md
+- raw/full_text_index.md
+- wiki/literature/topic_registry.md
+
+Rules:
+1. This mode converts a Query result into a Save proposal. Do not write formal wiki pages until the target layer is explicit and evidence-backed.
+2. Reject unsupported chat claims, or move them to maintenance/review_queue.md with confidence/counter-evidence needs.
+3. If the proposed target is formal wiki content, verify source-backed evidence first and preserve evidence tier, confidence, counter-evidence, and Graph Links.
+4. If the proposed target is wrong, choose the safer target and explain why in the output.
+5. Run python3 tools/wiki_lint.py and python3 tools/wiki_doctor.py after any write.
+
+Output:
+- Target decision
+- Evidence checked
+- Write performed or review proposal created
+- Remaining uncertainty
+"""
+    write_prompt_handoff(SAVE_PROMPT, prompt_text, "Query-to-Save Proposal")
+
+
+def save_review_queue_item() -> None:
+    topic = prompt("Uncertain/conflicting/low-confidence review item")
+    if not topic:
+        print("No review item entered.")
+        return
+    prompt_text = f"""You are working inside this Research Wiki project.
+
+Action: Knowledge Workbench review-queue
+
+Review item:
+{topic}
+
+First read:
+- core/principles.md
+- core/data_contract.md
+- core/agent_contract.md
+- AGENTS.md
+- USER_GUIDE.md
+- maintenance/review_queue.md
+
+Rules:
+1. This is a maintenance-only write mode. Do not edit formal wiki pages.
+2. Add or update a concise review-queue item for uncertain, conflicting, low-confidence, missing-counter-evidence, or supersession-candidate knowledge.
+3. Include evidence tier, candidate sources, confidence, counter-evidence need, and recommended next action when known.
+4. Run python3 tools/wiki_lint.py and python3 tools/wiki_doctor.py after editing the queue.
+
+Output:
+- Review queue entry updated
+- Why it is not stable knowledge yet
+- Recommended Save or Research next step
+"""
+    write_prompt_handoff(SAVE_PROMPT, prompt_text, "Review Queue")
+
+
+def prepare_source_fanout_review() -> None:
+    source = prompt("Source page, DOI, citation key, or full_text path")
+    if not source:
+        print("No source entered.")
+        return
+    candidate_proc = subprocess.run(
+        [
+            sys.executable,
+            "tools/prepare_fanout_candidates.py",
+            "--source",
+            source,
+            "--priority",
+            "medium",
+            "--targets",
+            "concept,synthesis,overview,hot",
+            "--reason",
+            "prepared from ResearchWikiCodex source fan-out review",
+        ],
+        cwd=base.ROOT,
+        text=True,
+        stdout=subprocess.PIPE,
+        stderr=subprocess.STDOUT,
+    )
+    candidate_output = candidate_proc.stdout.strip()
+    if candidate_proc.returncode != 0:
+        print("\nCould not create the deterministic fan-out candidate.")
+        print(candidate_output or "No tool output.")
+        return
+    prompt_text = f"""You are working inside this Research Wiki project.
+
+Action: Prepare source fan-out review
+
+Source:
+{source}
+
+Deterministic candidate staging:
+{base.repo_relative(FANOUT_CANDIDATES)}
+
+Candidate tool output:
+{candidate_output or 'not available'}
+
+First read:
+- core/principles.md
+- core/data_contract.md
+- core/agent_contract.md
+- core/skills/synthesis-research/SKILL.md
+- docs/guides/research_wiki_pipeline_architecture.en.md
+- templates/paper.md
+- templates/synthesis.md
+- templates/concept.md
+- templates/overview.md
+- templates/hot.md
+- maintenance/fanout_candidates.md
+- maintenance/review_queue.md
+
+Rules:
+1. Do not update formal synthesis, concept, project, or paper pages in this action.
+2. Inspect the source and existing wiki to identify possible impacts.
+3. Use the deterministic candidate in maintenance/fanout_candidates.md as the staging record.
+4. Write only a reviewable fan-out proposal to maintenance/review_queue.md if the candidate has enough evidence.
+5. Include candidate concept updates, synthesis impacts, overview/hot-question impacts, supported claims, challenged claims, supersession candidates, confidence, counter-evidence, and required review.
+6. If the source is not fully read or not QCed, keep confidence low and mark required review.
+7. Run python3 tools/wiki_lint.py and python3 tools/wiki_doctor.py after editing the queue.
+
+Output:
+- Fan-out candidate ID
+- Review queue item ID
+- Source inspected
+- Candidate targets
+- Claims supported / challenged
+- Supersession candidates
+"""
+    write_prompt_handoff(FANOUT_PROMPT, prompt_text, "Source Fan-out Review")
+
+
+def apply_approved_fanout_updates() -> None:
+    item = prompt("Approved review queue item ID or exact heading")
+    if not item:
+        print("No queue item entered.")
+        return
+    prompt_text = f"""You are working inside this Research Wiki project.
+
+Action: Apply approved fan-out updates
+
+Approved queue item:
+{item}
+
+First read:
+- core/principles.md
+- core/data_contract.md
+- core/agent_contract.md
+- core/skills/synthesis-research/SKILL.md
+- docs/guides/research_wiki_pipeline_architecture.en.md
+- maintenance/review_queue.md
+- maintenance/log.md
+
+Rules:
+1. Apply only the explicitly approved queue item. Do not process unrelated queue items.
+2. Preserve evidence tiers and confidence. Do not upgrade single-source, seminar, or abstract-only evidence into high-confidence synthesis.
+3. Cross-paper judgments go to wiki/synthesis. Recurring concepts go to wiki/concepts. Project history goes to wiki/project_synthesis.
+4. Add or update supersedes / superseded_by when the item changes an older interpretation.
+5. Update maintenance/log.md and mark the queue item reviewed or applied.
+6. Run python3 tools/wiki_lint.py and python3 tools/wiki_doctor.py after edits.
+
+Output:
+- Queue item applied
+- Files changed
+- Evidence links used
+- Confidence / supersession changes
+- Remaining review needs
+"""
+    write_prompt_handoff(APPLY_FANOUT_PROMPT, prompt_text, "Apply Approved Fan-out")
+
+
+def semantic_lint_with_codex() -> None:
+    scope = prompt("Wiki lint scope: all / synthesis / concept / page path", "synthesis")
+    prompt_text = f"""You are working inside this Research Wiki project.
+
+Action: Wiki semantic lint with Codex
+
+Scope:
+{scope}
+
+First read:
+- core/principles.md
+- core/data_contract.md
+- core/agent_contract.md
+- core/skills/wiki-lint/SKILL.md
+- docs/guides/research_wiki_pipeline_architecture.en.md
+- maintenance/review_queue.md
+- wiki/index.md
+
+Rules:
+1. This action is advisory. Do not directly fix formal wiki pages unless the user later starts Save or approved fan-out.
+2. Check evidence tiers, stale claims, contradictions, inflated confidence, missing counter-evidence, abstract-only misuse, seminar evidence promotion, paper pages with cross-paper claims, orphaned claims, missing cross-references, and supersession candidates.
+3. Write findings to maintenance/review_queue.md or a concise maintenance semantic-lint report.
+4. Do not delete files or batch-clean release noise.
+5. Run python3 tools/wiki_lint.py and python3 tools/wiki_doctor.py after writing advisory output.
+
+Output:
+- Findings by severity
+- Review queue items created
+- Source leads or missing evidence routes
+- Pages needing confidence or supersession review
+- Tests run
+"""
+    write_prompt_handoff(SEMANTIC_LINT_PROMPT, prompt_text, "Wiki Semantic Lint")
+
+
+def research_thesis_claim() -> None:
+    claim = prompt("Thesis / claim to test")
+    if not claim:
+        print("No thesis entered.")
+        return
+    slug = base.slugify_key(claim)[:72] or "thesis"
+    run_dir = base.MAINTENANCE_DIR / "thesis_runs" / f"{base.TODAY}_{slug}"
+    run_dir.mkdir(parents=True, exist_ok=True)
+    files = {
+        "thesis.md": [
+            "# Thesis",
+            "",
+            f"- Claim: {claim}",
+            "- Variables:",
+            "- Testable predictions:",
+            "- Falsification criteria:",
+            "- Evidence needed:",
+        ],
+        "supporting.md": ["# Supporting Evidence", "", "- Source:", "  - Supports:", "  - Limit:"],
+        "opposing.md": ["# Opposing Evidence", "", "- Source:", "  - Challenges:", "  - Limit:"],
+        "mechanistic.md": ["# Mechanistic Evidence", "", "- Mechanism:", "  - Evidence:", "  - Caveat:"],
+        "meta_review.md": ["# Meta / Review Evidence", "", "- Review source:", "  - Consensus:", "  - Caveat:"],
+        "adjacent.md": ["# Adjacent Evidence", "", "- Adjacent domain:", "  - Relevance:", "  - Limit:"],
+        "evidence_table.md": [
+            "# Evidence Table",
+            "",
+            "| Source | Stance | Evidence tier | Supports / Challenges | Confidence | Limit |",
+            "|---|---|---|---|---|---|",
+        ],
+        "verdict.md": [
+            "# Verdict Proposal",
+            "",
+            "- Verdict: supported / partially supported / contradicted / insufficient evidence / mixed",
+            "- Confidence:",
+            "- Counter-evidence:",
+            "- Save recommendation:",
+            "- Review queue recommendation:",
+        ],
+    }
+    for filename, lines in files.items():
+        path = run_dir / filename
+        if not path.exists():
+            path.write_text("\n".join(lines) + "\n", encoding="utf-8")
+    prompt_text = f"""You are working inside this Research Wiki project.
+
+Action: Research thesis / claim
+
+Thesis:
+{claim}
+
+Thesis run directory:
+{base.repo_relative(run_dir)}
+
+First read:
+- core/principles.md
+- core/data_contract.md
+- core/agent_contract.md
+- core/skills/synthesis-research/SKILL.md
+- docs/guides/research_wiki_pipeline_architecture.en.md
+- USER_GUIDE.md
+- maintenance/review_queue.md
+- {base.repo_relative(run_dir / "thesis.md")}
+- {base.repo_relative(run_dir / "supporting.md")}
+- {base.repo_relative(run_dir / "opposing.md")}
+- {base.repo_relative(run_dir / "mechanistic.md")}
+- {base.repo_relative(run_dir / "meta_review.md")}
+- {base.repo_relative(run_dir / "adjacent.md")}
+- {base.repo_relative(run_dir / "evidence_table.md")}
+- {base.repo_relative(run_dir / "verdict.md")}
+
+Rules:
+1. This is a thesis review, not direct formal wiki editing.
+2. Decompose the claim into variables, testable predictions, and falsification criteria.
+3. Produce stance evidence for: supporting, opposing, mechanistic, meta-review, and adjacent evidence.
+4. Save stance evidence and verdict proposal under the thesis run directory above.
+5. Verdict must be one of: supported, partially supported, contradicted, insufficient evidence, mixed.
+6. If local evidence is insufficient, list source/DOI leads instead of forcing a verdict.
+7. Any formal wiki update must be proposed as a Save or review_queue item, not directly applied in this action.
+8. Run python3 tools/wiki_lint.py and python3 tools/wiki_doctor.py after writing maintenance outputs.
+
+Output:
+- Thesis run path
+- Evidence table
+- Verdict
+- Counter-evidence
+- Save / review queue recommendation
+"""
+    base.open_path(run_dir)
+    write_prompt_handoff(THESIS_PROMPT, prompt_text, "Thesis Review")
+
+
+def build_runtime_state_graph() -> None:
+    base.ensure_core_files()
+    proc = subprocess.run(
+        [sys.executable, "tools/build_runtime_state.py"],
+        cwd=base.ROOT,
+        text=True,
+        stdout=subprocess.PIPE,
+        stderr=subprocess.STDOUT,
+    )
+    print("\n== Runtime State + Graph ==")
+    print(proc.stdout.strip() or "No output.")
+    if proc.returncode != 0:
+        raise RuntimeError("runtime state/graph export failed")
+    print("Outputs are maintenance/state.json and maintenance/graph.json.")
+
+
+def run_structure_lint_checks() -> None:
+    base.ensure_core_files()
+    commands = [
+        [sys.executable, "tools/wiki_lint.py"],
+        [sys.executable, "tools/wiki_doctor.py"],
+    ]
+    print("\n== Wiki Structure Lint ==")
+    for args in commands:
+        proc = subprocess.run(
+            args,
+            cwd=base.ROOT,
+            text=True,
+            stdout=subprocess.PIPE,
+            stderr=subprocess.STDOUT,
+        )
+        print(f"\n$ {' '.join(args)}")
+        print(proc.stdout.strip() or "No output.")
+        if proc.returncode != 0:
+            raise RuntimeError(f"structure lint command failed: {' '.join(args)}")
+
+
+def run_repair_plan_checks() -> None:
+    base.ensure_core_files()
+    commands = [
+        [sys.executable, "tools/wiki_lint.py"],
+        [sys.executable, "tools/wiki_doctor.py"],
+        [sys.executable, "tools/generate_repair_plan.py"],
+    ]
+    print("\n== Wiki Repair Plan ==")
+    for args in commands:
+        proc = subprocess.run(
+            args,
+            cwd=base.ROOT,
+            text=True,
+            stdout=subprocess.PIPE,
+            stderr=subprocess.STDOUT,
+        )
+        print(f"\n$ {' '.join(args)}")
+        print(proc.stdout.strip() or "No output.")
+        if proc.returncode != 0:
+            raise RuntimeError(f"repair plan command failed: {' '.join(args)}")
+
+
+def run_release_hygiene_checks() -> None:
+    run_repair_plan_checks()
+
+
+def run_support_report() -> None:
+    base.ensure_core_files()
+    proc = subprocess.run(
+        [sys.executable, "tools/support_report.py", "--issue-url"],
+        cwd=base.ROOT,
+        text=True,
+        stdout=subprocess.PIPE,
+        stderr=subprocess.STDOUT,
+    )
+    print("\n== Support Report ==")
+    print(proc.stdout.strip() or "No output.")
+    if proc.returncode != 0:
+        raise RuntimeError("support report failed")
+
+
+def run_rw_command(args: list[str]) -> None:
+    proc = subprocess.run(
+        [sys.executable, "tools/rw.py", *args],
+        cwd=base.ROOT,
+        text=True,
+        stdout=subprocess.PIPE,
+        stderr=subprocess.STDOUT,
+    )
+    print(proc.stdout.strip() or "No output.")
+    if proc.returncode != 0:
+        raise RuntimeError(f"rw.py {' '.join(args)} failed")
+
+
+def literature_topic_search() -> None:
+    query = prompt("Topic / question search query")
+    if not query:
+        print("No query entered.")
+        return
+    topic_id = prompt("Topic ID (optional)")
+    args = ["source", "search", query]
+    if topic_id:
+        args.extend(["--topic-id", topic_id])
+    run_rw_command(args)
+
+
+def literature_acquisition_checkpoint() -> None:
+    identifier = prompt("DOI / URL / candidate identifier")
+    if not identifier:
+        print("No identifier entered.")
+        return
+    pdf = prompt("Local PDF path or candidate route (optional)")
+    args = ["source", "acquire", identifier]
+    if pdf:
+        args.extend(["--pdf", pdf])
+    run_rw_command(args)
+
+
+def literature_approved_pdf_import() -> None:
+    identifier = prompt("Approved DOI / URL / candidate identifier")
+    pdf = prompt("Approved local PDF path")
+    if not identifier or not pdf:
+        print("Identifier and PDF path are required.")
+        return
+    run_rw_command(["source", "acquire", identifier, "--pdf", pdf, "--checkpoint", "approved"])
+
+
+def topic_governance_add() -> None:
+    topic_id = prompt("Topic ID, lowercase with hyphens")
+    name = prompt("Topic display name")
+    scope = prompt("Scope")
+    search = prompt("Default search string")
+    if not topic_id or not name:
+        print("Topic ID and name are required.")
+        return
+    args = ["topic", "add", topic_id, name]
+    if scope:
+        args.extend(["--scope", scope])
+    if search:
+        args.extend(["--search", search])
+    run_rw_command(args)
+
+
+def topic_governance_lint() -> None:
+    run_rw_command(["topic", "lint"])
+
+
 def menu() -> None:
-    actions = {
-        "1": ("Open/add paper sources", open_or_add_sources),
-        "2": ("Refresh DOI dashboard + scan PDFs", refresh_dashboard_scan_pdfs),
-        "3": ("Create QCed full_text with Codex", create_qced_full_text_with_codex),
-        "4": ("Ingest QCed full_text to wiki", base.launch_wiki_ingest_prompt),
-        "5": ("Prepare synthesis page + Codex prompt", start_synthesis_discussion),
-        "6": ("Prepare feedback issue Codex prompt", send_feedback_issue),
-        "7": ("Prepare external sandbox sync prompt", prepare_external_sandbox_prompt),
-        "0": ("Exit", None),
+    skills = {
+        "1": (
+            "literature-discovery",
+            "Topic/DOI/URL search, legal-source candidates, and acquisition checkpoints.",
+            {
+                "1": ("topic-search", literature_topic_search),
+                "2": ("checkpoint", literature_acquisition_checkpoint),
+                "3": ("acquire-pdf", literature_approved_pdf_import),
+            },
+        ),
+        "2": (
+            "source-intake",
+            "Source queue, dashboard refresh, PDF scan, and QCed full-text handoff.",
+            {
+                "1": ("add-source", open_or_add_sources),
+                "2": ("refresh-dashboard", refresh_dashboard_scan_pdfs),
+                "3": ("qced-full-text", create_qced_full_text_with_codex),
+            },
+        ),
+        "3": (
+            "paper-ingest",
+            "Turn QCed raw/full_text into wiki/literature paper pages.",
+            {
+                "1": ("ingest-qced-full-text", base.launch_wiki_ingest_prompt),
+            },
+        ),
+        "4": (
+            "topic-governance",
+            "Topic IDs, aliases, scope, default search strings, and review cadence.",
+            {
+                "1": ("add-topic", topic_governance_add),
+                "2": ("lint-topics", topic_governance_lint),
+            },
+        ),
+        "5": (
+            "knowledge-workbench",
+            "Query, Save, query-to-save proposals, and review queue work.",
+            {
+                "1": ("query", query_research_wiki_read_only),
+                "2": ("save", save_answer_or_discussion),
+                "3": ("query-to-save", query_to_save_proposal),
+                "4": ("review-queue", save_review_queue_item),
+            },
+        ),
+        "6": (
+            "synthesis-research",
+            "Fan-out, thesis review, synthesis starts, and external sandbox handoffs.",
+            {
+                "1": ("fanout-review", prepare_source_fanout_review),
+                "2": ("apply-approved-fanout", apply_approved_fanout_updates),
+                "3": ("thesis-review", research_thesis_claim),
+                "4": ("synthesis-page-start", start_synthesis_discussion),
+                "5": ("external-sandbox-sync", prepare_external_sandbox_prompt),
+            },
+        ),
+        "7": (
+            "wiki-lint",
+            "Structure lint, semantic lint, repair plans, runtime graph/state, and advanced support.",
+            {
+                "1": ("structure-lint", run_structure_lint_checks),
+                "2": ("semantic-lint", semantic_lint_with_codex),
+                "3": ("repair-plan", run_repair_plan_checks),
+                "4": ("state-graph", build_runtime_state_graph),
+                "5": ("support-report", run_support_report),
+                "6": ("feedback-issue", send_feedback_issue),
+            },
+        ),
     }
     while True:
         print_header()
-        for key, (label, _) in actions.items():
-            print(f"{key}. {label}")
-        choice = prompt("Choose", "0" if not sys.stdin.isatty() else "")
+        print("Official workflow: choose a pipeline skill, then a mode.")
+        print("See docs/ARCHITECTURE.md and MODE_REGISTRY.md for the full matrix.\n")
+        for key, (name, description, _) in skills.items():
+            print(f"{key}. {name} - {description}")
+        print("0. Exit")
+        choice = prompt("Choose skill", "0" if not sys.stdin.isatty() else "")
         if choice == "0":
             print("Bye.")
             return
-        action = actions.get(choice)
-        if not action:
-            print("Unknown choice.")
+        skill = skills.get(choice)
+        if not skill:
+            print("Unknown skill.")
+            pause()
+            continue
+        name, _, modes = skill
+        print(f"\n== {name} modes ==")
+        for key, (label, _) in modes.items():
+            print(f"{key}. {label}")
+        print("0. Back")
+        mode_choice = prompt("Choose mode", "0" if not sys.stdin.isatty() else "")
+        if mode_choice == "0":
+            continue
+        mode = modes.get(mode_choice)
+        if not mode:
+            print("Unknown mode.")
             pause()
             continue
         try:
-            action[1]()
+            mode[1]()
         except KeyboardInterrupt:
             print("\nCancelled.")
         except Exception as exc:

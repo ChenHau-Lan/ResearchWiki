@@ -36,12 +36,18 @@ CANONICAL_RAW_ROOT_NAMES = {
 }
 CANONICAL_WIKI_ROOT_NAMES = {
     ".obsidian",
+    "concepts",
+    "hot.md",
     "index.md",
     "literature",
     "meetings",
+    "overview.md",
     "project_synthesis",
+    "purpose.md",
+    "questions",
     "seminars",
     "synthesis",
+    "topics",
 }
 
 
@@ -105,6 +111,9 @@ This board tracks where each resolved DOI is in the paper-source ingest process.
 
 - `new`: newly added, not processed yet.
 - `metadata_ok`: title/authors/year/venue/DOI checked.
+- `candidate_found`: metadata, DOI, PDF, or legal source candidates exist but have not been approved for evidence use.
+- `pdf_checkpoint_required`: a candidate PDF, URL, screenshot, or local file needs human approval before being treated as evidence.
+- `pdf_downloaded`: approved PDF evidence is present in the configured PDF root.
 - `full_text_needed`: metadata exists, readable full text is missing.
 - `full_text_done`: QCed `raw/full_text/<paper_file_key>.md` exists.
 - `wiki_done`: `wiki/literature/<slug>.md` exists.
@@ -125,20 +134,36 @@ def split_csv(value: str) -> list[str]:
 
 
 def topic_registry_text(topics: list[str], subtopics: list[str]) -> str:
+    normalized_topics = [topic.replace("_", "-") for topic in topics]
     topic_rows = "\n".join(
-        f"| `{topic}` | [[topic_{topic}]] | User-defined initial topic. |"
-        for topic in topics
+        f"| {topic} | {topic.replace('-', ' ').title()} |  | User-defined initial topic. | {topic.replace('-', ' ')} |  | {topic.replace('-', ' ')} |  | 6 months |"
+        for topic in normalized_topics
     )
-    subtopic_rows = "\n".join(
-        f"| `{subtopic}` | [[subtopic_{subtopic}]] | User-defined initial subtopic. |"
-        for subtopic in subtopics
-    )
+    subtopic_note = ", ".join(subtopics)
     return f"""---
-type: maintenance
-status: draft
+type: topic
+status: reviewed
 source_status: personal-note
 reading_status: mixed
-review_stage: discussed
+review_stage: integrated
+confidence: not-applicable
+evidence_scope: map
+evidence_tier: not-applicable
+claim_status: map
+counter_evidence: tracked-in-linked-pages
+source_hash:
+source_lines: []
+provenance_state: authored
+review_queue: false
+review_priority: low
+last_reviewed: {TODAY}
+review_due:
+doi:
+citation_key:
+paper_file_key:
+aliases: []
+supersedes: []
+superseded_by: []
 topics: []
 subtopics: []
 keywords: [topics, subtopics, graph_hubs]
@@ -149,38 +174,33 @@ sources: []
 
 # Topic Registry
 
-Use this minimal registry to keep research classification precise without creating too many folders.
+Use this file before inventing new topics or subtopics. Topic IDs are stable retrieval handles.
 
-## Rules
+## Topic Table
 
-- `topics` are broad and stable research areas.
-- `subtopics` are more precise retrieval categories.
-- `keywords` are flexible details and do not automatically become graph nodes.
-- Promote a subtopic only when it repeatedly connects papers, synthesis pages, seminars, or project synthesis pages.
-- Use explicit wikilinks for promoted topic and subtopic hubs.
-
-## Active Topics
-
-| Topic | Graph Hub | Use When |
-|---|---|---|
+| Topic ID | Name | Aliases | Scope | Include | Exclude | Default Search | Canonical Pages | Review Cadence |
+|---|---|---|---|---|---|---|---|---|
 {topic_rows}
-
-## Active Subtopics
-
-| Subtopic | Graph Hub | Use When |
-|---|---|---|
-{subtopic_rows}
 
 ## Candidate Subtopics
 
-| Candidate | Reason to Consider | Promote When |
-|---|---|---|
+{subtopic_note or "No candidate subtopics yet."}
+
+## Registry Rules
+
+- Use lowercase ASCII `topic_id` values with hyphens.
+- Keep aliases explicit so old wording remains searchable.
+- Put search strings here before running automated topic discovery.
+- Link canonical question, concept, synthesis, and overview pages when they exist.
+- Do not store settled claims here; use linked synthesis or concept pages.
 
 ## Graph Links
 
 - Topics:
 - Subtopics:
+- Related questions: [[questions/questions]]
 - Related literature: [[literature/literature]]
+- Related concepts: [[concepts/concepts]]
 - Related synthesis: [[synthesis/synthesis]]
 - Related seminars: [[seminars/seminars]]
 - Related projects: [[project_synthesis/project_synthesis]]
@@ -338,6 +358,8 @@ def graph_links(*, related_projects: bool = True) -> str:
 def reset_wiki_index_files() -> None:
     wiki_index = WIKI_ROOT / "index.md"
     literature_index = rw.WIKI_LIT / "literature.md"
+    questions_index = rw.WIKI_QUESTIONS / "questions.md"
+    concepts_index = rw.WIKI_CONCEPTS / "concepts.md"
     synthesis_index = rw.WIKI_SYNTHESIS / "synthesis.md"
     meetings_index = rw.WIKI_MEETINGS / "meetings.md"
     project_index = rw.WIKI_PROJECT_SYNTHESIS / "project_synthesis.md"
@@ -347,6 +369,9 @@ def reset_wiki_index_files() -> None:
         frontmatter("synthesis", "[index]", target=wiki_index)
         + "# Research Wiki Index\n\n"
         + "- [[literature/literature|Literature]]\n"
+        + "- [[questions/questions|Questions]]\n"
+        + "- [[concepts/concepts|Concepts]]\n"
+        + "- [[topics/topic_registry|Topic Registry]]\n"
         + "- [[synthesis/synthesis|Synthesis]]\n"
         + "- [[meetings/meetings|Meetings]]\n"
         + "- [[project_synthesis/project_synthesis|Project Synthesis]]\n"
@@ -362,6 +387,24 @@ def reset_wiki_index_files() -> None:
         + "Use [[literature/topic_registry|Topic Registry]] for `topics`, `subtopics`, and graph hubs.\n\n"
         + "## Papers\n\n"
         + "- No paper pages have been generated yet.\n\n"
+        + graph_links(),
+        encoding="utf-8",
+    )
+    questions_index.write_text(
+        frontmatter("question", "[questions_index]", target=questions_index)
+        + "# Questions\n\n"
+        + "Open research questions and hypotheses live in this folder.\n\n"
+        + "## Pages\n\n"
+        + "- No question pages have been generated yet.\n\n"
+        + graph_links(),
+        encoding="utf-8",
+    )
+    concepts_index.write_text(
+        frontmatter("concept", "[concepts_index]", target=concepts_index)
+        + "# Concepts\n\n"
+        + "Recurring methods, mechanisms, datasets, instruments, models, and variables live in this folder.\n\n"
+        + "## Pages\n\n"
+        + "- No concept pages have been generated yet.\n\n"
         + graph_links(),
         encoding="utf-8",
     )
@@ -427,6 +470,9 @@ def reset_database(*, already_confirmed: bool = False) -> int:
     deleted.extend(clear_dir(rw.RAW_FILES_DIR))
     deleted.extend(clear_dir(rw.STAGING_TEXT_DIR))
     deleted.extend(clear_dir(rw.WIKI_LIT, keep_names={".gitkeep", "literature.md", "topic_registry.md"}))
+    deleted.extend(clear_dir(rw.WIKI_QUESTIONS, keep_names={".gitkeep", "questions.md"}))
+    deleted.extend(clear_dir(rw.WIKI_CONCEPTS, keep_names={".gitkeep", "concepts.md"}))
+    deleted.extend(clear_dir(rw.WIKI_TOPICS, keep_names={".gitkeep", "topic_registry.md"}))
     deleted.extend(clear_dir(rw.WIKI_SYNTHESIS, keep_names={".gitkeep", "synthesis.md"}))
     deleted.extend(clear_dir(rw.WIKI_MEETINGS, keep_names={".gitkeep", "meetings.md"}))
     deleted.extend(clear_dir(rw.WIKI_PROJECT_SYNTHESIS, keep_names={".gitkeep", "project_synthesis.md"}))
@@ -447,7 +493,7 @@ def reset_database(*, already_confirmed: bool = False) -> int:
             print(f"- {path}")
     print("")
     print("Next test path:")
-    print("1. Run ResearchWikiCodex.command to add/open paper sources.")
+    print("1. Use source-intake/add-source, optionally through ResearchWikiCodex.command, to add/open paper sources.")
     print("2. Save legal PDFs into raw/doi_pdf/.")
     print("3. Run option 2 to refresh the dashboard and scan PDFs.")
     print("4. Run option 3 to create QCed raw/full_text.")

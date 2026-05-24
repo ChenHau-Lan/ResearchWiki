@@ -16,7 +16,11 @@ FULL_TEXT_INDEX_MD = ROOT / "raw" / "full_text_index.md"
 FULL_TEXT_INDEX_JSON = ROOT / "raw" / "full_text_index.json"
 FULL_TEXT_DIR = ROOT / "raw" / "full_text"
 WIKI_LIT = ROOT / "wiki" / "literature"
+WIKI_QUESTIONS = ROOT / "wiki" / "questions"
+WIKI_CONCEPTS = ROOT / "wiki" / "concepts"
+WIKI_TOPICS = ROOT / "wiki" / "topics"
 WIKI_SYNTHESIS = ROOT / "wiki" / "synthesis"
+WIKI_ROOT = ROOT / "wiki"
 WIKI_MEETINGS = ROOT / "wiki" / "meetings"
 WIKI_PROJECT_SYNTHESIS = ROOT / "wiki" / "project_synthesis"
 WIKI_SEMINARS = ROOT / "wiki" / "seminars"
@@ -26,6 +30,9 @@ COPERNICUS_FILENAME_COPY_DOI_RE = re.compile(r"^(10\.5194/[a-z][a-z0-9]*-\d+-\d+
 STATUSES = {
     "new",
     "metadata_ok",
+    "candidate_found",
+    "pdf_checkpoint_required",
+    "pdf_downloaded",
     "full_text_needed",
     "full_text_done",
     "wiki_done",
@@ -164,9 +171,24 @@ def lint_full_text_qc(errors: list[str]) -> None:
 
 
 def lint_wiki_pages(errors: list[str]) -> None:
-    required = {"type", "status", "source_status", "topics", "subtopics", "created", "updated", "sources"}
+    required = {
+        "type",
+        "status",
+        "source_status",
+        "reading_status",
+        "review_stage",
+        "topics",
+        "subtopics",
+        "created",
+        "updated",
+        "sources",
+    }
     folders = [
+        (WIKI_ROOT, {"synthesis", "purpose", "overview", "hot"}, {"index.md"}),
         (WIKI_LIT, {"paper", "maintenance"}, {"literature.md", "topic_registry.md"}),
+        (WIKI_QUESTIONS, {"question"}, {"questions.md"}),
+        (WIKI_CONCEPTS, {"concept", "maintenance"}, {"concepts.md"}),
+        (WIKI_TOPICS, {"topic"}, set()),
         (WIKI_SYNTHESIS, {"synthesis"}, {"synthesis.md"}),
         (WIKI_MEETINGS, {"meeting"}, {"meetings.md"}),
         (WIKI_PROJECT_SYNTHESIS, {"project-synthesis"}, {"project_synthesis.md"}),
@@ -174,6 +196,8 @@ def lint_wiki_pages(errors: list[str]) -> None:
     ]
     for folder, allowed_types, support_pages in folders:
         if not folder.exists():
+            if folder == WIKI_CONCEPTS:
+                continue
             errors.append(f"{folder.relative_to(ROOT)} is missing")
             continue
         for path in sorted(folder.glob("*.md")):
@@ -195,6 +219,13 @@ def lint_wiki_pages(errors: list[str]) -> None:
                 errors.append(f"{rel}: type must be one of {sorted(allowed_types)}, got {page_type!r}")
             if page_type == "paper" and "- DOI:" not in text:
                 errors.append(f"{rel}: paper page missing '- DOI:' metadata line")
+            if page_type == "paper":
+                missing_identity = [key for key in ["doi", "citation_key", "paper_file_key"] if key not in meta]
+                if missing_identity:
+                    errors.append(f"{rel}: paper page missing identity frontmatter keys: {', '.join(missing_identity)}")
+            if page_type in {"synthesis", "project-synthesis", "concept", "overview", "hot"} and meta.get("confidence") == "high":
+                if "Counter-evidence" not in text and "counter-evidence" not in text:
+                    errors.append(f"{rel}: high-confidence page missing counter-evidence section or field")
             if "## Graph Links" not in text:
                 errors.append(f"{rel}: missing Graph Links section")
 

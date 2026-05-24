@@ -106,9 +106,18 @@ RKF 專案資料夾：macOS/Linux 可用 `ln` 或 symlink，Windows 可用 junct
 Drive 裡放真實 RAW 與 wiki 檔案；本機 RKF 資料夾只負責連接它們。不要把每台電腦
 自己的 link 或 private Drive path commit 成 public source of truth。
 
-外部 sandbox 預設只給讀取權限。當 sandbox 產生值得保存的問題、claim 或 synthesis，
-應該回傳 RKF save/review proposal，附上 evidence boundary，再由 RKF 決定是否寫入
-穩定 wiki。
+外部 sandbox 預設只給讀取權限。若只需要查詢或提出想法，使用
+`python3 tools/rk.py prompt external-sandbox` 產生 context capsule，並把
+`prompts/external_sandbox_bootstrap.zh-TW.md` 貼到另一個 sandbox 作為啟動提示。
+
+若另一個 sandbox 是可信任的研究代理，也可以把 RKF repo 加成可寫 workspace，讓它透過
+RKF CLI 直接操作。這不是跳過治理：它仍必須走
+`capture -> acquire -> verify-pdf -> distill`。搜尋結果只是 candidate；沒有合法
+artifact、PDF/OCR/visual QC 與 locator notes，就不能生成正式 paper wiki page。
+
+當 sandbox 沒有寫入權限，或 topic fit、PDF QC、locator、claim support 不完整時，應該
+回傳 RKF save/review proposal，附上 evidence boundary，再由 RKF 決定是否寫入穩定
+wiki。
 
 ## 版本管理
 

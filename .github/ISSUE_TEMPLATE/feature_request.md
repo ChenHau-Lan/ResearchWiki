@@ -1,28 +1,29 @@
 ---
 name: Feature request
-about: Suggest an improvement to core, command, docs, or support flow
+about: Suggest an RKF improvement
 title: "[feature] "
 labels: enhancement, needs-triage
 ---
 
 ## Goal
 
-What should Research Wiki help you do?
+What should RKF help you do?
 
 ## Layer
 
 Choose one:
 
-- Core contract
-- Command/UI implementation
-- Personal workflow
+- Evidence vault
+- Knowledge synthesis
+- Wiki core
+- Lint
+- ARS bridge protocol
 - Documentation
-- GitHub/support
 
 ## Proposed behavior
 
 Describe the behavior you want.
 
-## Why this belongs in Research Wiki
+## Why this belongs in RKF
 
-Explain why this should be part of the template instead of personal notes.
+Explain why this should be part of the framework instead of personal notes.

@@ -1,48 +1,23 @@
-# Project-Local Skills
+# RKF Project Skills
 
-These skills are project-local references for Research Wiki. They are not automatically installed as global Codex skills.
+RKF uses a small ARS-style skill set. Modes live inside skills; the bridge to
+Academic Research Skills is a protocol, not an active skill.
 
-Use them when optimizing this repository's literature ingest, academic writing,
-full-text acquisition, evidence workflows, pipeline skills, and mode handoffs.
+| Skill | Purpose |
+|---|---|
+| `rkf-evidence-vault` | Source capture, candidate discovery, legal PDF acquisition, PDF QC |
+| `rkf-knowledge-synthesis` | Reviewed-evidence paper pages, knowledge objects, and topic review |
+| `rkf-wiki-core` | LLM Wiki query/save/graph/external sandbox memory |
+| `rkf-lint` | Structure, evidence, graph, ARS handoff, public-safety lint |
+| `rkf-connect` | Experimental shared RAW/wiki database links and external sandbox access |
 
-Canonical command-independent skill contracts live in `core/skills/`. The files
-in this directory are project-local discoverability wrappers and should stay
-aligned with the core versions.
+Common trigger words:
 
-## Skill-First Pipeline
+- Evidence: DOI, URL, PDF, source intake, literature discovery, 文獻搜尋, 找文章, 下載PDF, 證據庫.
+- Knowledge: paper note, synthesis, question, concept, topic review, 整理成wiki, 論文筆記, 概念頁, topic整理, 綜整.
+- Wiki core: LLM Wiki, query, save, graph, sandbox, 問知識庫, 回寫wiki, 知識圖譜.
+- Lint: audit, lint, repair plan, public safety, 檢查, 修復計畫, 證據邊界.
+- Connect: shared database, Google Drive, symlink, junction, external sandbox access, 共享資料庫, 多台電腦, 連結wiki.
 
-- `source-intake`: source queue, dashboard refresh, PDF scan, legal source
-  resolution, and QCed full-text handoff.
-- `literature-discovery`: topic/DOI/URL search, legal-source candidates,
-  acquisition checkpoints, and approved PDF imports.
-- `paper-ingest`: QCed `raw/full_text/` to `wiki/literature/` paper pages.
-- `topic-governance`: topic IDs, aliases, scope, default searches, canonical
-  pages, and review cadence.
-- `knowledge-workbench`: Query, Save, query-to-save, and review queue work.
-- `synthesis-research`: fan-out review, thesis review, synthesis discussion,
-  and approved cross-page updates.
-- `wiki-lint`: structure lint, semantic lint, repair plans, and runtime
-  state/graph diagnostics.
-
-## Advanced Compatibility
-
-- `audit-release`: compatibility alias for advanced support reports, issue
-  drafting, and release maintenance.
-
-## Compatibility Skills
-
-- `research-wiki-academic-writer`: write research documents from this wiki
-  without fabricating citations.
-- `research-wiki-fulltext-acquisition`: acquire DOI PDFs and verify authorized
-  full text for DOI-driven paper intake.
-
-## Notes
-
-- Keep these skills aligned with `core/skills/` and `AGENTS.md`.
-- Use `raw/full_text_index.*`, not legacy index names.
-- Put DOI PDFs in `raw/doi_pdf/`.
-- Put full text in `raw/full_text/`.
-- When shell download is blocked but the article/PDF is visible in the user's browser, use authorized browser-session PDF download before asking for manual upload.
-- Put paper notes in `wiki/literature/`.
-- Put cross-paper judgment in `wiki/synthesis/`.
-- Put project evolution in `wiki/project_synthesis/`.
+Use `MODE_REGISTRY.md` for the mode table and `AGENTS.md` for routing
+discipline.

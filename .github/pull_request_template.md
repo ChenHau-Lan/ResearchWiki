@@ -1,39 +1,28 @@
 # Summary
 
 - What changed?
-- Which layer changed: core, command, personal, docs, GitHub/support?
-
-# Upload Inventory
-
-- Intentionally uploaded:
-- Intentionally not uploaded:
-- Generated PDFs refreshed or unchanged:
-- README/USER_GUIDE links changed or unchanged:
+- Which RKF surface changed: core, CLI, skills, docs, tests, GitHub?
 
 # Checks
 
-- [ ] I read `core/principles.md` and `core/data_contract.md`.
-- [ ] I did not add private raw PDFs or full text to Git.
-- [ ] I did not move personal research state into the template branch.
+- [ ] I preserved the PDF-to-Wiki evidence boundary.
+- [ ] I did not add private PDFs, article text, local paths, or runtime state to Git.
 - [ ] I updated docs when workflow behavior changed.
-- [ ] I updated `VERSION_LOG.md` / `VERSION_LOG.zh-TW.md` when the change is release-visible.
-- [ ] I checked generated PDF outputs when user-facing long-form docs changed.
-- [ ] I recorded intentional non-uploaded artifacts, generated files, or private data exclusions in the PR body.
+- [ ] I updated tests when gates, schemas, or CLI behavior changed.
 
 # Tests
 
 ```bash
-python3 -m py_compile tools/*.py
-python3 tools/check_install.py --strict
-python3 tools/wiki_lint.py
-python3 tools/wiki_doctor.py
-python3 tools/generate_repair_plan.py
-python3 tools/test_research_wiki_workflow.py
+python3 -m py_compile tools/rk.py rkf/*.py tools/public_safety_scan.py
+python3 -m unittest discover -s tests
+python3 tools/rk.py topic lint
+python3 tools/rk.py lint
+python3 tools/public_safety_scan.py
 ```
 
 # Privacy Review
 
 - [ ] No local home-directory paths.
 - [ ] No `.DS_Store`.
-- [ ] No private Codex logs.
-- [ ] No publisher PDF/full-text evidence committed by accident.
+- [ ] No private evidence artifacts.
+- [ ] No copied article text.

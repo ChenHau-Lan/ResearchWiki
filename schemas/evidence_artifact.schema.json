@@ -1,0 +1,21 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://example.org/rkf/evidence_artifact.schema.json",
+  "title": "EvidenceArtifact",
+  "type": "object",
+  "required": ["schema", "evidence_id", "source_id", "artifact_type", "status", "qc_status", "public_safe_pointer"],
+  "properties": {
+    "schema": { "const": "rkf-evidence-artifact-v1" },
+    "evidence_id": { "type": "string" },
+    "source_id": { "type": "string" },
+    "artifact_type": { "enum": ["pdf", "html_snapshot", "screenshot", "metadata", "attachment"] },
+    "status": { "type": "string" },
+    "qc_status": { "enum": ["not_started", "pending", "codex_qc_done", "human_qc_done", "failed"] },
+    "storage_path": { "type": "string" },
+    "public_safe_pointer": { "type": "string" },
+    "authorized_route": { "type": "string" },
+    "locators": { "type": "array", "items": { "type": "string" } },
+    "created": { "type": "string" },
+    "updated": { "type": "string" }
+  }
+}

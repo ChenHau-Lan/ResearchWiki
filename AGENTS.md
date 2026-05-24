@@ -1,250 +1,170 @@
-# Research Wiki Agent Instructions
+# Research Knowledge Framework
 
-本專案是 GitHub-ready Karpathy-style LLM Wiki 研究資料庫模板。核心原則是：
+RKF is an LLM Wiki-based research knowledge framework. Its job is to preserve
+durable, source-aware academic knowledge while staying compatible with Academic
+Research Skills (ARS) as an external research, reasoning, writing, and review
+engine.
 
-- `core/` 是 command-independent source of truth，保存資料庫原理、資料契約、agent 契約、skills 與測試契約。
-- `raw/` 是 evidence layer，保存 paper source pointers、DOI dashboard、原始檔、staging extraction、QC 後可讀全文與索引。
-- `wiki/` 是 LLM-curated knowledge layer，保存單篇文獻事實、跨文獻判斷、meeting/project 脈絡與 seminar context。
-- ResearchWiki 的正式操作面是 pipeline skills + modes；`ResearchWikiCodex.command` 只保留為薄路由器與相容入口，`tools/rw.py` 負責 deterministic local operations、acquisition checkpoints、topic lint 與 prompt handoff。
-- Codex / LLM token 應用在真正需要理解的任務：文獻攝入、全文理解、paper page 萃取、synthesis、project discussion。
+PDFs are major reading artifacts for papers, but RKF is not limited to PDFs.
+It governs source candidates, reviewed evidence artifacts, topics, questions,
+concepts, claims, synthesis, and query-to-save decisions.
 
-與一般 LLM Wiki 不同處：
+## Skills Overview
 
-1. 有客製化 paper source queue、DOI dashboard、full text cache 與 full text index。
-2. Paper wiki page 對文獻閱讀最佳化，但不複製全文。
-3. Pipeline skills/modes 讓使用者依研究任務操作，避免把機械檢查浪費在 LLM token；`ResearchWikiCodex.command` 僅路由到 skills/modes。加入來源、刷新 dashboard、掃描 PDF、查重、重建 index 是 local/no-token 步驟；線上全文判斷、PDF 內容 QC、abstract-only 判斷、paper page 與 synthesis 是明確 LLM 步驟。正式 source-intake 不新增持久未 QC staging full text。
-4. Obsidian graph 是一級功能，正式頁必須有 explicit wikilinks。
-5. 資料庫要能用 `wiki-lint` 定期診斷、產生 repair plan，但不可自動批量刪除；`audit-release` 只作為 advanced compatibility alias。
-6. vNext 把資料庫視為 research compiler：`wiki/purpose.md` 定義邊界、`wiki/overview.md` 做研究地圖、`wiki/hot.md` 追蹤活躍問題；`wiki/questions/` 保存未決問題，`wiki/topics/` 控管搜尋範圍，多頁 source impact 先進 `maintenance/fanout_candidates.md`。
+| Skill | Purpose | Natural-Language Triggers |
+|---|---|---|
+| `rkf-evidence-vault` | Source capture, candidate discovery, legal evidence routes, PDF/OCR/visual QC for paper reading | DOI, URL, PDF, literature discovery, source intake, 文獻搜尋, 找文章, 下載PDF, 證據庫 |
+| `rkf-knowledge-synthesis` | Reviewed-evidence paper pages, maintained knowledge objects, and topic review | paper note, synthesis, topic, topic review, claim, 整理成wiki, 論文筆記, 概念頁, 問題頁, topic整理, 綜整 |
+| `rkf-wiki-core` | LLM Wiki memory retrieval, ARS reasoning handoff, save, graph, sandbox context | LLM Wiki, query, save, graph, sandbox, 問知識庫, 回寫wiki, 保存討論, 知識圖譜 |
+| `rkf-lint` | Ongoing health checks and repair planning | lint, audit, repair plan, public safety, 檢查, 修復計畫, 證據邊界, 發布安全 |
+| `rkf-connect` | Experimental shared database, multi-computer Drive links, and external sandbox access boundaries | shared database, Google Drive, symlink, junction, sandbox access, 共享資料庫, 多台電腦, 外部sandbox, 連結wiki |
 
-## Research Wiki Dev Mode
+`rkf-ars-bridge` is not an active skill. It is an implicit protocol for
+translating ARS outputs into RKF proposals.
 
-當使用者討論「資料庫要如何更新、目錄/command/DOI workflow/maintenance/Obsidian graph/skills/templates 要如何修改」時，啟用 Research Wiki Dev Mode。
+## Routing Discipline
 
-此 mode 的角色：
+1. If the user asks to capture DOI/URL/topic/PDF evidence or candidate papers,
+   route to `rkf-evidence-vault`.
+2. If the user asks to write or update wiki knowledge, route to
+   `rkf-knowledge-synthesis`.
+3. If the user asks to query the wiki, first retrieve governed RKF context with
+   `rkf-wiki-core`; when interpretation or recommendation is needed, let ARS
+   reason over that context; save only through RKF proposal/synthesis rules.
+4. If the user asks to save discussion memory, export graph, or hand off to
+   another sandbox, route to `rkf-wiki-core`.
+5. If the user asks to review, clean up, merge/split, refresh, or recommend
+   changes to topics, route to `rkf-knowledge-synthesis` `topic-review`; use
+   `rkf-lint` when the request is structural drift detection or repair planning.
+6. If the user asks to set up shared RAW/wiki folders, connect multiple
+   computers, manage Google Drive links, or grant an external sandbox access to
+   the wiki, route to `rkf-connect`.
+7. If the user asks to check, audit, diagnose, publish, schedule maintenance,
+   or repair the wiki, route to `rkf-lint`.
+8. If the user asks for deep research, paper writing, peer review, or a full
+   research-to-paper workflow, use ARS skills externally; return durable results
+   to RKF only through the bridge protocol.
+9. If a request mixes ARS work and RKF persistence, treat ARS output as a
+   proposal first. Do not save it as evidence.
 
-- 以資深研究資料庫架構師與產品工程師的角度協作。
-- 先保護 evidence chain，再追求自動化與便利性。
-- 偏好更少目錄、更少概念、更清楚流程；新增功能前先判斷是否真的必要。
-- 將 `raw/`、`wiki/`、`maintenance/` 分層清楚：raw 是證據，wiki 是知識，maintenance 是操作與診斷。
-- Command 只放低 token / 無 token 或必要 handoff；LLM token 留給文獻理解、研究判斷與使用者討論。
-- 對高風險功能主動指出限制：不可自動批量刪除，不可自動化未授權全文取得，不讓 dashboard 取代真實檔案證據。
-- README 只放第一眼需要知道的研究材料流程、安裝入口與支援入口；不要把詳細資料分層、branch policy、測試觀察或架構討論塞進 README。資料位置與操作細節放 USER_GUIDE，規則與契約放 `core/`，維護紀錄放 `maintenance/`。
-- 安裝與支援文件若提供 Codex prompt，README、USER_GUIDE、INSTALL、SUPPORT 必須保持一致；prompt 可以協助安裝與開 issue 草稿，但系統工具安裝需使用者確認，issue 不得自動送出。
-- 處理 review comment 或使用者修正時，先抽象成資料模型、workflow、產品原則或契約規則，再整合進既有架構；不可把回饋中的反應式問句、例子或修正文直接變成 README/USER_GUIDE 段落標題。版本變更、PR 回應與測試觀察應留在 PR、release notes 或 `maintenance/`，不要塞進 onboarding 文件。
-- 實作時同步更新 README / USER_GUIDE / AGENTS / skill/mode router，並跑最小必要驗證。
-- 回應風格保持溫和、直接、有判斷力；不只照做，也要指出會讓資料庫長期壞掉的設計。
+## Key Rules
 
-## Core / Command / Personal Boundary
+- Candidates are not evidence.
+- ARS reports are not evidence by themselves.
+- A paper wiki page requires a reviewed source artifact, usually an approved
+  and QCed PDF or a legal publisher artifact represented by an evidence record.
+- Durable full article text is not an RKF knowledge layer.
+- Temporary PDF text, OCR text, or browser extraction may be used to read; it
+  must not be committed or saved as a public knowledge object.
+- Every stable claim needs a locator, an existing wiki source, or a review
+  blocker.
+- A query answer is not a wiki page until deliberately saved as a question,
+  claim, concept, or synthesis.
+- Topics must be reviewed as living research controls: aliases, scope,
+  include/exclude rules, default search strings, candidate backlog, and
+  canonical synthesis links should be checked on a cadence.
+- Shared database setup is experimental. Drive may hold real RAW and wiki data,
+  but machine-specific links and private paths must not become the committed
+  source of truth.
+- External sandboxes get read access by default. Their useful outputs return as
+  RKF proposals unless the user explicitly approves a write path.
+- Lint is maintenance, not just pre-release cleanup. It may report and plan
+  repairs; it must not silently rewrite knowledge or delete files.
 
-- 核心規則優先讀 `core/principles.md`、`core/data_contract.md`、`core/agent_contract.md`、`core/test_contract.md` 與 `core/skills/`。
-- Skill/mode prompt 或工具若需要規則，必須引用 `core/*` 與相關 `core/skills/*`；不要讓 `ResearchWikiCodex.command` 成為唯一規則來源。
-- `main` 是 public protected integration branch 的目標狀態，必須保持 template-safe、public-safe。
-- `codex/core-*` 用於 core contract；`codex/command-*` 用於 command/UI；`personal/*` 用於個人研究狀態。
-- Issue 回報採 redacted prefilled URL；不自動送出，也不貼 private raw PDF/full_text/Codex logs。
-- `researchwiki.config.toml` 是每台電腦自己的 Google Drive/local path 設定，永遠不進 Git；只提交 `researchwiki.config.example.toml`。
+## Evidence Gates
 
-## Updating AGENTS.md During Tests
+| Gate | Required Before |
+|---|---|
+| topic fit check | assigning a candidate to an existing or new topic |
+| source identity check | source promotion beyond candidate |
+| acquisition checkpoint | private evidence storage or paper ingest |
+| PDF/OCR/visual QC | paper wiki distillation |
+| claim support check | stable claim or synthesis |
+| public-safety check | publication or push |
 
-`AGENTS.md` 會影響未來 Codex 如何理解與操作整個 repo，因此不要把它當成測試筆記本。
+## Paper Evidence Path
 
-- 臨時測試觀察：寫到 `maintenance/`、test report 或 issue，不直接改 `AGENTS.md`。
-- 核心規則改變：先改 `core/agent_contract.md`、`core/data_contract.md` 或相關 `core/*`，再讓 `AGENTS.md` 保持簡短索引。
-- Command 操作細節改變：改 `USER_GUIDE*` 或 command prompt，不把細節塞進 `AGENTS.md`。
-- 個人偏好或個人研究流程：放到 `personal/*` branch，不進 template `main`。
-- 若確實需要改 `AGENTS.md`，必須走 PR，並同步更新 README / USER_GUIDE 中對使用者有影響的部分。
+The canonical paper path is:
 
-## Deletion Safety
+```text
+DOI/URL/topic/PDF lead
+  -> topic fit check
+  -> SourceRecord
+  -> candidate backlog or acquisition checkpoint
+  -> reviewed evidence artifact
+  -> PDF/OCR/visual QC with locator notes
+  -> paper wiki page
+```
 
-禁止批量刪除文件或目錄。
-不要使用：
+For scanned or image-only papers, record visual locators, page images, OCR
+confidence, and human reading notes. If OCR is unreliable, do not claim
+full-read text evidence.
 
-- `del /s`
-- `rd /s`
-- `rmdir /s`
-- `Remove-Item -Recurse`
-- `rm -rf`
+## Connection Protocol
 
-需要刪除文件時，只能一次刪除一個明確路徑的文件。若需要批量刪除文件，停止操作並請使用者手動刪除。
+Use `rkf-connect` only when the user wants portability or external access. The
+current experimental pattern is:
 
-Repair tools must never delete files automatically. They may only write a human-readable repair plan.
+```text
+shared Drive research folder
+  -> RAW and wiki as real shared folders
+  -> local RKF project links to those folders per computer
+  -> external sandbox receives read context and save/review proposal rules
+```
 
-如果 `wiki_doctor.py` 或 repair plan 回報 `.DS_Store`，只把它當作 release hygiene。工具可以列出明確路徑與人工建議，但不可自動清理；若要處理，必須由人確認後一次只刪除一個指定檔案，不可使用 recursive、wildcard 或批量清理命令。
+Do not commit cross-platform symlinks, private Drive paths, or sandbox access
+tokens. If a sandbox produces a durable question, claim, or synthesis, route it
+back through RKF save/review gates.
 
-例外：`InitializeResearchWiki.command` 是正式本機 setup/reset 工具。Topic setup 不刪除資料；reset mode 使用者已明確允許它在受限範圍內批量刪除測試資料，但必須要求互動式確認，只能清理 generated raw artifacts、`raw/doi_pdf/`、`raw/full_text/`、`raw/files/` 與正式 wiki 分區中的生成頁，並保留 tools、templates、skills、docs、topic registry 與 Obsidian 設定。它也應重寫各分區 index pages，避免 index 指向已刪除的生成頁。
+## ARS Integration
 
-## Active Scope
+ARS provides research, reasoning, writing, peer review, and pipeline
+orchestration. RKF provides durable memory and evidence governance.
 
-正式主流程只維護：
-
-- Purpose / overview / hot pages：資料庫邊界、研究地圖與活躍問題，放在 `wiki/` root。
-- Paper page：單篇論文閱讀頁，放在 `wiki/literature/`。
-- Question page：未決研究問題、假說、search plan 與 answer draft，放在 `wiki/questions/`。
-- Concept page：反覆出現的方法、機制、資料集、儀器、模型或變數，放在 `wiki/concepts/`。
-- Topic page / registry：topic ID、aliases、scope、include/exclude、default search 與 review cadence，放在 `wiki/topics/`。
-- Synthesis page：跨文獻研究判斷，放在 `wiki/synthesis/`。
-- Meeting page：單次會議紀錄，放在 `wiki/meetings/`。
-- Project synthesis page：跨會議、project evolution、decision history、project 間關聯，放在 `wiki/project_synthesis/`。
-- Seminar page：seminar / talk 紀錄，放在 `wiki/seminars/`。
-
-操作維護層不屬於正式 wiki：repair plan、release checklist、Codex logs、Obsidian graph 說明放在 repo 根目錄的 `maintenance/`。
-
-不要恢復 code wiki、inbox、Notion mirror、同步腳本或副資料庫流程。若被提到，只記錄到 `DEFERRED_FEATURES.md`。
-
-## Canonical Files
-
-- `raw/paper_sources.md`：主要論文來源入口，可貼 DOI、DOI URL、article URL、PDF URL 或來源註記。
-- `raw/doi_list.md`：legacy DOI-only 入口，保留相容性。
-- `raw/doi_dashboard.md`：DOI 處理狀態看板，不是 evidence source of truth。
-- `raw/doi_pdf/`：DOI 對應 PDF，命名為 `<paper_file_key>.pdf`。
-- `raw/staging/extracted_text/`：PDF/HTML/XML 機械抽字暫存，不是正式 full text，不進 full_text index。
-- `raw/full_text/`：已重排、已 QC、可供閱讀與 wiki ingest 的全文 Markdown，命名為 `<paper_file_key>.md`。
-- `raw/full_text_index.md` 與 `raw/full_text_index.json`：全文、DOI、paper page 的 dispatch index。
-- `raw/files/`：seminar slides、meeting transcript 或使用者提供的其他原始檔；DOI 論文 PDF 優先放 `raw/doi_pdf/`。
-- `wiki/purpose.md`、`wiki/overview.md`、`wiki/hot.md`：compiler navigation pages，不取代 source-backed synthesis。
-- `wiki/questions/`：active research questions，不取代 source-backed synthesis。
-- `wiki/concepts/`：promoted recurring concepts。
-- `wiki/topics/topic_registry.md`：canonical topic governance。`wiki/literature/topic_registry.md` 保留 legacy graph hub 相容性。
-- `maintenance/fanout_candidates.md`：source fan-out 的 deterministic staging area。
-- `references.bib`：後期正式 citation registry。
-
-真正證據永遠是實際存在的 raw/doi_pdf、raw/staging、raw/full_text、wiki/literature、raw/full_text_index.* 與 raw/files。Dashboard 只記錄處理狀態；若 dashboard 指到不存在的檔案，工具必須降級狀態。
-
-## Query Priority
-
-一般研究問題預設查詢順序：
-
-1. `wiki/synthesis/`
-2. `wiki/literature/`
-3. `wiki/seminars/`
-
-只有使用者問 project history、meeting decision、action tracking、跨 project 關聯時，才優先查：
-
-1. `wiki/project_synthesis/`
-2. `wiki/meetings/`
-
-Seminar 可作為 synthesis 的討論材料，但 evidence tier 低於 peer-reviewed literature。Abstract-only paper 不可當成 full-read evidence。
-
-## DOI Status Board
-
-`raw/doi_dashboard.md` 的狀態只使用：
-
-- `new`：剛加入，尚未處理。
-- `metadata_ok`：已確認 title/authors/year/venue/DOI。
-- `candidate_found`：已有 metadata、DOI、PDF 或合法 source candidates，但尚未核准作 evidence。
-- `pdf_checkpoint_required`：candidate PDF、URL、screenshot 或 local file 需要人工核准。
-- `pdf_downloaded`：approved PDF evidence 已在 configured PDF root。
-- `full_text_needed`：metadata 有了，但還沒有可讀全文。
-- `full_text_done`：已生成 `raw/full_text/<paper_file_key>.md`。
-- `wiki_done`：已生成 `wiki/literature/<slug>.md`。
-- `abstract_only`：只能取得摘要，paper page 必須標明限制。
-- `blocked`：DOI 錯誤、來源不可用、權限不足或需要人工處理。
-
-Dashboard 主看板欄位固定為 `Last Name_Year`、`Journal`、`DOI`、`Wiki Status`、`PDF`、`Full Text`。`PDF` 與 `Full Text` 只作為有無 evidence 的 checkbox；不要在主看板塞路徑或 `Access Legality`。較長的 `Next Action`、`Updated`、`Note` 放在同檔案的 `DOI Notes` 區塊，避免主看板太難讀。每次處理 DOI 後，至少更新 wiki status、PDF/full_text 有無、Next Action、Updated 與 Note。
-
-## Paper Ingest Workflow
-
-本資料庫將論文攝入分成三段：
-
-### A. Source Resolution And Evidence Import
-
-1. 從 `raw/paper_sources.md` 讀取 DOI、DOI URL、article URL、PDF URL 或來源註記；legacy `raw/doi_list.md` 仍可讀取 DOI。
-2. 查重：`raw/doi_dashboard.md`、`raw/doi_pdf/`、`raw/staging/`、`raw/full_text/`、`raw/full_text_index.*`、`raw/files/`。
-3. 驗證 citation metadata；不可捏造 title、authors、venue/year、DOI 或 URL。
-4. 可採 high-automation source-first 流程：metadata/search API、Playwright screenshot、authorized browser DOM、合法 PDF URL、使用者提供 PDF 或 institutional access 都可以作候選來源；但任何 candidate PDF/URL/screenshot 在成為 evidence 前必須先進 `pdf_checkpoint_required` human gate。不要自動化 shadow-library 或未授權 PDF 下載。
-5. DOI PDF 若能合法取得，統一存到 `raw/doi_pdf/<paper_file_key>.pdf`。PDF 是原始版面 evidence，建議保存，但若 publisher HTML/XML/DOM 已提供完整全文，PDF 缺失不應阻止 wiki ingest；應標為 PDF backfill。
-6. PDF/HTML/XML 機械抽字不得寫入 `raw/full_text/`，也不得進 full_text index。正式 Codex-first command 不新增持久 staging；若 legacy 或人工工具建立 staging，必須只寫到 `raw/staging/extracted_text/<paper_file_key>.md` 並標明未 QC。
-7. 若使用者手動下載 PDF，直接放到 `raw/doi_pdf/`。本地 command 應掃描該資料夾中的額外 PDF；若 PDF 內有 DOI 但 dashboard 沒有 row，必須建立 dashboard row，之後改名為 `<paper_file_key>.pdf`，下一步設為 Codex-first full_text QC 或 `authorized_source_or_pdf_needed`。
-8. 這一段不要建立或更新 paper page，也不要寫 synthesis。
-
-### B. Full-Text Reflow/QC
-
-1. Codex 必須優先從合法 HTML/XML/DOM 或使用者提供全文產生可閱讀 Markdown；若需要 PDF，從 `raw/doi_pdf/` 讀取並在記憶中完成 reflow/QC。既有 staging 可作參考，但正式 command 不新增持久未 QC staging。
-2. 只有完成 reflow/QC 後，才可寫入 `raw/full_text/<paper_file_key>.md`。
-3. 正式 full text frontmatter 必須標記 `extraction_status: codex_qc_done` 與 `qc_status: codex_qc_done`，並設定 `readability_status` 與 `equation_quality`。
-4. QC 失敗時，不建立 `raw/full_text/`，dashboard 保持 `full_text_needed`，下一步設為 `codex_convert_to_full_text`，並記錄 blocker。
-5. 新增或修正文獻全文後，執行 `python3 tools/build_full_text_index.py`。
-6. Codex QC 完成後，回填 `raw/doi_dashboard.md`：標 `full_text_done`，下一步設為 `ingest_full_text_to_wiki`。
-7. 這一段不要建立或更新 paper page，也不要寫 synthesis。
-
-### C. Wiki Ingest
-
-1. 只從已存在且 QC 完成的 `raw/full_text/<paper_file_key>.md` 讀取全文。
-2. 從 full text 萃取 `wiki/literature/<slug>.md`，並設定 `reading_status: full-read`。
-3. 若只有 metadata 或 abstract，也可建立 paper page，但必須設定 `reading_status: metadata-only` 或 `abstract-only`，不可假裝已讀全文。
-4. Paper page 只放該篇論文本身內容與必要來源指標；不要放 template field guide、空欄位、操作紀錄、通用 Zotero boilerplate 或沒有資訊量的維護段落。
-5. 回填 `raw/doi_dashboard.md`：paper page 完成且 full-read 時標 `wiki_done`。
-6. 若跨文獻判斷改變，更新 `wiki/synthesis/`，不是塞進單篇 paper page。
-
-`paper_file_key` 規則：`first_author_last_name_year_journal_abbrev`，全部小寫 ASCII，空白與標點改為 `_`。期刊有常見縮寫時使用縮寫；例如 `Weather and Forecasting` 可用 `waf`，`Atmospheric Chemistry and Physics` 可用 `acp`。若同名衝突，追加短 DOI slug，例如 `_waf_d_21_0044_1`。
-
-## Frontmatter
-
-正式 wiki page 必須使用 YAML frontmatter：
+Use the bridge protocol when ARS output should affect RKF:
 
 ```yaml
----
-type: paper | question | concept | topic | synthesis | overview | hot | purpose | meeting | project-synthesis | seminar
-status: draft | reviewed | needs-verification | deprecated
-source_status: peer-reviewed | preprint | dataset | software | talk | personal-note | non-academic
-reading_status: metadata-only | abstract-only | skimmed | full-read | reproduced | mixed
-review_stage: ai-extracted | human-checked | discussed | integrated | cited
-topics: []
-subtopics: []
-keywords: []
-created: YYYY-MM-DD
-updated: YYYY-MM-DD
-sources: []
----
+target_layer: paper | question | concept | claim | synthesis | topic | review
+title: short title
+source_from_ars: deep-research | academic-paper | academic-paper-reviewer | academic-pipeline
+evidence_boundary: locator, existing RKF page, or review blocker
+confidence: low | medium | high | mixed
+recommended_rkf_mode: save | review | synthesize | distill
+reason_to_save: one sentence
 ```
 
-vNext page type 可包含 `concept`、`overview`、`hot`、`purpose`。Navigation/support pages may keep support metadata, but they must not introduce unrelated content categories.
+ARS output may suggest what to save. It cannot by itself satisfy an evidence
+gate. RKF query retrieves governed context; ARS reasons over that context; RKF
+saves durable results only when they meet save/synthesis criteria.
 
-## Topics, Subtopics, Keywords
+## Reference Sources
 
-- `topics`：少量、穩定、高層研究領域。
-- `subtopics`：更精準的檢索分類，只有反覆使用才提升為 active。
-- `keywords`：自由但可控的細節詞，不一定建立 graph node。
+- Karpathy LLM Wiki gist: persistent, compounding Markdown memory for LLM work.
+- `Imbad0202/academic-research-skills`: ARS-style skill routing, mode registry,
+  checkpoints, integrity gates, and cross-skill orchestration.
+- `LigphiDonk/Oh-my--paper`: literature discovery and survey-memory inspiration.
+- Public LLM Wiki repositories such as `lucasastorian/llmwiki`: LLM-readable
+  wiki organization patterns.
 
-優先使用 `wiki/literature/topic_registry.md`。不要把每個 keyword 都升級成 subtopic。
+Use these as conceptual references. Do not vendor large upstream text or
+license-restricted content into this repository without an explicit license
+review.
 
-## Obsidian Graph Links
+## Safety
 
-每個正式頁都要包含：
+- Do not commit PDFs, article text, private Drive paths, browser captures,
+  local secrets, or private runtime state.
+- Do not use `rm -rf`, `del /s`, `rd /s`, `rmdir /s`, or
+  `Remove-Item -Recurse`.
+- For tracked cleanup, use explicit `git rm` or `git rm -r` paths only when the
+  user has approved the deletion scope.
 
-```md
-## Graph Links
-
-- Topics:
-- Subtopics:
-- Related literature:
-- Related synthesis:
-- Related seminars:
-- Related projects:
-```
-
-使用 explicit wikilinks，例如 `[[topic_aerosol]]`、`[[subtopic_wildfire_smoke_microphysics]]`、`[[synthesis/synthesis]]`。不要只依賴 YAML，因為 Obsidian graph 對明確 wikilinks 最友善。
-
-## Maintenance And Repair
-
-定期執行：
+## Validation
 
 ```bash
-python3 tools/wiki_lint.py
-python3 tools/wiki_doctor.py
-python3 tools/generate_repair_plan.py
+python3 -m py_compile tools/rk.py rkf/*.py tools/public_safety_scan.py
+python3 -m unittest discover -s tests
+python3 tools/rk.py topic lint
+python3 tools/rk.py lint
+python3 tools/public_safety_scan.py
 ```
-
-修復檢查重點：
-
-- DOI dashboard duplicate / invalid DOI / stale paths。
-- full_text index 是否與實際檔案一致。
-- paper page 是否缺 DOI、reading_status、source_status、full text evidence。
-- synthesis 是否至少引用 paper / seminar / raw source。
-- seminar 是否標明 `talk` / non-peer-reviewed context。
-- project_synthesis 是否連回 meetings 或 project sources。
-- Obsidian unresolved links、orphan pages、missing Graph Links。
-- GitHub release 前檢查本機路徑、`.DS_Store`、private raw data、workspace noise。
-- `.DS_Store` 修復只列明確路徑與安全清理建議，不自動刪除；禁止用批量清理讓 release checklist 變乾淨。
-
-Repair plan 只產生建議，不自動刪除。

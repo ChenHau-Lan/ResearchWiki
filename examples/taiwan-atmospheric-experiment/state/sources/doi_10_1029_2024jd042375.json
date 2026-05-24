@@ -1,0 +1,31 @@
+{
+  "schema": "rkf-source-record-v1",
+  "source_id": "doi_10_1029_2024jd042375",
+  "kind": "doi",
+  "value": "10.1029/2024JD042375",
+  "normalized_doi": "10.1029/2024jd042375",
+  "title": "Microphysical and Kinematical Characteristics of Merged and Isolated Convective Cells Over the Complex Terrain of the Taipei Basin",
+  "status": "wiki_done",
+  "topic_ids": [
+    "taiwan-atmospheric-field-campaigns"
+  ],
+  "gates": [
+    {
+      "gate_id": "pdf_acquisition_doi_10_1029_2024jd042375",
+      "type": "pdf_acquisition",
+      "status": "approved",
+      "path": "examples/taiwan-atmospheric-experiment/state/gates/pdf_acquisition/doi_10_1029_2024jd042375.md"
+    }
+  ],
+  "evidence_ids": [
+    "pdf_doi_10_1029_2024jd042375"
+  ],
+  "notes": [
+    {
+      "date": "2026-05-24",
+      "note": "Open PDF route checked from CSU-hosted article copy; actual PDF remains outside Git."
+    }
+  ],
+  "created": "2026-05-24",
+  "updated": "2026-05-24"
+}

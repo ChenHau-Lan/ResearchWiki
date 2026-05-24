@@ -1,0 +1,16 @@
+{
+  "schema": "rkf-evidence-artifact-v1",
+  "evidence_id": "pdf_doi_10_5194_acp_20_5911_2020",
+  "source_id": "doi_10_5194_acp_20_5911_2020",
+  "artifact_type": "pdf",
+  "status": "pdf_qc_done",
+  "qc_status": "codex_qc_done",
+  "storage_path": "PRIVATE_EVIDENCE_ROOT/doi_pdf/doi_10_5194_acp_20_5911_2020.pdf",
+  "public_safe_pointer": "private_evidence/doi_pdf/doi_10_5194_acp_20_5911_2020.pdf",
+  "locators": [
+    "ACP PDF pp. 5911-5912: abstract, motivation, Taiwan downwind setting",
+    "ACP PDF pp. 5912-5913: Cape Fuguei site and instrumentation"
+  ],
+  "created": "2026-05-24",
+  "updated": "2026-05-24"
+}

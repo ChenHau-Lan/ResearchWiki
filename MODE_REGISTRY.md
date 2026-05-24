@@ -1,37 +1,62 @@
-# ResearchWiki Mode Registry
+# RKF Mode Registry
 
-This registry maps user intent to skill/mode. Durable permissions live in
-`core/data_contract.md` and `core/agent_contract.md`.
+Modes are grouped under five active RKF skills. The ARS bridge is an implicit
+protocol, not an active skill. Users normally trigger RKF by plain language;
+tool commands are an implementation detail.
 
-| Skill | Mode | Use For | Writes |
-|---|---|---|---|
-| `source-intake` | `add-source` | Add DOI, DOI URL, article URL, PDF URL, or source note | `raw/paper_sources.md`, dashboard |
-| `source-intake` | `refresh-dashboard` | Rebuild source status and full-text dispatch indexes | dashboard/indexes |
-| `source-intake` | `qced-full-text` | Save QCed readable full text or honest abstract-only fallback | `raw/full_text/`, indexes |
-| `literature-discovery` | `topic-search` | Search from a topic/question seed and stage candidates | `maintenance/search_runs/` |
-| `literature-discovery` | `resolve-candidates` | Resolve DOI/URL candidates into source queue rows | `raw/paper_sources.md`, dashboard |
-| `literature-discovery` | `acquire-pdf` | Acquire or import approved legal PDFs | `raw/doi_pdf/` or configured Drive root |
-| `literature-discovery` | `checkpoint` | Human review of candidate PDF/source/screenshot before evidence use | `maintenance/acquisition_checkpoints/` |
-| `paper-ingest` | `ingest-qced-full-text` | Convert one QCed full text into one paper page | `wiki/literature/` |
-| `topic-governance` | `add-topic` | Add topic ID, aliases, scope, and default search | `wiki/topics/topic_registry.md`, optional topic page |
-| `topic-governance` | `lint-topics` | Validate topic IDs, duplicate aliases, and canonical links | terminal / maintenance |
-| `knowledge-workbench` | `query` | Answer from existing wiki/raw indexes only | none |
-| `knowledge-workbench` | `query-to-save` | Turn useful discussion into a source-backed Save proposal | proposal, then target layer |
-| `knowledge-workbench` | `save` | Save source-backed knowledge to the selected layer | wiki/maintenance target |
-| `knowledge-workbench` | `review-queue` | Stage uncertain or conflicting claims | `maintenance/review_queue.md` |
-| `synthesis-research` | `fanout-review` | Stage multi-page source impact | `maintenance/fanout_candidates.md` |
-| `synthesis-research` | `apply-approved-fanout` | Apply approved source impact to formal wiki pages | approved wiki targets |
-| `synthesis-research` | `thesis-review` | Test a high-risk claim with supporting/opposing evidence | `maintenance/thesis_runs/` |
-| `synthesis-research` | `external-sandbox-sync` | Generate same-computer handoff prompt | ignored prompt file |
-| `wiki-lint` | `structure-lint` | Check frontmatter, page type, graph links, indexes | terminal |
-| `wiki-lint` | `semantic-lint` | Check evidence tier, confidence, counter-evidence, stale claims | maintenance findings |
-| `wiki-lint` | `state-graph` | Export runtime state and graph | `maintenance/state.json`, `maintenance/graph.json` |
+## `rkf-evidence-vault`
 
-## Default Gates
+| Mode | English / 中文 Trigger | Output | Oversight | Write Boundary |
+|---|---|---|---|---|
+| `capture` | DOI, URL, PDF pointer, topic seed, idea, question; 來源攝取, 加入 DOI/URL/PDF | `SourceRecord` | Medium | `state/sources/` |
+| `discover` | literature discovery, search plan, candidates; 文獻搜尋, 找 SCI paper | candidate list and backlog | Medium | `state/search_runs/`, review queue |
+| `acquire` | legal evidence route, imported PDF, screenshot route; 取得PDF, 合法下載, checkpoint | acquisition checkpoint or private evidence artifact | High | `state/gates/`, configured evidence area |
+| `verify-pdf` | PDF/OCR/visual QC, identity/readability check, locator capture; PDF檢查, OCR檢查, 定位頁碼 | QCed reading artifact | High | `state/evidence/` |
 
-- `query` is read-only.
-- Metadata-only sources cannot become paper pages.
-- Candidate PDFs require human approval before `pdf_downloaded`.
-- `raw/full_text/` requires QC metadata.
-- Cross-page updates go through Save, review queue, thesis review, or approved
-  fan-out.
+## `rkf-knowledge-synthesis`
+
+| Mode | English / 中文 Trigger | Output | Oversight | Write Boundary |
+|---|---|---|---|---|
+| `distill-paper` | create paper wiki from reviewed paper artifact; 論文整理成 paper wiki, 論文筆記 | paper page | High | `knowledge/papers/` |
+| `save-question` | open question, uncertainty, search plan; 問題頁, 研究問題, 待查問題 | question page | Medium | `knowledge/question/` |
+| `save-concept` | recurring method, mechanism, dataset, variable; 概念頁, 方法, 儀器, 變數 | concept page | Medium | `knowledge/concept/` |
+| `save-claim` | source-backed claim or reviewable claim; claim, 主張, 證據句 | claim page/review item | High | `knowledge/claim/` |
+| `synthesize` | cross-source judgment, reusable recommendation; 綜整, synthesis, 研究建議 | synthesis page | High | `knowledge/synthesis/` |
+| `topic-governance` | topic ID, aliases, scope, default search; 主題治理, topic registry | topic registry/page | Medium | `governance/`, `knowledge/topics/` |
+| `topic-review` | regular topic review, merge/split suggestion, stale candidate cleanup, search refresh; 定期查看topic, topic整理, topic建議 | topic review report and update proposal | Medium | `governance/`, review queue |
+
+## `rkf-wiki-core`
+
+| Mode | English / 中文 Trigger | Output | Oversight | Write Boundary |
+|---|---|---|---|---|
+| `query` | ask what the wiki knows; 問知識庫, 從wiki回答 | governed context + optional ARS analysis | Medium | none unless saved |
+| `save` | persist durable non-paper knowledge; 回寫wiki, 保存討論結果 | selected knowledge object | Medium | `knowledge/` |
+| `graph` | export links and state; 知識圖譜, graph links | graph JSON | Low | `graph/` |
+| `external-sandbox` | create a compact wiki context capsule; 外部sandbox prompt, context capsule | context capsule | Medium | `prompts/` |
+
+## `rkf-lint`
+
+| Mode | English / 中文 Trigger | Output | Oversight | Write Boundary |
+|---|---|---|---|---|
+| `structure-lint` | frontmatter, page type, topic registry; 結構檢查 | findings | Low | terminal/report |
+| `evidence-lint` | evidence gate, metadata-only promotion, claim boundary; 證據檢查 | findings | Medium | terminal/report |
+| `graph-lint` | typed graph and wiki links; 圖譜檢查, broken links | findings | Low | terminal/report |
+| `ars-handoff-lint` | ARS output labeled as proposal; ARS回寫檢查 | findings | Medium | terminal/report |
+| `public-safety-lint` | PDFs, article text, local paths, private state; 發布安全, private path | findings | High | terminal/report |
+| `repair-plan` | repair suggestions; 修復計畫, 不自動改 | plan only | Medium | report |
+
+## `rkf-connect`
+
+| Mode | English / 中文 Trigger | Output | Oversight | Write Boundary |
+|---|---|---|---|---|
+| `shared-database-plan` | shared database, Google Drive ResearchSync, RAW/wiki layout; 建立共享資料庫, 多電腦共享, Google Drive資料庫 | machine-neutral connection plan | High | docs/proposal only |
+| `link-workspace` | link Drive RAW/wiki into RKF folder, symlink, junction, ln; 連結wiki, 連結RAW, symlink, junction | per-machine link checklist | High | local setup notes; no committed links |
+| `sandbox-grant` | external sandbox read access, context capsule, permission boundary; 外部sandbox讀取wiki, sandbox授權 | access capsule with read/save boundaries | High | `prompts/` or handoff text |
+| `sandbox-save-proposal` | sandbox found useful question/claim/synthesis; sandbox回寫, 保存有意義問題 | RKF save/review proposal | Medium | review queue or proposal text |
+
+## Bridge Protocol
+
+ARS outputs from `deep-research`, `academic-paper`, `academic-paper-reviewer`,
+or `academic-pipeline` can become RKF proposals only. For wiki questions, RKF
+retrieves governed wiki context, ARS reasons over the context, and RKF saves
+the result only through `save`, `review`, `synthesize`, or `distill` gates.

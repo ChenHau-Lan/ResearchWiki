@@ -1,6 +1,6 @@
 ---
 name: Bug report
-about: Report a Research Wiki command, core contract, or maintenance bug
+about: Report an RKF command, contract, skill, or lint bug
 title: "[bug] "
 labels: needs-triage
 ---
@@ -19,13 +19,9 @@ What failed?
 
 What should have happened?
 
-## Redacted support report
-
-Paste the redacted report from `python3 tools/support_report.py`.
-
 ## Privacy check
 
 - [ ] I did not paste private PDFs.
-- [ ] I did not paste full article text.
+- [ ] I did not paste article text.
 - [ ] I did not paste local home-directory paths.
 - [ ] I reviewed DOI/title details before submitting.

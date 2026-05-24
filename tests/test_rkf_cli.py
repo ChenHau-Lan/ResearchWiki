@@ -1,0 +1,272 @@
+#!/usr/bin/env python3
+from __future__ import annotations
+
+import os
+import subprocess
+import sys
+import tempfile
+import unittest
+from pathlib import Path
+
+from rkf.core import normalize_doi, source_id_from_value
+
+
+REPO = Path(__file__).resolve().parents[1]
+SCRIPT = REPO / "tools" / "rk.py"
+
+
+class RKFCliTests(unittest.TestCase):
+    def setUp(self) -> None:
+        self.tmp = tempfile.TemporaryDirectory()
+        self.root = Path(self.tmp.name)
+        self.env = os.environ.copy()
+        self.env["RKF_ROOT"] = str(self.root)
+
+    def tearDown(self) -> None:
+        self.tmp.cleanup()
+
+    def run_rk(self, *args: str, check: bool = True) -> subprocess.CompletedProcess[str]:
+        result = subprocess.run(
+            [sys.executable, str(SCRIPT), *args],
+            cwd=REPO,
+            env=self.env,
+            text=True,
+            capture_output=True,
+            check=False,
+        )
+        if check and result.returncode != 0:
+            self.fail(f"rk.py failed: {result.args}\nSTDOUT:\n{result.stdout}\nSTDERR:\n{result.stderr}")
+        return result
+
+    def test_doi_normalization_and_source_id(self) -> None:
+        self.assertEqual(normalize_doi("https://doi.org/10.1234/ABC.Def."), "10.1234/abc.def")
+        self.assertEqual(source_id_from_value("doi", "doi:10.1234/ABC.Def"), "doi_10_1234_abc_def")
+
+    def test_acquisition_requires_checkpoint_before_private_pdf(self) -> None:
+        doi = "https://doi.org/10.1234/ABC.Def"
+        source_id = "doi_10_1234_abc_def"
+        sample_pdf = self.root / "sample.pdf"
+        sample_pdf.write_bytes(b"%PDF-1.4\n% tiny fixture\n")
+
+        self.run_rk("capture", "doi", doi)
+        self.run_rk("acquire", source_id, "--pdf", str(sample_pdf))
+
+        self.assertTrue((self.root / "state" / "gates" / "pdf_acquisition" / f"{source_id}.md").exists())
+        self.assertFalse((self.root / ".rkf_private" / "evidence" / "doi_pdf" / f"{source_id}.pdf").exists())
+
+        self.run_rk("acquire", source_id, "--pdf", str(sample_pdf), "--approve")
+        self.assertTrue((self.root / ".rkf_private" / "evidence" / "doi_pdf" / f"{source_id}.pdf").exists())
+
+    def test_private_evidence_root_uses_workspace_config(self) -> None:
+        private_root = self.root / "DriveRoot" / "evidence"
+        (self.root / "rkf.workspace.toml").write_text(
+            f'[storage]\nprivate_evidence_root = "{private_root.as_posix()}"\n',
+            encoding="utf-8",
+        )
+        source_id = "doi_10_5555_config_test"
+        pdf = self.root / "paper.pdf"
+        pdf.write_bytes(b"%PDF-1.4\n")
+
+        self.run_rk("capture", "doi", "10.5555/config.test")
+        self.run_rk("acquire", source_id, "--pdf", str(pdf), "--approve")
+
+        self.assertTrue((private_root / "doi_pdf" / f"{source_id}.pdf").exists())
+
+    def test_metadata_only_source_cannot_be_distilled(self) -> None:
+        self.run_rk("capture", "doi", "10.1111/metadata.only")
+        result = self.run_rk("distill", "paper", "doi_10_1111_metadata_only", check=False)
+        self.assertNotEqual(result.returncode, 0)
+        self.assertIn("no QCed PDF evidence", result.stderr + result.stdout)
+
+    def test_unqced_pdf_cannot_be_distilled(self) -> None:
+        source_id = "doi_10_2222_needs_qc"
+        pdf = self.root / "paper.pdf"
+        pdf.write_bytes(b"%PDF-1.4\n")
+
+        self.run_rk("capture", "doi", "10.2222/needs.qc")
+        self.run_rk("acquire", source_id, "--pdf", str(pdf), "--approve")
+        result = self.run_rk("distill", "paper", source_id, check=False)
+
+        self.assertNotEqual(result.returncode, 0)
+        self.assertIn("no QCed PDF evidence", result.stderr + result.stdout)
+
+    def test_qced_pdf_can_be_distilled_and_graphed(self) -> None:
+        source_id = "doi_10_3333_pdf_read"
+        pdf = self.root / "paper.pdf"
+        pdf.write_bytes(b"%PDF-1.4\n")
+
+        self.run_rk("capture", "doi", "10.3333/pdf.read", "--topic-id", "aerosol-cloud", "--title", "Checked PDF Paper")
+        self.run_rk("acquire", source_id, "--pdf", str(pdf), "--approve")
+        self.run_rk("verify-pdf", source_id, "--locator", "pp. 1-4 methods and results")
+        self.run_rk("distill", "paper", source_id)
+        self.run_rk("graph")
+
+        page = self.root / "knowledge" / "papers" / f"{source_id}.md"
+        self.assertTrue(page.exists())
+        text = page.read_text(encoding="utf-8")
+        self.assertIn("evidence_boundary: pdf-evidence", text)
+        self.assertIn("pp. 1-4 methods and results", text)
+        graph = (self.root / "graph" / "research_graph.json").read_text(encoding="utf-8")
+        self.assertIn("supported-by", graph)
+
+    def test_topic_lint_and_external_sandbox_capsule(self) -> None:
+        self.run_rk(
+            "topic",
+            "add",
+            "aerosol-cloud",
+            "Aerosol Cloud",
+            "--scope",
+            "Aerosol cloud interaction literature",
+            "--search",
+            "aerosol cloud interaction",
+        )
+        self.assertIn("topic lint passed", self.run_rk("topic", "lint").stdout)
+        self.run_rk("prompt", "external-sandbox")
+        capsule = (self.root / "prompts" / "external_sandbox_context.md").read_text(encoding="utf-8")
+        self.assertIn("metadata, search candidates, and ARS reports are not evidence", capsule)
+
+    def test_active_repo_has_no_legacy_router_or_full_text_workflow(self) -> None:
+        tracked = subprocess.check_output(["git", "ls-files"], cwd=REPO, text=True)
+        legacy_router = "ResearchWiki" + "Codex.command"
+        legacy_cli = "tools/" + "rw.py"
+        legacy_index = "raw/" + "full_text_index.md"
+        legacy_builder = "tools/" + "build_" + "full_text_index.py"
+        self.assertNotIn(legacy_router, tracked)
+        self.assertNotIn(legacy_cli, tracked)
+        self.assertNotIn(legacy_index, tracked)
+        self.assertNotIn(legacy_builder, tracked)
+
+        active_docs = "\n".join(
+            (REPO / path).read_text(encoding="utf-8", errors="replace")
+            for path in ["AGENTS.md", "MODE_REGISTRY.md", "README.md", "README.zh-TW.md"]
+        )
+        self.assertNotIn("vNext", active_docs)
+        self.assertNotIn("recently added", active_docs.lower())
+        self.assertNotIn("ResearchWiki" + "Codex", active_docs)
+        self.assertNotIn("raw/" + "full_text", active_docs)
+
+    def test_active_skills_are_five_and_bridge_is_not_active_skill(self) -> None:
+        skill_files = sorted(path.relative_to(REPO).as_posix() for path in (REPO / "skills").glob("*/SKILL.md"))
+        self.assertEqual(
+            skill_files,
+            [
+                "skills/rkf-connect/SKILL.md",
+                "skills/rkf-evidence-vault/SKILL.md",
+                "skills/rkf-knowledge-synthesis/SKILL.md",
+                "skills/rkf-lint/SKILL.md",
+                "skills/rkf-wiki-core/SKILL.md",
+            ],
+        )
+        self.assertFalse((REPO / "skills" / "rkf-ars-bridge" / "SKILL.md").exists())
+
+    def test_skills_and_manuals_are_not_cli_first(self) -> None:
+        docs = list((REPO / "skills").glob("rkf-*/SKILL.md"))
+        docs.extend((REPO / "docs" / "manuals").glob("rkf_manual.*.md"))
+        text = "\n".join(path.read_text(encoding="utf-8", errors="replace") for path in docs)
+        self.assertNotIn("## CLI", text)
+        self.assertNotIn("python3 tools/rk.py", text)
+        self.assertIn("Trigger Phrases", text)
+        self.assertIn("Skill Triggers", text)
+
+    def test_core_docs_use_knowledge_framework_positioning(self) -> None:
+        core_paths = [
+            "README.md",
+            "README.zh-TW.md",
+            "AGENTS.md",
+            "docs/ARCHITECTURE.md",
+            "docs/manuals/rkf_manual.en.md",
+            "docs/manuals/rkf_manual.zh-TW.md",
+        ]
+        core_text = "\n".join((REPO / path).read_text(encoding="utf-8", errors="replace") for path in core_paths)
+        old_pdf_primary = "PDF" + "-to-Wiki"
+        old_pdf_heading = "PDF" + "-To-Wiki"
+        self.assertNotIn(old_pdf_primary, core_text)
+        self.assertNotIn(old_pdf_heading, core_text)
+        self.assertIn("LLM Wiki-based research knowledge framework", core_text)
+        self.assertIn("PDF is not the source", core_text)
+        self.assertIn("RKF retrieves governed wiki context", core_text)
+        self.assertIn("ARS reasons", core_text)
+        self.assertIn("rkf-connect", core_text)
+        self.assertIn("topic-review", core_text)
+        self.assertIn("Version Management", (REPO / "README.md").read_text(encoding="utf-8"))
+        self.assertIn("版本管理", (REPO / "README.zh-TW.md").read_text(encoding="utf-8"))
+        self.assertIn("v1.0.0", (REPO / "README.md").read_text(encoding="utf-8"))
+        self.assertIn("v1.0.0", (REPO / "README.zh-TW.md").read_text(encoding="utf-8"))
+
+        manual_text = (REPO / "docs" / "manuals" / "rkf_manual.en.md").read_text(encoding="utf-8")
+        manual_zh = (REPO / "docs" / "manuals" / "rkf_manual.zh-TW.md").read_text(encoding="utf-8")
+        self.assertIn("Start From A Codex Workspace", manual_text)
+        self.assertIn("academic-research-skills", manual_text)
+        self.assertIn("missing artifact checkpoint", manual_text)
+        self.assertIn("OCR confidence", manual_text)
+        self.assertIn("Wiki Page Types And Template Functions", manual_text)
+        self.assertIn("Experimental: Shared Database Across Computers", manual_text)
+        self.assertIn("從 0 建立一個 Codex 研究知識庫", manual_zh)
+        self.assertIn("缺 PDF", manual_zh)
+        self.assertIn("維護為什麼重要", manual_zh)
+        self.assertIn("Wiki Page 類型與範本功能", manual_zh)
+        self.assertIn("建立共享資料庫在不同電腦", manual_zh)
+        self.assertNotIn("manual " + "interprets", manual_text)
+        self.assertNotIn("本手冊" + "把", manual_zh)
+
+    def test_all_knowledge_page_types_have_templates(self) -> None:
+        expected = {
+            "claim.md",
+            "concept.md",
+            "meeting.md",
+            "overview.md",
+            "paper.md",
+            "project-synthesis.md",
+            "question.md",
+            "seminar.md",
+            "synthesis.md",
+            "topic.md",
+        }
+        template_names = {path.name for path in (REPO / "templates" / "rkf").glob("*.md")}
+        self.assertEqual(template_names, expected)
+        for path in (REPO / "templates" / "rkf").glob("*.md"):
+            text = path.read_text(encoding="utf-8")
+            self.assertIn("evidence_boundary:", text)
+
+    def test_taiwan_example_contains_research_memory_walkthrough(self) -> None:
+        example = REPO / "examples" / "taiwan-atmospheric-experiment"
+        candidates = (example / "literature_candidates.md").read_text(encoding="utf-8")
+        self.assertIn("10.2151/jmsj1965.70.1_25", candidates)
+        self.assertIn("10.3390/rs12183004", candidates)
+        self.assertIn("10.1029/2024JD042375", candidates)
+        self.assertIn("10.1175/MWR-D-24-0049.1", candidates)
+        self.assertIn("10.5194/acp-26-2083-2026", candidates)
+        self.assertIn("TAHOPE/PRECIP", candidates)
+        self.assertIn("SoWMEX/TiMREX", candidates)
+
+        paper_pages = sorted((example / "knowledge" / "papers").glob("*.md"))
+        self.assertGreaterEqual(len(paper_pages), 6)
+        for page in paper_pages:
+            text = page.read_text(encoding="utf-8")
+            self.assertIn("evidence_boundary: pdf-evidence", text)
+            self.assertIn("PDF Locators", text)
+
+        walkthrough = (example / "skill_mode_walkthrough.md").read_text(encoding="utf-8")
+        self.assertIn("academic-research-skills", walkthrough)
+        self.assertIn("deep-research:lit-review", walkthrough)
+        self.assertIn("rkf-evidence-vault", walkthrough)
+        self.assertIn("durable memory", walkthrough)
+        self.assertIn("LLM Wiki fills that gap", walkthrough)
+        self.assertIn("RKF context plus ARS reasoning", walkthrough)
+        self.assertIn("rkf-connect", walkthrough)
+        self.assertIn("topic-review", walkthrough)
+
+        overview = (example / "knowledge" / "overviews" / "tahope-project-overview.md").read_text(encoding="utf-8")
+        self.assertIn("official TAHOPE introduction PDF", overview)
+
+        synthesis = (example / "knowledge" / "synthesis" / "future-taiwan-meteorological-observation-experiment.md").read_text(
+            encoding="utf-8"
+        )
+        self.assertIn("terrain-rainfall", synthesis)
+        self.assertIn("SoWMEX/TiMREX", synthesis)
+        self.assertIn("TAHOPE/PRECIP", synthesis)
+        self.assertIn("aerosol-cloud", synthesis)
+
+
+if __name__ == "__main__":
+    unittest.main()

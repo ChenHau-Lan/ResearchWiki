@@ -1,0 +1,31 @@
+{
+  "schema": "rkf-source-record-v1",
+  "source_id": "doi_10_3390_rs12183004",
+  "kind": "doi",
+  "value": "10.3390/rs12183004",
+  "normalized_doi": "10.3390/rs12183004",
+  "title": "Evaluating the Performance of a Convection-Permitting Model by Using Dual-Polarimetric Radar Parameters: Case Study of SoWMEX IOP8",
+  "status": "wiki_done",
+  "topic_ids": [
+    "taiwan-atmospheric-field-campaigns"
+  ],
+  "gates": [
+    {
+      "gate_id": "pdf_acquisition_doi_10_3390_rs12183004",
+      "type": "pdf_acquisition",
+      "status": "approved",
+      "path": "examples/taiwan-atmospheric-experiment/state/gates/pdf_acquisition/doi_10_3390_rs12183004.md"
+    }
+  ],
+  "evidence_ids": [
+    "pdf_doi_10_3390_rs12183004"
+  ],
+  "notes": [
+    {
+      "date": "2026-05-24",
+      "note": "MDPI article page is open access; automated CLI PDF download was blocked by publisher edge controls, so this example records a manual browser PDF checkpoint."
+    }
+  ],
+  "created": "2026-05-24",
+  "updated": "2026-05-24"
+}

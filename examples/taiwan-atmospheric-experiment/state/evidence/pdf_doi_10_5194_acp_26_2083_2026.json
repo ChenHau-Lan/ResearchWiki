@@ -1,0 +1,16 @@
+{
+  "schema": "rkf-evidence-artifact-v1",
+  "evidence_id": "pdf_doi_10_5194_acp_26_2083_2026",
+  "source_id": "doi_10_5194_acp_26_2083_2026",
+  "artifact_type": "pdf",
+  "status": "pdf_qc_done",
+  "qc_status": "codex_qc_done",
+  "storage_path": "PRIVATE_EVIDENCE_ROOT/doi_pdf/doi_10_5194_acp_26_2083_2026.pdf",
+  "public_safe_pointer": "private_evidence/doi_pdf/doi_10_5194_acp_26_2083_2026.pdf",
+  "locators": [
+    "ACP PDF pp. 2083-2084: title, abstract, Lulin 2024 observing context",
+    "ACP PDF pp. 2097-2099: synthesis of Twomey vs semi-direct regimes and data availability"
+  ],
+  "created": "2026-05-24",
+  "updated": "2026-05-24"
+}

@@ -1,268 +1,130 @@
-# ResearchWiki [![Workflow](https://img.shields.io/badge/workflow-skill--first-green)](docs/ARCHITECTURE.md)
+# Research Knowledge Framework
 
-[English](README.md) | [使用指南](USER_GUIDE.zh-TW.md) | [Architecture](docs/ARCHITECTURE.md) | [Mode Registry](MODE_REGISTRY.md)
+[English](README.md) | [Architecture](docs/ARCHITECTURE.md) | [Mode Registry](MODE_REGISTRY.md) | [手冊](docs/manuals/rkf_manual.zh-TW.md)
 
-Research Wiki 是一個 GitHub-ready、skill-first 的 LLM Wiki 研究資料庫模板。它把 DOI/URL/PDF 來源變成可回查證據，把證據變成整理後 wiki，再把 wiki 變成有來源支撐的 synthesis。
+Research Knowledge Framework，簡稱 RKF，是一個以 LLM Wiki 為核心的研究知識框架。
+它把研究討論、文獻、topic、question、claim、synthesis 變成可治理、可查詢、
+可累積的長期記憶。
+
+目前基準版本：`v1.0.0`。
+
+PDF 是 paper 閱讀時最常見、最強的 evidence carrier，但不是唯一源頭。RKF 會把
+private evidence 和 public-safe Markdown knowledge pages 分開，並判斷哪些結果
+值得進入 wiki。
+
+RKF 可以和 [Academic Research Skills](https://github.com/Imbad0202/academic-research-skills) 搭配：
+ARS 負責研究、推理、寫作與審查；RKF 負責長期記憶、evidence boundary、topic
+governance 與 graph-safe wiki state。
 
 ```text
-raw/ 保存證據
-wiki/ 保存理解
-maintenance/ 保存治理
-pipeline skills 決定什麼 mode 可以寫到哪裡
+candidate != evidence
+ARS output 本身 != evidence
+paper page -> 需要 reviewed source artifact，通常是 QCed PDF
+query answer != wiki page，除非保存成 question / claim / synthesis
+LLM discussion -> save/review proposal
 ```
-
-> **Codex 是你的研究資料庫副駕駛，不是證據本身。** Research Wiki 讓
-> Codex 協助閱讀、重排、摘要、稽核與 synthesis，但每個值得保存的 claim
-> 都必須能回到可檢查的檔案或 wiki page。
 
 ## 快速開始
 
-在這個 repo 打開 Codex；如果還沒有 repo，也可以請 Codex 幫你 clone。然後貼上：
+日常使用時用自然語言要求 RKF：
 
-```text
-請幫我安裝並啟動 Research Wiki。我不熟 GitHub。
-如果我還沒有 repository，請協助 clone git@github.com:ChenHau-Lan/ResearchWiki.git；如果已在 repo 中，請直接使用目前目錄。
-請先讀 README.zh-TW.md、USER_GUIDE.zh-TW.md、INSTALL.zh-TW.md、AGENTS.md。
-請檢查 Git、Python 3、ripgrep/rg、Poppler/pdftotext、Codex CLI 是否可用。
-如果缺工具，請先說明用途；需要 Homebrew、系統安裝或權限時先問我再執行。
-安裝或確認後，請替我執行 repository install check。
-成功後請告訴我怎麼用 source-intake/add-source 開始，並帶我看 Skill-first 圖文快速開始。
-```
+- 「建立台灣大氣觀測實驗 topic，找相關 SCI paper。」
+- 「列出哪些候選文獻還缺 PDF 或全文，讓我先取得資料。」
+- 「這份 PDF 是合法取得的，請檢查並整理成 paper wiki page。」
+- 「問知識庫目前有哪些 evidence-backed recommendations，並用 ARS 分析取回的脈絡。」
+- 「如果這個回答值得長期保存，請轉成 synthesis proposal。」
+- 「定期整理這個 topic registry，建議 merge、split、過期候選與新的 search strings。」
+- 「做一次 topic drift、evidence boundary、graph link、public safety 維護檢查。」
+- 「把這個 RKF wiki 連到另一台電腦或外部 sandbox 的共享研究資料夾。」
 
-可選的點擊式 router：
+## Skills At A Glance
 
-- macOS：`ResearchWikiCodex.command`
-- Windows：`ResearchWikiCodex.cmd`
+| Skill | 目的 |
+|---|---|
+| `rkf-evidence-vault` | Capture sources、discovery、合法 evidence route、paper-reading artifact QC |
+| `rkf-knowledge-synthesis` | 從 reviewed evidence 建立 paper page，維護 question/concept/claim/topic/synthesis |
+| `rkf-wiki-core` | 取回 LLM Wiki context、銜接 ARS reasoning、保存 durable memory、graph、sandbox capsule |
+| `rkf-lint` | 維護 structure、evidence boundary、graph、ARS handoff、public safety、repair plan |
+| `rkf-connect` | 實驗性的多電腦共享資料庫、Drive 連結與外部 sandbox 存取管理 |
 
-你也可以不開 router，直接在 Codex 指定 skill/mode：
+`rkf-ars-bridge` 是 protocol，不是 active skill。它把 ARS output 轉成 RKF
+save/review/synthesis proposal。
 
-```text
-Use source-intake/add-source for this DOI URL: https://doi.org/10.xxxx/example
-```
+## 實作範例
 
-本機 deterministic commands 使用 CLI：
+[`examples/taiwan-atmospheric-experiment`](examples/taiwan-atmospheric-experiment/)
+示範「我想整理在台灣的大氣實驗」：建立 topic、搜尋 SCI paper、缺 PDF
+checkpoint、evidence QC、paper wiki pages，以及針對「未來台灣要做氣象觀測實驗的
+建議」建立 synthesis。
 
-```bash
-python3 tools/rw.py source add https://doi.org/10.xxxx/example
-python3 tools/rw.py source search "wildfire aerosol cloud interaction" --topic-id wildfire-cloud
-python3 tools/rw.py topic lint
-python3 tools/rw.py wiki lint
-```
-
-## 為什麼需要 Research Wiki
-
-研究材料很容易散掉：PDF 在資料夾、DOI 在聊天訊息、LLM 摘要在舊 session、筆記又慢慢失去來源脈絡。Research Wiki 讓 evidence chain 保持可見，讓你之後仍能回答：
-
-- 這篇 paper 是 full-read、abstract-only，還是只確認 metadata？
-- 哪個 source 支撐這個 claim？
-- 這個 synthesis 是根據 peer-reviewed literature、seminar context，還是假說？
-- 另一位研究者 clone repo 後能不能理解 workflow？
-
-目標不是全自動化。目標是 **可稽核的人機協作研究**：local tools 處理機械檢查，Codex 處理需要閱讀理解的工作，而 wiki 保存真正有來源支撐的內容。
-
-## Architecture & Pipeline
-
-ResearchWiki 使用七個 pipeline skills。`ResearchWikiCodex.command` 只保留為薄 skill/mode router；`tools/rw.py` 負責 deterministic local maintenance。
+## Knowledge Flow
 
 ```mermaid
 flowchart LR
-    A["literature-discovery<br/>topic / DOI / URL search"] --> B["source-intake<br/>source queue + dashboard"]
-    B --> C["acquisition checkpoint<br/>human approval"]
-    C --> D["paper-ingest<br/>QCed full text -> paper page"]
-    D --> E["knowledge-workbench<br/>Query / Save / review queue"]
-    E --> F["synthesis-research<br/>fan-out / thesis / synthesis"]
-    G["topic-governance<br/>scope + search rules"] --> A
-    F --> H["wiki-lint<br/>structure / semantic / graph"]
+    A["研究想法 / DOI / URL / PDF / 討論"] --> B["Topic governance"]
+    B --> C["SourceRecord 與候選 backlog"]
+    C --> D["Evidence route checkpoint"]
+    D --> E["Reviewed evidence artifact"]
+    E --> F["Wiki page: paper / question / concept / claim"]
+    F --> G["RKF query 取回 context"]
+    G --> H["ARS 針對 context 推理"]
+    H --> I["RKF 視需要保存 synthesis"]
+    B --> J["Topic review: merge / split / 更新 search strings"]
+    J --> B
 ```
 
-完整設計在 [Architecture](docs/ARCHITECTURE.md)，skill/mode 矩陣在 [Mode Registry](MODE_REGISTRY.md)。
+RKF 不把 durable full article text 當作 public knowledge layer。工具可以暫時讀取
+PDF text、OCR output 或 browser text 來協助分析，但保存下來的知識必須保留
+locator、review status 與 evidence boundary。
 
-## 功能特色
-
-- **LLM Wiki memory**：把值得保留的討論結果存成 Markdown，而不是讓它留在舊 chat。
-- **高自動化 discovery**：topic、DOI、URL workflow 可建立 search candidates 與合法 source routes。
-- **人工 evidence gates**：candidate PDFs 必須停在 `pdf_checkpoint_required`，核准後才可當 evidence。
-- **Topic governance**：topic ID、aliases、scope、include/exclude rules 與 default searches 防止搜尋漂移。
-- **Question / concept / synthesis pages**：把 uncertainty、概念與跨文獻判斷分開管理。
-- **Git + Google Drive 分層**：Git 存 public-safe wiki/code；Drive 存 PDFs、attachments、大型 raw evidence。
-- **External sandbox prompts**：產生 context capsule，讓其他 sandbox 可以協助並把值得保留的結果提回 Save。
-
-## Individual Skills
-
-### `literature-discovery`
-
-從 topic、question、DOI 或 URL 搜尋候選文獻、建立合法 source routes 與 acquisition checkpoints。它不建立 paper page。
-
-常用 modes：
-
-- `topic-search`
-- `resolve-candidates`
-- `acquire-pdf`
-- `checkpoint`
-
-### Ingest Boundary
-
-`source-intake` 與 `paper-ingest` 把 DOI/URL/PDF 來源整理成可查證的 paper page。來源先進 queue，合法或使用者可用的全文經 QC 後才進 `raw/full_text/`，再由 `paper-ingest` 建立 `wiki/literature/`。
-
-### `source-intake`
-
-加入 DOI/URL/PDF source pointers、刷新 DOI dashboard、掃描本機 PDFs、偵測 duplicate-looking files，並從合法或使用者提供的 evidence 建立 QC 後全文。
-
-常用 modes：
-
-- `add-source`
-- `refresh-dashboard`
-- `qced-full-text`
-
-範例：
-
-```text
-Use source-intake/refresh-dashboard and tell me which papers already have PDF evidence, which still need legal full text, and whether duplicate-looking PDFs were found.
-```
-
-### `paper-ingest`
-
-把一個 QC 後 `raw/full_text/<paper_file_key>.md` 變成一個精簡的 `wiki/literature/<slug>.md` paper page。它不取得來源，也不寫跨文獻 synthesis。
-
-常用 mode：
-
-- `ingest-qced-full-text`
-
-範例：
-
-```text
-Use paper-ingest/ingest-qced-full-text for raw/full_text/example_2026_journal.md. Reject the ingest if readability_status, table_quality, or equation_quality makes it unsafe.
-```
-
-### `topic-governance`
-
-管理 `wiki/topics/topic_registry.md`、topic pages、aliases、default search strings 與 review cadence。
-
-常用 modes：
-
-- `add-topic`
-- `update-topic`
-- `lint-topics`
-- `topic-review`
-
-### `knowledge-workbench`
-
-在不混淆 read/write 邊界的前提下使用 wiki。Query 只讀不寫；Save 是 deliberate write，必須先選 target layer。
-
-常用 modes：
-
-- `query`
-- `query-to-save`
-- `save`
-- `review-queue`
-
-範例：
-
-```text
-Use knowledge-workbench/query. What do we know about wildfire smoke effects on warm rain? Label evidence tier and do not write files.
-```
-
-### `synthesis-research`
-
-安全擴展跨文獻理解。一個 source 若會影響多個頁面，應先變成 fan-out candidate 或 review item，再進正式 wiki update。
-
-常用 modes：
-
-- `fanout-review`
-- `apply-approved-fanout`
-- `thesis-review`
-- `synthesis-page-start`
-- `external-sandbox-sync`
-
-範例：
-
-```text
-Use synthesis-research/fanout-review for wiki/literature/example_2026.md. Stage possible concept, synthesis, overview, hot-question, and supersession impacts.
-```
-
-### `wiki-lint`
-
-維持 LLM Wiki 的健康狀態。用於結構檢查、語義檢查、repair plan 與 runtime graph/state export。
-
-常用 modes：
-
-- `structure-lint`
-- `semantic-lint`
-- `repair-plan`
-- `state-graph`
-
-範例：
-
-```text
-Use wiki-lint/semantic-lint to find stale claims, missing counter-evidence, and source leads.
-```
-
-## 如何啟動不同 Modes
-
-兩種方式等價：
-
-1. 直接問 Codex：`Use knowledge-workbench/query ...`
-2. 打開可選 router，先選 skill，再選 mode。
-
-推薦第一篇 paper 路徑：
-
-```text
-topic-governance/add-topic
-literature-discovery/topic-search
-source-intake/add-source
-source-intake/refresh-dashboard
-literature-discovery/checkpoint
-source-intake/qced-full-text
-paper-ingest/ingest-qced-full-text
-knowledge-workbench/query
-knowledge-workbench/query-to-save
-synthesis-research/fanout-review
-wiki-lint/semantic-lint
-```
-
-完整圖文操作請看 [Skill-first 圖文快速開始](docs/manuals/research_wiki_skill_first_quickstart.zh-TW.md)；mode reference 請看 [USER_GUIDE.zh-TW.md](USER_GUIDE.zh-TW.md)。
-
-## Storage Model
-
-跨 Mac/Windows 共用時，使用 Google Drive for desktop 作 evidence root，Git 作 public wiki/code root：
+## 驗證
 
 ```bash
-cp researchwiki.config.example.toml researchwiki.config.toml
+python3 -m py_compile tools/rk.py rkf/*.py tools/public_safety_scan.py
+python3 -m unittest discover -s tests
+python3 tools/rk.py topic lint
+python3 tools/rk.py lint
+python3 tools/public_safety_scan.py
 ```
 
-真實 PDF 建議放在 `Google Drive/My Drive/ResearchSync/literature/doi_pdf`。不要把 Drive 的 `Computers/My Mac/My PC` 備份區當共同工作區。若舊軟體需要舊路徑，在每台電腦本機建立 symlink/junction；Drive 裡放真實檔案，Git 不放 private evidence。
+## 實驗項目：建立共享資料庫在不同電腦
 
-## 目前版本重點
+這個流程是實驗性功能，放在 RKF 的邊緣層，不放在最基本的入門流程。當你想讓多台
+電腦或外部 sandbox 共用同一份研究資料庫時，使用 `rkf-connect`。
 
-- 七個 pipeline skills 覆蓋 literature discovery、source intake、paper ingest、topic governance、knowledge workbench、synthesis research 與 wiki lint。
-- `knowledge-workbench` 用 mode 分開 read-only answer 與 deliberate save。
-- `wiki-lint` 檢查結構、evidence tier、過期 claim、缺失連結與修復線索。
-- `tools/rw.py` 負責 deterministic acquisition/QC gates。
+目前建議的方法是使用 Google Drive for desktop 作為共享資料夾。真正共享的資料放在
+同一個 Drive 位置，例如：
 
-完整版本紀錄見 [VERSION_LOG.zh-TW.md](VERSION_LOG.zh-TW.md)。
+```text
+<Drive ResearchSync>/
+  RAW/
+  wiki/
+```
 
-## 產出與範例
+每台電腦再用該作業系統適合的本機連結方式，把 Drive 裡的 `RAW` 和 `wiki` 連到本機
+RKF 專案資料夾：macOS/Linux 可用 `ln` 或 symlink，Windows 可用 junction/symlink。
+Drive 裡放真實 RAW 與 wiki 檔案；本機 RKF 資料夾只負責連接它們。不要把每台電腦
+自己的 link 或 private Drive path commit 成 public source of truth。
 
-- [Skill-first 圖文快速開始](docs/manuals/research_wiki_skill_first_quickstart.zh-TW.md)
-- [使用指南](USER_GUIDE.zh-TW.md)
-- [Architecture](docs/ARCHITECTURE.md)
-- [LLM Wiki content brief](docs/references/llm_wiki_video_content_brief.md)
+外部 sandbox 預設只給讀取權限。當 sandbox 產生值得保存的問題、claim 或 synthesis，
+應該回傳 RKF save/review proposal，附上 evidence boundary，再由 RKF 決定是否寫入
+穩定 wiki。
 
-## 安全承諾
+## 版本管理
 
-- 不自動化未授權全文取得。
-- 不繞過 paywall、CAPTCHA、robots 或 credential barriers。
-- 不把完整 article 複製進 `wiki/`。
-- 沒有真的讀完 full text，不可標 `full-read`。
-- 不使用 recursive、wildcard 或批量刪除命令。
-- Repair plans 只診斷與建議，不刪除檔案。
+目前 release target：`v1.0.0`。
 
-## 更多文件
+版本規則：
 
-- [使用指南](USER_GUIDE.zh-TW.md)
-- [Skill-first 圖文快速開始](docs/manuals/research_wiki_skill_first_quickstart.zh-TW.md)
-- [Pipeline Architecture](docs/guides/research_wiki_pipeline_architecture.zh-TW.md)
-- [版本紀錄](VERSION_LOG.zh-TW.md)
-- [安裝指南](INSTALL.zh-TW.md)
-- [支援回報](SUPPORT.zh-TW.md)
-- [Agent 規則](AGENTS.md)
+- `v1.x`：允許相容性的 docs、skill prompt、template、lint、example 與實驗性
+  `rkf-connect` 指引更新。
+- `v2.0`：保留給 breaking schema changes、核心 skill 重新命名、或新的 storage
+  contract。
+- 實驗功能在有穩定測試與 migration guidance 前，都要明確標示 experimental。
+
+Release notes：
+
+- `v1.0.0`：第一個 public RKF baseline。定義 LLM Wiki-based research memory
+  model、五個 active RKF skills、topic review、evidence gates、ARS bridge
+  protocol、shared-database experiment、雙語手冊、wiki page templates，以及台灣大氣
+  experiment example。

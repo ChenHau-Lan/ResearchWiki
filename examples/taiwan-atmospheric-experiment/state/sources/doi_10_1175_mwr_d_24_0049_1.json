@@ -1,0 +1,29 @@
+{
+  "schema": "rkf-source-record-v1",
+  "source_id": "doi_10_1175_mwr_d_24_0049_1",
+  "kind": "doi",
+  "value": "10.1175/MWR-D-24-0049.1",
+  "normalized_doi": "10.1175/mwr-d-24-0049.1",
+  "title": "Investigating the Mechanisms of an Intense Coastal Rainfall Event during TAHOPE/PRECIP-IOP3 Using a Multiscale Radar Ensemble Data Assimilation System",
+  "status": "pdf_checkpoint_required",
+  "topic_ids": [
+    "taiwan-atmospheric-field-campaigns"
+  ],
+  "gates": [
+    {
+      "gate_id": "pdf_acquisition_doi_10_1175_mwr_d_24_0049_1",
+      "type": "pdf_acquisition",
+      "status": "pending",
+      "path": "examples/taiwan-atmospheric-experiment/state/gates/pdf_acquisition/doi_10_1175_mwr_d_24_0049_1.md"
+    }
+  ],
+  "evidence_ids": [],
+  "notes": [
+    {
+      "date": "2026-05-24",
+      "note": "High-value TAHOPE/PRECIP IOP3 candidate; keep out of paper wiki until a legal PDF is acquired and QCed."
+    }
+  ],
+  "created": "2026-05-24",
+  "updated": "2026-05-24"
+}

@@ -1,0 +1,17 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://example.org/rkf/gate_decision.schema.json",
+  "title": "GateDecision",
+  "type": "object",
+  "required": ["gate_id", "type", "status", "source_id"],
+  "properties": {
+    "gate_id": { "type": "string" },
+    "type": { "enum": ["metadata", "pdf_acquisition", "pdf_qc", "claim_support", "synthesis_merge"] },
+    "status": { "enum": ["pending", "approved", "rejected", "blocked"] },
+    "source_id": { "type": "string" },
+    "reviewer": { "type": "string" },
+    "decision_note": { "type": "string" },
+    "created": { "type": "string" },
+    "updated": { "type": "string" }
+  }
+}

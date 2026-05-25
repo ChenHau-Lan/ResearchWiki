@@ -97,14 +97,25 @@ python3 tools/public_safety_scan.py
 
 ```text
 <Drive ResearchSync>/
-  RAW/
+  raw/
   wiki/
+    index.md
+    log.md
+    knowledge/
+    state/
+    governance/
+    graph/
 ```
 
-每台電腦再用該作業系統適合的本機連結方式，把 Drive 裡的 `RAW` 和 `wiki` 連到本機
+每台電腦再用該作業系統適合的本機連結方式，把 Drive 裡的 `raw` 和 `wiki` 連到本機
 RKF 專案資料夾：macOS/Linux 可用 `ln` 或 symlink，Windows 可用 junction/symlink。
-Drive 裡放真實 RAW 與 wiki 檔案；本機 RKF 資料夾只負責連接它們。不要把每台電腦
+Drive 裡放真實 raw 與 wiki 檔案；本機 RKF 資料夾只負責連接它們。不要把每台電腦
 自己的 link 或 private Drive path commit 成 public source of truth。
+
+當 `storage.wiki_root` 有設定時，RKF 會把該資料夾視為實際 wiki database。
+`knowledge`、`state`、`governance`、`graph` 都會解析到 shared wiki 底下。
+`index.md` 是給 LLM 快速取回脈絡的壓縮入口，`log.md` 是跨會話延續用的 append-only
+操作軌跡。
 
 外部 sandbox 預設只給讀取權限。若只需要查詢或提出想法，使用
 `python3 tools/rk.py prompt external-sandbox` 產生 context capsule，並把
@@ -131,9 +142,4 @@ wiki。
   contract。
 - 實驗功能在有穩定測試與 migration guidance 前，都要明確標示 experimental。
 
-Release notes：
-
-- `v1.0.0`：第一個 public RKF baseline。定義 LLM Wiki-based research memory
-  model、五個 active RKF skills、topic review、evidence gates、ARS bridge
-  protocol、shared-database experiment、雙語手冊、wiki page templates，以及台灣大氣
-  experiment example。
+詳細版本歷史見 [CHANGELOG.md](CHANGELOG.md)。

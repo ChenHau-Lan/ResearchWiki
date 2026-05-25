@@ -53,6 +53,11 @@ KNOWLEDGE_TYPES = {
 }
 
 PDF_QC_DONE = {"codex_qc_done", "human_qc_done"}
+PAPER_READING_STATUSES = {"full-read", "first-pass-pdf-qc", "ocr-qc", "visual-qc"}
+LOCAL_PATH_PATTERNS = [
+    re.compile("/" + r"Users/(?!\[\^)[^/\s]+"),
+    re.compile(r"C:\\Users\\", re.IGNORECASE),
+]
 
 
 def today() -> str:
@@ -164,6 +169,71 @@ def frontmatter(meta: dict[str, Any]) -> str:
     return "\n".join(lines) + "\n\n"
 
 
+def first_heading(body: str, fallback: str) -> str:
+    for line in body.splitlines():
+        stripped = line.strip()
+        if stripped.startswith("# "):
+            return stripped[2:].strip() or fallback
+    return fallback
+
+
+def first_summary_line(body: str) -> str:
+    for line in body.splitlines():
+        stripped = line.strip()
+        if not stripped or stripped.startswith("#") or stripped.startswith("---"):
+            continue
+        if stripped.startswith("!") or stripped.startswith("|"):
+            continue
+        return stripped[:180]
+    return ""
+
+
+def infer_evidence_tier(meta: dict[str, Any], body: str = "") -> str:
+    explicit = str(meta.get("evidence_tier", "")).strip()
+    if explicit:
+        return explicit
+    page_type = str(meta.get("type", ""))
+    boundary = str(meta.get("evidence_boundary", "")).lower()
+    reading = str(meta.get("reading_status", "")).lower()
+    text = body.lower()
+    if "review-blocker" in boundary:
+        return "review-blocker"
+    if page_type == "paper":
+        if reading == "full-read" and meta.get("evidence_ids"):
+            return "locator-backed"
+        if reading in {"first-pass-pdf-qc", "ocr-qc", "visual-qc"} and meta.get("evidence_ids"):
+            return "pdf-qc-stub"
+        if "metadata" in text or "abstract" in text:
+            return "metadata-only"
+        return "candidate"
+    if "metadata" in boundary or "abstract" in boundary:
+        return "mixed"
+    if "pdf-evidence" in boundary or meta.get("evidence_ids"):
+        return "locator-backed"
+    if "candidate" in boundary:
+        return "candidate"
+    return "review-blocker"
+
+
+def relative_workspace_path(ws: "Workspace", path: Path) -> str:
+    for base in (ws.paths.wiki_root, ws.root):
+        try:
+            return path.relative_to(base).as_posix()
+        except ValueError:
+            continue
+    return str(path)
+
+
+def append_log(ws: "Workspace", action: str, message: str) -> None:
+    ws.paths.log.parent.mkdir(parents=True, exist_ok=True)
+    timestamp = datetime.now().isoformat(timespec="seconds")
+    line = f"- {timestamp} `{action}` {message.rstrip()}\n"
+    if not ws.paths.log.exists():
+        ws.paths.log.write_text("# Wiki Log\n\n", encoding="utf-8")
+    with ws.paths.log.open("a", encoding="utf-8") as handle:
+        handle.write(line)
+
+
 def load_toml(path: Path) -> dict[str, Any]:
     if not path.exists():
         return {}
@@ -188,6 +258,9 @@ def load_toml(path: Path) -> dict[str, Any]:
 @dataclass(frozen=True)
 class WorkspacePaths:
     root: Path
+    wiki_root: Path
+    index: Path
+    log: Path
     state: Path
     sources: Path
     evidence_index: Path
@@ -216,25 +289,33 @@ class Workspace:
         return {}
 
     def _config_path(self, section: str, key: str, fallback: Path) -> Path:
+        configured = self._configured_path(section, key)
+        return configured or fallback
+
+    def _configured_path(self, section: str, key: str) -> Path | None:
         section_value = self.config.get(section, {}) if isinstance(self.config, dict) else {}
         value = section_value.get(key) if isinstance(section_value, dict) else None
         if isinstance(value, str) and value.strip():
             return Path(os.path.expandvars(os.path.expanduser(value))).resolve()
-        return fallback
+        return None
 
     def _paths(self) -> WorkspacePaths:
-        state = self.root / "state"
+        wiki_root = self._configured_path("storage", "wiki_root") or self.root
+        state = wiki_root / "state"
         private_evidence = self._config_path("storage", "private_evidence_root", self.root / ".rkf_private" / "evidence")
         return WorkspacePaths(
             root=self.root,
+            wiki_root=wiki_root,
+            index=wiki_root / "index.md",
+            log=wiki_root / "log.md",
             state=state,
             sources=state / "sources",
             evidence_index=state / "evidence",
             gates=state / "gates",
             search_runs=state / "search_runs",
-            knowledge=self.root / "knowledge",
-            governance=self.root / "governance",
-            graph=self.root / "graph",
+            knowledge=wiki_root / "knowledge",
+            governance=wiki_root / "governance",
+            graph=wiki_root / "graph",
             prompts=self.root / "prompts",
             private_evidence=private_evidence,
         )
@@ -321,6 +402,7 @@ def create_source(ws: Workspace, *, kind: str, value: str, title: str = "", topi
     if note:
         record["notes"].append({"date": today(), "note": note})
     ws.save_source(record)
+    append_log(ws, "capture", f"{record['source_id']} kind={kind} status={record['status']}")
     return record
 
 
@@ -354,10 +436,11 @@ def write_acquisition_checkpoint(ws: Workspace, record: dict[str, Any], *, route
             "gate_id": gate_id,
             "type": "pdf_acquisition",
             "status": "pending",
-            "path": path.relative_to(ws.root).as_posix() if path.is_relative_to(ws.root) else str(path),
+            "path": relative_workspace_path(ws, path),
         }
     )
     set_source_status(ws, record, "pdf_checkpoint_required")
+    append_log(ws, "acquire-checkpoint", f"{record['source_id']} route={route}")
     return path
 
 
@@ -376,7 +459,7 @@ def approved_pdf_acquisition(ws: Workspace, record: dict[str, Any], pdf_path: Pa
         "artifact_type": "pdf",
         "status": "pdf_downloaded",
         "qc_status": "pending",
-        "storage_path": str(dest),
+        "storage_path": f"private_evidence/doi_pdf/{record['source_id']}.pdf",
         "public_safe_pointer": f"private_evidence/doi_pdf/{record['source_id']}.pdf",
         "locators": [],
         "created": today(),
@@ -386,6 +469,7 @@ def approved_pdf_acquisition(ws: Workspace, record: dict[str, Any], pdf_path: Pa
     if evidence_id not in record.setdefault("evidence_ids", []):
         record["evidence_ids"].append(evidence_id)
     set_source_status(ws, record, "pdf_downloaded")
+    append_log(ws, "acquire", f"{record['source_id']} stored {evidence_id}")
     return artifact
 
 
@@ -415,6 +499,7 @@ def verify_pdf(ws: Workspace, record: dict[str, Any], *, locator: str = "", note
         artifact.setdefault("qc_notes", []).append({"date": today(), "note": note})
     ws.save_evidence(artifact)
     set_source_status(ws, record, "pdf_qc_done")
+    append_log(ws, "verify-pdf", f"{record['source_id']} qc_status={qc_status}")
     return artifact
 
 
@@ -440,6 +525,7 @@ def create_paper_note(ws: Workspace, record: dict[str, Any], *, slug: str = "") 
         "reading_status": "full-read",
         "review_stage": "ai-extracted",
         "evidence_boundary": "pdf-evidence",
+        "evidence_tier": "locator-backed" if artifact.get("locators") else "pdf-qc-stub",
         "evidence_ids": [artifact["evidence_id"]],
         "topics": record.get("topic_ids", []),
         "created": today(),
@@ -472,6 +558,7 @@ def create_paper_note(ws: Workspace, record: dict[str, Any], *, slug: str = "") 
     )
     write_text(dest, frontmatter(meta) + body)
     set_source_status(ws, record, "wiki_done")
+    append_log(ws, "distill-paper", f"{record['source_id']} -> {relative_workspace_path(ws, dest)}")
     return dest
 
 
@@ -527,7 +614,57 @@ def add_topic(
         + "\n".join(f"- {item}" for item in exclude)
         + "\n",
     )
+    append_log(ws, "topic-add", f"{topic_id} {name}")
     return topic
+
+
+def generate_wiki_index(ws: Workspace) -> Path:
+    ws.ensure_base()
+    lines = [
+        "# Wiki Index",
+        "",
+        f"Generated: {today()}",
+        "",
+        "This index is the compact entrypoint for LLM retrieval. It lists public-safe knowledge objects, review state, topics, and evidence tier.",
+        "",
+        "## Knowledge Pages",
+        "",
+    ]
+    page_count = 0
+    if ws.paths.knowledge.exists():
+        for path in sorted(ws.paths.knowledge.rglob("*.md")):
+            meta, body = parse_frontmatter(read_text(path))
+            title = first_heading(body, path.stem.replace("_", " ").replace("-", " ").title())
+            rel = relative_workspace_path(ws, path)
+            topics = ", ".join(str(item) for item in meta.get("topics", [])) if meta else ""
+            page_type = meta.get("type", "unknown") if meta else "unknown"
+            status = meta.get("status", "unknown") if meta else "unknown"
+            review_stage = meta.get("review_stage", "unknown") if meta else "unknown"
+            boundary = meta.get("evidence_boundary", "") if meta else ""
+            tier = infer_evidence_tier(meta, body) if meta else "review-blocker"
+            summary = first_summary_line(body)
+            suffix = f" - {summary}" if summary else ""
+            lines.append(
+                f"- [{title}]({rel}): type={page_type}; status={status}; review={review_stage}; "
+                f"evidence={boundary or 'unspecified'}; tier={tier}; topics={topics or 'none'}{suffix}"
+            )
+            page_count += 1
+    if page_count == 0:
+        lines.append("- No knowledge pages found.")
+    lines.extend(["", "## Topic Registry", ""])
+    topics = ws.load_topics()
+    if topics:
+        for topic in topics:
+            aliases = ", ".join(topic.get("aliases", []))
+            lines.append(
+                f"- {topic.get('topic_id', '')}: {topic.get('name', '')}; "
+                f"cadence={topic.get('review_cadence', '')}; aliases={aliases or 'none'}"
+            )
+    else:
+        lines.append("- No governed topics found.")
+    write_text(ws.paths.index, "\n".join(lines).rstrip() + "\n")
+    append_log(ws, "index", f"generated {relative_workspace_path(ws, ws.paths.index)} with {page_count} knowledge pages")
+    return ws.paths.index
 
 
 def lint_topics(ws: Workspace) -> list[str]:
@@ -561,7 +698,7 @@ def lint_knowledge_pages(ws: Workspace) -> list[str]:
     for path in ws.paths.knowledge.rglob("*.md"):
         text = read_text(path)
         meta, _ = parse_frontmatter(text)
-        rel = path.relative_to(ws.root).as_posix()
+        rel = relative_workspace_path(ws, path)
         if not meta:
             errors.append(f"{rel}: missing YAML frontmatter")
             continue
@@ -572,12 +709,38 @@ def lint_knowledge_pages(ws: Workspace) -> list[str]:
             if key not in meta:
                 errors.append(f"{rel}: missing {key}")
         if page_type == "paper":
-            if meta.get("reading_status") != "full-read":
-                errors.append(f"{rel}: paper page must be full-read after PDF QC")
+            reading_status = str(meta.get("reading_status", ""))
+            if reading_status not in PAPER_READING_STATUSES:
+                errors.append(f"{rel}: invalid paper reading_status {reading_status!r}")
+            if reading_status != "full-read" and meta.get("status") not in {"draft", "review"}:
+                errors.append(f"{rel}: non-full-read paper pages must stay draft or review")
             if meta.get("evidence_boundary") != "pdf-evidence":
                 errors.append(f"{rel}: paper page must use pdf-evidence boundary")
             if not meta.get("evidence_ids"):
                 errors.append(f"{rel}: paper page missing PDF evidence id")
+    return errors
+
+
+def lint_public_safety(ws: Workspace) -> list[str]:
+    errors: list[str] = []
+    scan_roots = [ws.paths.knowledge, ws.paths.governance, ws.paths.graph]
+    for root in scan_roots:
+        if not root.exists():
+            continue
+        for path in sorted(item for item in root.rglob("*") if item.is_file()):
+            rel = relative_workspace_path(ws, path)
+            if path.suffix.lower() == ".pdf":
+                errors.append(f"{rel}: PDF file is in public wiki layer")
+                continue
+            try:
+                text = path.read_text(encoding="utf-8", errors="replace")
+            except OSError:
+                continue
+            for pattern in LOCAL_PATH_PATTERNS:
+                for match in pattern.findall(text):
+                    errors.append(f"{rel}: local/private path pattern: {match}")
+            if rel.startswith("knowledge/papers/") and len(text) > 120000:
+                errors.append(f"{rel}: unusually large paper page may contain copied article text")
     return errors
 
 

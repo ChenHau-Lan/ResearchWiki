@@ -72,6 +72,57 @@ class RKFCliTests(unittest.TestCase):
 
         self.assertTrue((private_root / "doi_pdf" / f"{source_id}.pdf").exists())
 
+    def test_configured_wiki_root_is_the_cli_database(self) -> None:
+        wiki_root = self.root / "DriveRoot" / "wiki"
+        (self.root / "rkf.workspace.toml").write_text(
+            f'[storage]\nwiki_root = "{wiki_root.as_posix()}"\n',
+            encoding="utf-8",
+        )
+
+        self.run_rk("synthesize", "Aerosol Note", "--body", "aerosol cloud evidence boundary")
+        page = wiki_root / "knowledge" / "synthesis" / "aerosol_note.md"
+        self.assertTrue(page.exists())
+        self.assertFalse((self.root / "knowledge" / "synthesis" / "aerosol_note.md").exists())
+
+        query = self.run_rk("query", "aerosol").stdout
+        self.assertIn("matches: 1", query)
+        self.assertIn("knowledge/synthesis/aerosol_note.md", query)
+
+        self.run_rk("index")
+        index = (wiki_root / "index.md").read_text(encoding="utf-8")
+        self.assertIn("Aerosol Note", index)
+        self.assertIn("tier=review-blocker", index)
+
+        log = self.run_rk("log", "--tail", "10").stdout
+        self.assertIn("`save`", log)
+        self.assertIn("`index`", log)
+
+    def test_public_safety_lint_scans_public_wiki_layers(self) -> None:
+        wiki_root = self.root / "DriveRoot" / "wiki"
+        (self.root / "rkf.workspace.toml").write_text(
+            f'[storage]\nwiki_root = "{wiki_root.as_posix()}"\n',
+            encoding="utf-8",
+        )
+        page = wiki_root / "knowledge" / "concepts" / "private_path.md"
+        page.parent.mkdir(parents=True)
+        page.write_text(
+            "---\n"
+            "type: concept\n"
+            "status: draft\n"
+            "review_stage: ai-extracted\n"
+            "topics: []\n"
+            "created: 2026-05-25\n"
+            "updated: 2026-05-25\n"
+            "---\n\n"
+            "# Private Path\n\n"
+            "This page should not expose " + "/" + "Users/example/private.pdf.\n",
+            encoding="utf-8",
+        )
+
+        result = self.run_rk("lint", "--mode", "public-safety-lint", check=False)
+        self.assertNotEqual(result.returncode, 0)
+        self.assertIn("local/private path pattern", result.stdout)
+
     def test_metadata_only_source_cannot_be_distilled(self) -> None:
         self.run_rk("capture", "doi", "10.1111/metadata.only")
         result = self.run_rk("distill", "paper", "doi_10_1111_metadata_only", check=False)

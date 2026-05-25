@@ -102,15 +102,27 @@ the real shared data under one Drive location, for example:
 
 ```text
 <Drive ResearchSync>/
-  RAW/
+  raw/
   wiki/
+    index.md
+    log.md
+    knowledge/
+    state/
+    governance/
+    graph/
 ```
 
 Then each computer links those Drive folders into its local RKF project folder
 with that operating system's local link mechanism: `ln` or symlink on macOS and
-Linux, junction/symlink on Windows. The Drive folder stores the real RAW and
+Linux, junction/symlink on Windows. The Drive folder stores the real raw and
 wiki files; the local RKF folder only connects to them. Do not commit
 machine-specific links or private Drive paths as the public source of truth.
+
+When `storage.wiki_root` is configured, RKF treats that folder as the active
+wiki database. Runtime paths for `knowledge`, `state`, `governance`, and
+`graph` resolve under that shared folder. `index.md` is the compact LLM
+retrieval entrypoint, and `log.md` is the append-only operation trail used for
+cross-session continuity.
 
 External sandbox access should be read-only by default. For read-only use, run
 `python3 tools/rk.py prompt external-sandbox` to generate the local context
@@ -141,9 +153,4 @@ Version rules:
 - Experimental features stay labeled experimental until they have stable tests
   and migration guidance.
 
-Release notes:
-
-- `v1.0.0`: first public RKF baseline. Defines the LLM Wiki-based research
-  memory model, five active RKF skills, topic review, evidence gates, ARS bridge
-  protocol, shared-database experiment, bilingual manuals, page templates, and
-  the Taiwan atmospheric experiment example.
+See [CHANGELOG.md](CHANGELOG.md) for detailed version history.

@@ -266,6 +266,8 @@ Suggested rhythm:
 - Stable topic: monthly checks for stale synthesis, unresolved candidates, and
   duplicate concepts.
 - Before sharing or publishing: public-safety lint is mandatory.
+- After durable wiki writes: refresh `index.md` and keep `log.md` as the
+  operation trail for the next LLM session.
 
 ## Experimental: Shared Database Across Computers
 
@@ -277,17 +279,27 @@ Current method:
 
 ```text
 <Drive ResearchSync>/
-  RAW/
+  raw/
   wiki/
+    index.md
+    log.md
+    knowledge/
+    state/
+    governance/
+    graph/
 ```
 
-- Google Drive for desktop is the shared folder; `RAW` and `wiki` hold the real
+- Google Drive for desktop is the shared folder; `raw` and `wiki` hold the real
   data.
 - Each computer creates local links from its RKF project folder to the Drive
-  `RAW` and `wiki` folders.
+  `raw` and `wiki` folders.
 - macOS/Linux can use `ln` or symlink; Windows can use junction or symlink.
 - Do not commit cross-platform links, private Drive paths, or licensed evidence
   into the public repo.
+- When `storage.wiki_root` is configured, RKF treats that folder as the active
+  database for `knowledge`, `state`, `governance`, and `graph`.
+- `index.md` gives LLM sessions a compact retrieval entrypoint; `log.md` keeps
+  the append-only operation history.
 - External sandboxes are read-only by default. Generate the `external-sandbox`
   context capsule, then use `prompts/external_sandbox_bootstrap.en.md` or
   `prompts/external_sandbox_bootstrap.zh-TW.md` to start the other sandbox.
@@ -316,7 +328,7 @@ tokens, or local secrets into RKF.
 
 Useful `rkf-connect` requests:
 
-- "Plan a Google Drive shared database so my Mac and Windows machines use the same RAW/wiki."
+- "Plan a Google Drive shared database so my Mac and Windows machines use the same raw/wiki."
 - "Check this machine's RKF links and make sure private paths are not in the repo."
 - "Generate sandbox instructions for reading the wiki and proposing saves."
 - "Start RKF mode in another sandbox so it can search papers and add wiki pages through gates."

@@ -10,14 +10,20 @@ from pathlib import Path
 from .core import (
     Workspace,
     add_topic,
+    append_log,
     approved_pdf_acquisition,
     create_paper_note,
     create_source,
     external_sandbox_capsule,
     export_graph,
+    generate_wiki_index,
+    infer_evidence_tier,
     lint_knowledge_pages,
+    lint_public_safety,
     lint_topics,
+    parse_frontmatter,
     read_json,
+    relative_workspace_path,
     slugify,
     today,
     verify_pdf,
@@ -72,7 +78,7 @@ def cmd_discover(args: argparse.Namespace) -> int:
         "created": today(),
     }
     write_json(run_dir / "candidates.json", payload)
-    print(f"wrote discovery run: {run_dir.relative_to(ws.root)}")
+    print(f"wrote discovery run: {relative_workspace_path(ws, run_dir)}")
     print("candidates: 0")
     return 0
 
@@ -91,7 +97,7 @@ def cmd_acquire(args: argparse.Namespace) -> int:
     route = args.pdf or args.url or "candidate route not supplied"
     if not args.approve:
         path = write_acquisition_checkpoint(ws, record, route=route, screenshot=args.screenshot or "")
-        print(f"checkpoint required: {path.relative_to(ws.root)}")
+        print(f"checkpoint required: {relative_workspace_path(ws, path)}")
         print("status: pdf_checkpoint_required")
         return 0
     if not args.pdf:
@@ -130,7 +136,7 @@ def cmd_distill(args: argparse.Namespace) -> int:
         raise SystemExit("RKF currently implements `rk distill paper`")
     record = ws.load_source(args.source_id)
     path = create_paper_note(ws, record, slug=args.slug or "")
-    print(f"wrote knowledge page: {path.relative_to(ws.root)}")
+    print(f"wrote knowledge page: {relative_workspace_path(ws, path)}")
     return 0
 
 
@@ -173,15 +179,19 @@ def cmd_topic_lint(args: argparse.Namespace) -> int:
 def cmd_query(args: argparse.Namespace) -> int:
     ws = Workspace()
     needle = args.text.lower()
-    matches: list[str] = []
+    matches: list[tuple[str, str, str, str]] = []
     if ws.paths.knowledge.exists():
         for path in ws.paths.knowledge.rglob("*.md"):
             text = path.read_text(encoding="utf-8", errors="replace").lower()
             if needle in text:
-                matches.append(path.relative_to(ws.root).as_posix())
+                meta, body = parse_frontmatter(path.read_text(encoding="utf-8", errors="replace"))
+                page_type = str(meta.get("type", "unknown")) if meta else "unknown"
+                topics = ",".join(str(item) for item in meta.get("topics", [])) if meta else ""
+                tier = infer_evidence_tier(meta, body) if meta else "review-blocker"
+                matches.append((relative_workspace_path(ws, path), page_type, topics, tier))
     print(f"matches: {len(matches)}")
-    for match in matches:
-        print(f"- {match}")
+    for match, page_type, topics, tier in matches:
+        print(f"- {match}\ttype={page_type}\ttier={tier}\ttopics={topics or 'none'}")
     return 0
 
 
@@ -202,6 +212,8 @@ def cmd_save(args: argparse.Namespace) -> int:
         "status: draft\n"
         "review_stage: ai-extracted\n"
         "topics: []\n"
+        "evidence_boundary: review-blocker\n"
+        "evidence_tier: review-blocker\n"
         f"created: {today()}\n"
         f"updated: {today()}\n"
         "sources: []\n"
@@ -210,7 +222,8 @@ def cmd_save(args: argparse.Namespace) -> int:
     )
     path.parent.mkdir(parents=True, exist_ok=True)
     path.write_text(text, encoding="utf-8")
-    print(f"saved knowledge object: {path.relative_to(ws.root)}")
+    append_log(ws, "save", f"{args.object_type} {relative_workspace_path(ws, path)}")
+    print(f"saved knowledge object: {relative_workspace_path(ws, path)}")
     return 0
 
 
@@ -224,7 +237,7 @@ def cmd_review(args: argparse.Namespace) -> int:
     count = 0
     if ws.paths.gates.exists():
         for path in sorted(ws.paths.gates.rglob("*.md")):
-            print(f"- {path.relative_to(ws.root)}")
+            print(f"- {relative_workspace_path(ws, path)}")
             count += 1
     print(f"review items: {count}")
     return 0
@@ -239,6 +252,8 @@ def cmd_lint(args: argparse.Namespace) -> int:
         errors.extend(lint_knowledge_pages(ws))
     if args.mode in {"all", "structure-lint"}:
         errors.extend(lint_topics(ws))
+    if args.mode == "public-safety-lint":
+        errors.extend(lint_public_safety(ws))
     if errors:
         print(f"rkf {args.mode} failed:")
         for error in errors:
@@ -256,7 +271,29 @@ def cmd_graph(args: argparse.Namespace) -> int:
     graph = export_graph(ws)
     print(f"graph nodes: {len(graph['nodes'])}")
     print(f"graph edges: {len(graph['edges'])}")
-    print(f"wrote: {(ws.paths.graph / 'research_graph.json').relative_to(ws.root)}")
+    print(f"wrote: {relative_workspace_path(ws, ws.paths.graph / 'research_graph.json')}")
+    return 0
+
+
+def cmd_index(args: argparse.Namespace) -> int:
+    ws = Workspace()
+    path = generate_wiki_index(ws)
+    print(f"wrote: {relative_workspace_path(ws, path)}")
+    return 0
+
+
+def cmd_log(args: argparse.Namespace) -> int:
+    ws = Workspace()
+    if args.note:
+        append_log(ws, args.action or "note", args.note)
+    if not ws.paths.log.exists():
+        print("wiki log not found")
+        return 0
+    lines = ws.paths.log.read_text(encoding="utf-8", errors="replace").splitlines()
+    if args.tail:
+        lines = lines[-args.tail :]
+    for line in lines:
+        print(line)
     return 0
 
 
@@ -266,7 +303,7 @@ def cmd_export(args: argparse.Namespace) -> int:
     if args.export_type == "external-sandbox":
         ws = Workspace()
         path = external_sandbox_capsule(ws)
-        print(f"wrote: {path.relative_to(ws.root)}")
+        print(f"wrote: {relative_workspace_path(ws, path)}")
         return 0
     raise SystemExit(f"unknown export type: {args.export_type}")
 
@@ -274,7 +311,7 @@ def cmd_export(args: argparse.Namespace) -> int:
 def cmd_prompt_external_sandbox(args: argparse.Namespace) -> int:
     ws = Workspace()
     path = external_sandbox_capsule(ws)
-    print(f"wrote: {path.relative_to(ws.root)}")
+    print(f"wrote: {relative_workspace_path(ws, path)}")
     return 0
 
 
@@ -363,6 +400,15 @@ def build_parser() -> argparse.ArgumentParser:
 
     graph = sub.add_parser("graph", help="Export the research graph")
     graph.set_defaults(func=cmd_graph)
+
+    index = sub.add_parser("index", help="Generate the compact LLM wiki index")
+    index.set_defaults(func=cmd_index)
+
+    log = sub.add_parser("log", help="Read or append the wiki operation log")
+    log.add_argument("--tail", type=int, default=20)
+    log.add_argument("--action")
+    log.add_argument("--note")
+    log.set_defaults(func=cmd_log)
 
     export = sub.add_parser("export", help="Export graph or external sandbox capsule")
     export.add_argument("export_type", choices=["graph", "external-sandbox"])

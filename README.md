@@ -38,7 +38,7 @@ Use RKF through natural-language research requests:
 - "Show which registered papers need my PDF or human feedback."
 - "I read this paper; record my feedback and raise its trust level."
 - "Ask the wiki what we know, and use ARS to reason over the retrieved context."
-- "After adding this reading update, show which pages may need propagation review."
+- "Show the L0-L3 world context before this research session."
 - "Review this topic registry and suggest merges, splits, stale candidates, and better search strings."
 - "Run maintenance checks for reading maturity, evidence boundaries, graph links, and public safety."
 - "Record this paper-search question in hot.md so topic review sees repeated demand."
@@ -65,7 +65,7 @@ flowchart LR
     C --> D["Reading maturity<br/>metadata / abstract / partial / fulltext / human-reviewed"]
     D --> E["Reading ledger<br/>questions, feedback, blockers"]
     E --> F["Claims and synthesis<br/>only when maturity is sufficient"]
-    F --> G["Propagation review<br/>affected-page proposal"]
+    F --> G["World context<br/>L0-L3 capsule"]
     H["RKF query"] --> I["Hot-query event"]
     H --> J["Governed wiki context"]
     J --> K["ARS reasoning"]
@@ -100,6 +100,18 @@ RKF can produce an active paper queue. It surfaces registered papers that need a
 paper draft, a user-provided PDF, human feedback, locators, or synthesis review.
 This makes the wiki more proactive without allowing unsupported claims to become
 stable knowledge.
+
+## World Context
+
+`python3 tools/rk.py world` emits an L0-L3 context capsule for future agents:
+L0 identity, critical facts, and active blockers; L1 active papers, paper queue,
+hot queries, and recent reading feedback; L2 topic, synthesis, claim-readiness,
+and contradiction hints; L3 graph/detail links and validation state.
+
+`CRITICAL_FACTS.md` stores short public-safe facts with `observed_at`,
+`valid_from`, `confidence`, and `source_or_blocker` so future agents can recover
+the durable baseline without turning private notes or article text into wiki
+state.
 
 ## Hot Research Questions
 

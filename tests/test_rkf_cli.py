@@ -293,10 +293,20 @@ class RKFCliTests(unittest.TestCase):
         self.assertIn("proposal-only", proposals[0].read_text(encoding="utf-8"))
 
     def test_status_and_world_print_workspace_bootstrap(self) -> None:
+        (self.root / "CRITICAL_FACTS.md").write_text(
+            "- fact_id=rkf-purpose | observed_at=2026-05-31 | valid_from=2026-05-31 | confidence=high | source_or_blocker=README.md | RKF preserves active academic reading maturity.\n",
+            encoding="utf-8",
+        )
         self.run_rk("save", "question", "Aerosol Question", "--body", "What matters next?")
         status = self.run_rk("status").stdout
         world = self.run_rk("world", "--log-tail", "1").stdout
         self.assertIn("RKF Workspace Status", status)
+        self.assertIn("L0 Identity And Critical Facts", world)
+        self.assertIn("L1 Active Reading And Demand", world)
+        self.assertIn("L2 Topics, Synthesis, And Claim Readiness", world)
+        self.assertIn("L3 Graph, Files, And Validation", world)
+        self.assertIn("fact_id=rkf-purpose", world)
+        self.assertIn("CRITICAL_FACTS.md", world)
         self.assertIn("Knowledge pages: 1", status)
         self.assertIn("Recent Log", world)
 
@@ -575,6 +585,46 @@ class RKFCliTests(unittest.TestCase):
         for path in (REPO / "templates" / "rkf").glob("*.md"):
             text = path.read_text(encoding="utf-8")
             self.assertIn("evidence_boundary:", text)
+        for name in ("paper.md", "synthesis.md", "topic.md"):
+            text = (REPO / "templates" / "rkf" / name).read_text(encoding="utf-8")
+            self.assertIn("Future Agent Retrieval Brief", text)
+
+    def test_command_inventory_lists_current_parser_commands(self) -> None:
+        inventory = (REPO / "docs" / "FEATURES_AND_COMMANDS.zh-TW.md").read_text(encoding="utf-8")
+        required = [
+            "capture <kind> <value>",
+            "discover <query>",
+            "acquire <source>",
+            "verify-pdf <source_id>",
+            "read <source_id>",
+            "distill paper <source_id>",
+            "paper status [source_id]",
+            "paper feedback <source_id>",
+            "paper queue",
+            "paper next",
+            "paper nudge",
+            "topic add <topic_id> <name>",
+            "topic list",
+            "topic lint",
+            "query <text>",
+            "save <object_type> <title>",
+            "synthesize <title>",
+            "review",
+            "lint",
+            "propagate <target>",
+            "graph",
+            "status",
+            "world",
+            "index",
+            "log",
+            "hot record <query>",
+            "hot refresh",
+            "export graph",
+            "export external-sandbox",
+            "prompt external-sandbox",
+        ]
+        for command in required:
+            self.assertIn(f"`{command}`", inventory)
 
     def test_taiwan_example_contains_research_memory_walkthrough(self) -> None:
         example = REPO / "examples" / "taiwan-atmospheric-experiment"

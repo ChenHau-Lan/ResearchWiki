@@ -591,7 +591,7 @@ def build_parser() -> argparse.ArgumentParser:
     lint.add_argument("--mode", choices=sorted(LINT_MODES), default="all")
     lint.set_defaults(func=cmd_lint)
 
-    propagate = sub.add_parser("propagate", help="Generate proposal-first affected-page review")
+    propagate = sub.add_parser("propagate", help="Generate affected-page propagation preview/audit review")
     propagate.add_argument("target", help="Source ID or knowledge page path to review for propagation")
     propagate.add_argument("--write", action="store_true", help="Write a propagation gate under state/gates")
     propagate.set_defaults(func=cmd_propagate)
@@ -599,11 +599,11 @@ def build_parser() -> argparse.ArgumentParser:
     graph = sub.add_parser("graph", help="Export the research graph")
     graph.set_defaults(func=cmd_graph)
 
-    status = sub.add_parser("status", help="Print a compact RKF workspace status for session bootstrap")
+    status = sub.add_parser("status", help="Print RKF L0-L3 workspace context for session bootstrap")
     status.add_argument("--log-tail", type=int, default=5)
     status.set_defaults(func=cmd_status)
 
-    world = sub.add_parser("world", help="Alias for status")
+    world = sub.add_parser("world", help="Alias for the RKF L0-L3 workspace context capsule")
     world.add_argument("--log-tail", type=int, default=5)
     world.set_defaults(func=cmd_status)
 

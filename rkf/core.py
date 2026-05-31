@@ -332,6 +332,7 @@ def load_toml(path: Path) -> dict[str, Any]:
 class WorkspacePaths:
     root: Path
     wiki_root: Path
+    critical_facts: Path
     index: Path
     log: Path
     hot_md: Path
@@ -381,6 +382,7 @@ class Workspace:
         return WorkspacePaths(
             root=self.root,
             wiki_root=wiki_root,
+            critical_facts=wiki_root / "CRITICAL_FACTS.md",
             index=wiki_root / "index.md",
             log=wiki_root / "log.md",
             hot_md=wiki_root / "hot.md",
@@ -1136,6 +1138,100 @@ def _format_counter(counter: Counter[str], *, empty: str) -> list[str]:
     return [f"- {name}: {count}" for name, count in counter.most_common()]
 
 
+def _critical_fact_lines(ws: Workspace, *, limit: int = 8) -> list[str]:
+    if not ws.paths.critical_facts.exists():
+        return ["- No CRITICAL_FACTS.md found."]
+    facts: list[str] = []
+    for line in read_text(ws.paths.critical_facts).splitlines():
+        stripped = line.strip()
+        if not stripped or stripped.startswith("#") or stripped.startswith("<!--"):
+            continue
+        if stripped.startswith("- "):
+            facts.append(stripped)
+        if len(facts) >= limit:
+            break
+    return facts or ["- CRITICAL_FACTS.md has no active fact lines."]
+
+
+def _hot_query_lines(ws: Workspace, *, limit: int = 6) -> list[str]:
+    events = recent_hot_events(ws) if ws.paths.hot_md.exists() else []
+    if not events:
+        return ["- No hot-query events in the active window."]
+    lines: list[str] = []
+    for event in events[-limit:]:
+        query = str(event.get("query") or event.get("normalized_query") or "").strip()
+        if not query:
+            continue
+        topics = ", ".join(str(item) for item in event.get("topic_ids", []) if str(item).strip()) or "untriaged"
+        intent = str(event.get("intent", "query"))
+        lines.append(f"- {query} | intent={intent} | topics={topics}")
+    return lines or ["- No hot-query events in the active window."]
+
+
+def _recent_reading_event_lines(ws: Workspace, *, limit: int = 6) -> list[str]:
+    if not ws.paths.reading.exists():
+        return ["- No reading ledger events found."]
+    events: list[tuple[str, str]] = []
+    for path in sorted(ws.paths.reading.glob("*.json")):
+        if path.parent.name == "fulltext_routes":
+            continue
+        try:
+            ledger = read_json(path)
+        except (OSError, json.JSONDecodeError):
+            continue
+        source_id = str(ledger.get("source_id") or path.stem)
+        for event in ledger.get("events", []):
+            if not isinstance(event, dict):
+                continue
+            created = str(event.get("created") or event.get("observed_at") or "")
+            event_type = str(event.get("type") or "reading-update")
+            summary = str(event.get("summary") or event.get("note") or "").strip()
+            if summary:
+                events.append((created, f"- {created or 'unknown-date'} {source_id} {event_type}: {summary}"))
+    events.sort(key=lambda item: item[0], reverse=True)
+    return [line for _, line in events[:limit]] or ["- No reading ledger events found."]
+
+
+def _active_blocker_lines(ws: Workspace, *, limit: int = 8) -> list[str]:
+    blockers: list[str] = []
+    for path, meta, text in knowledge_page_records(ws):
+        readiness = str(meta.get("claim_readiness", "")).strip()
+        fulltext_status = str(meta.get("fulltext_status", "")).strip()
+        if fulltext_status in {"needs-user-pdf", "blocked", "unavailable"}:
+            blockers.append(f"- {relative_workspace_path(ws, path)}: fulltext_status={fulltext_status}")
+        if readiness in {"not-ready", "locator-needed"}:
+            blockers.append(f"- {relative_workspace_path(ws, path)}: claim_readiness={readiness}")
+        for line in text.splitlines():
+            lowered = line.lower()
+            if "blocker" in lowered and line.strip().startswith(("-", "*")):
+                blockers.append(f"- {relative_workspace_path(ws, path)}: {line.strip().lstrip('-* ').strip()}")
+                break
+        if len(blockers) >= limit:
+            break
+    return blockers[:limit] or ["- No active blockers detected in frontmatter or blocker bullets."]
+
+
+def _claim_readiness_lines(ws: Workspace) -> list[str]:
+    readiness = Counter(
+        str(meta.get("claim_readiness", "unknown"))
+        for _, meta, _ in knowledge_page_records(ws)
+        if meta.get("type") in {"paper", "claim", "synthesis"}
+    )
+    return _format_counter(readiness, empty="No paper, claim, or synthesis readiness fields.")
+
+
+def _contradiction_hint_lines(ws: Workspace, *, limit: int = 6) -> list[str]:
+    hints: list[str] = []
+    patterns = ("contradict", "conflict", "disagree", "in tension", "blocker")
+    for path, meta, text in knowledge_page_records(ws):
+        haystack = f"{meta}\n{text}".lower()
+        if any(pattern in haystack for pattern in patterns):
+            hints.append(f"- {relative_workspace_path(ws, path)}")
+        if len(hints) >= limit:
+            break
+    return hints or ["- No contradiction hints detected by keyword scan."]
+
+
 def render_hot_markdown(ws: Workspace, *, days: int = HOT_DEFAULT_WINDOW_DAYS) -> str:
     events = recent_hot_events(ws, days=days)
     records = _hot_records_text(ws)
@@ -1696,6 +1792,7 @@ def render_workspace_status(ws: Workspace, *, log_tail: int = 5) -> str:
     sources = _source_records(ws)
     evidence = _evidence_records(ws)
     knowledge = knowledge_page_records(ws)
+    topics = ws.load_topics()
     source_counts = Counter(str(record.get("status", "unknown")) for record in sources.values())
     evidence_counts = Counter(str(record.get("status", "unknown")) for record in evidence.values())
     knowledge_counts = Counter(str(meta.get("type", "unknown")) for _, meta, _ in knowledge)
@@ -1704,33 +1801,103 @@ def render_workspace_status(ws: Workspace, *, log_tail: int = 5) -> str:
         for _, meta, _ in knowledge
         if meta.get("type") == "paper"
     )
-    paper_queue_count = len(paper_queue(ws))
+    synthesis_maturity_counts = Counter(
+        str(meta.get("synthesis_maturity", "unknown"))
+        for _, meta, _ in knowledge
+        if meta.get("type") == "synthesis"
+    )
+    queue_items = paper_queue(ws)
+    paper_queue_count = len(queue_items)
     gate_count = len(list(ws.paths.gates.rglob("*.md"))) if ws.paths.gates.exists() else 0
     hot_events = recent_hot_events(ws) if ws.paths.hot_md.exists() else []
 
     lines = [
         "# RKF Workspace Status",
         "",
+        "## L0 Identity And Critical Facts",
+        "",
+        "- Framework: Research Knowledge Framework active academic LLM Wiki",
         f"- Wiki root: {relative_workspace_path(ws, ws.paths.wiki_root)}",
+        f"- Snapshot date: {today()}",
         f"- Knowledge pages: {len(knowledge)}",
         f"- Sources: {len(sources)}",
         f"- Evidence artifacts: {len(evidence)}",
         f"- Pending/review gate files: {gate_count}",
-        f"- Topics: {len(ws.load_topics())}",
-        f"- Hot-query events in window: {len(hot_events)}",
-        f"- Active paper nudges: {paper_queue_count}",
+        f"- Topics: {len(topics)}",
+        f"- Critical facts file: {relative_workspace_path(ws, ws.paths.critical_facts)}",
         "",
-        "## Source Status",
+        "### Critical Facts",
         "",
     ]
+    lines.extend(_critical_fact_lines(ws))
+    lines.extend(["", "### Active Blockers", ""])
+    lines.extend(_active_blocker_lines(ws))
+    lines.extend(
+        [
+            "",
+            "## L1 Active Reading And Demand",
+            "",
+            f"- Hot-query events in window: {len(hot_events)}",
+            f"- Active paper nudges: {paper_queue_count}",
+            "",
+            "### Paper Queue",
+            "",
+        ]
+    )
+    if queue_items:
+        for item in queue_items[:8]:
+            path = f" | path={item['path']}" if item.get("path") else ""
+            lines.append(f"- {item['source_id']} | action={item['action']} | priority={item['priority']}{path}")
+    else:
+        lines.append("- No active paper nudges.")
+    lines.extend(["", "### Hot Queries", ""])
+    lines.extend(_hot_query_lines(ws))
+    lines.extend(["", "### Recent Reading Feedback", ""])
+    lines.extend(_recent_reading_event_lines(ws))
+    lines.extend(
+        [
+            "",
+            "## L2 Topics, Synthesis, And Claim Readiness",
+            "",
+            "### Source Status",
+            "",
+        ]
+    )
     lines.extend(_format_counter(source_counts, empty="No source records."))
-    lines.extend(["", "## Evidence Status", ""])
+    lines.extend(["", "### Evidence Status", ""])
     lines.extend(_format_counter(evidence_counts, empty="No evidence artifacts."))
-    lines.extend(["", "## Knowledge Types", ""])
+    lines.extend(["", "### Knowledge Types", ""])
     lines.extend(_format_counter(knowledge_counts, empty="No knowledge pages."))
-    lines.extend(["", "## Paper Reading State", ""])
+    lines.extend(["", "### Paper Reading State", ""])
     lines.extend(_format_counter(paper_reading_counts, empty="No paper reading states."))
-    lines.extend(["", "## Recent Log", ""])
+    lines.extend(["", "### Synthesis Maturity", ""])
+    lines.extend(_format_counter(synthesis_maturity_counts, empty="No synthesis maturity fields."))
+    lines.extend(["", "### Claim Readiness", ""])
+    lines.extend(_claim_readiness_lines(ws))
+    lines.extend(["", "### Contradiction Hints", ""])
+    lines.extend(_contradiction_hint_lines(ws))
+    lines.extend(
+        [
+            "",
+            "## L3 Graph, Files, And Validation",
+            "",
+            f"- Index: {relative_workspace_path(ws, ws.paths.index)}",
+            f"- Graph: {relative_workspace_path(ws, ws.paths.graph / 'research_graph.json')}",
+            f"- Hot queries: {relative_workspace_path(ws, ws.paths.hot_md)}",
+            f"- Reading ledger directory: {relative_workspace_path(ws, ws.paths.reading)}",
+            f"- Critical facts: {relative_workspace_path(ws, ws.paths.critical_facts)}",
+            "",
+            "### Validation Commands",
+            "",
+            "- python3 -B -m unittest discover -s tests",
+            "- python3 tools/rk.py lint",
+            "- python3 tools/rk.py lint --mode graph-lint",
+            "- python3 tools/public_safety_scan.py",
+            "",
+            "## Recent Log",
+            "",
+        ]
+    )
     if ws.paths.log.exists():
         log_lines = [line for line in read_text(ws.paths.log).splitlines() if line.startswith("- ")]
         lines.extend(log_lines[-log_tail:] or ["- No log entries."])
@@ -1759,6 +1926,12 @@ def lint_public_safety(ws: Workspace) -> list[str]:
                     errors.append(f"{rel}: local/private path pattern: {match}")
             if rel.startswith("knowledge/papers/") and len(text) > 120000:
                 errors.append(f"{rel}: unusually large paper page may contain copied article text")
+    if ws.paths.critical_facts.exists():
+        rel = relative_workspace_path(ws, ws.paths.critical_facts)
+        text = ws.paths.critical_facts.read_text(encoding="utf-8", errors="replace")
+        for pattern in LOCAL_PATH_PATTERNS:
+            for match in pattern.findall(text):
+                errors.append(f"{rel}: local/private path pattern: {match}")
     if ws.paths.hot_md.exists():
         rel = relative_workspace_path(ws, ws.paths.hot_md)
         text = ws.paths.hot_md.read_text(encoding="utf-8", errors="replace")

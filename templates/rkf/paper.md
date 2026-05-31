@@ -50,6 +50,13 @@ sources: []
 - Key findings:
 - Limitations:
 
+## Future Agent Retrieval Brief
+
+- Read this page when:
+- Trust level:
+- Current gaps:
+- Next best action:
+
 ## Claims To Promote
 
 - Claim:

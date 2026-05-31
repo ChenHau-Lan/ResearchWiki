@@ -18,7 +18,9 @@ export, ARS handoff proposals, and optional shared-database connections.
 | Knowledge Objects | Maintain paper, question, concept, claim, topic, synthesis, overview, meeting, seminar pages | concise Markdown only |
 | Research Graph | Export typed source/evidence/wiki/topic edges and maturity metadata | generated public-safe graph |
 | Hot Query Layer | Track recent public-safe research questions and paper-search demand | single retrieval file: `hot.md` |
-| Propagation Review | Identify pages affected by new reading, evidence, or synthesis | proposal gates only; no automatic rewrites |
+| L0-L3 World Context | Rebuild session context from identity, critical facts, active reading, synthesis, graph links, and validation state | terminal capsule, public-safe |
+| Critical Facts | Store short public-safe facts with temporal metadata for future agents | `CRITICAL_FACTS.md` |
+| Propagation Review | Identify pages affected by new reading, evidence, or synthesis | manual preview/audit fallback |
 | ARS Bridge | Convert ARS research/reasoning/writing/review output into RKF proposals or reading feedback | proposals only |
 | Connect | Manage experimental shared RAW/wiki folders and external sandbox access boundaries | connection plans only; no private paths |
 
@@ -31,13 +33,14 @@ flowchart TD
     C --> D["reading ledger<br/>questions + human feedback + blockers"]
     D --> E["claim readiness<br/>not-ready / locator-needed / claim-ready / synthesis-ready"]
     E --> F["knowledge synthesis<br/>claims, concepts, synthesis"]
+    F --> M["world<br/>L0-L3 context capsule"]
     G["RKF query"] --> H["retrieve governed wiki context"]
     G --> I["hot-query event<br/>public-safe demand signal"]
     H --> J["ARS reasoning"]
     J --> D
     K["lint and topic review"] --> B
     K --> E
-    L["propagation review"] --> F
+    L["propagation review<br/>preview/audit fallback"] --> F
 ```
 
 ## Core Objects
@@ -69,8 +72,9 @@ flowchart TD
   review blocker.
 - Durable full article text is not an RKF public knowledge layer.
 - Public pages must not contain copied article text or private evidence paths.
-- Saving and propagation are conservative: existing knowledge pages are not
-  overwritten or rewritten unless the update path is explicit and reviewable.
+- `world` is the default session bootstrap: it summarizes L0 critical facts, L1
+  active reading, L2 synthesis/readiness, and L3 graph/detail links.
+- Propagation remains available as a manual preview/audit fallback.
 
 ## Storage And Connection Strategy
 

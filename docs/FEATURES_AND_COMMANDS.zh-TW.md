@@ -18,7 +18,9 @@ repo 已有的能力、日常怎麼用、以及哪些檔案或目錄看起來只
 | Non-paper save | 保存 question、concept、claim、synthesis、overview、meeting、seminar | `knowledge/*/*.md` |
 | Hot-query layer | 追蹤近期 public-safe 研究問題與 paper-search demand | `hot.md` |
 | Topic governance | 維護 topic id、scope、aliases、include/exclude、default search strings | `governance/topic_registry.json`、`knowledge/topics/*.md` |
-| Workspace status | 快速重建目前 wiki 狀態、maturity 分布與近期 log | terminal report |
+| L0-L3 world context | 快速重建 identity、critical facts、active reading、claim readiness、graph/detail links 與 validation state | terminal report |
+| Critical facts | 保存短句、public-safe、可重用且有時間 metadata 的 facts | `CRITICAL_FACTS.md` |
+| Future Agent Retrieval Brief | 在 paper / synthesis / topic template 說明何時讀頁、可信度、缺口與下一步 | `templates/rkf/*.md`、knowledge pages |
 | Propagation review | 新 evidence、reading maturity 或 synthesis 後列出可能受影響頁面 | terminal report 或 `state/gates/propagation/*.md` |
 | Graph export | 輸出 source/evidence/wiki/topic typed links | `graph/research_graph.json` |
 | Index generation | 產生 LLM retrieval 入口，包含 maturity hints | `index.md` |
@@ -37,7 +39,7 @@ repo 已有的能力、日常怎麼用、以及哪些檔案或目錄看起來只
 - Durable full article text 不進 public knowledge layer。
 - `save` 和 `synthesize` 預設不覆寫既有 knowledge object；要更新必須明確使用
   `--update`。
-- Propagation review 只產生 proposal，不自動重寫穩定頁面。
+- Propagation review 是 manual preview / audit fallback；正常狀態查看請先用 `world`。
 
 ## Common Commands
 
@@ -46,6 +48,43 @@ repo 已有的能力、日常怎麼用、以及哪些檔案或目錄看起來只
 ```bash
 python3 tools/rk.py <command>
 ```
+
+## Full Command Inventory
+
+這份 inventory 對齊目前 `rkf/cli.py` parser。若新增 CLI，請同步更新這一段。
+
+| Command | Major Options | Purpose |
+|---|---|---|
+| `capture <kind> <value>` | `kind=doi/url/pdf/topic/idea/question`, `--title`, `--topic-id`, `--note` | 建立 SourceRecord 或 public-safe lead |
+| `discover <query>` | `--topic-id` | 建立 discovery run 與 candidate backlog |
+| `acquire <source>` | `--pdf`, `--url`, `--screenshot`, `--approve`, `--checkpoint` | 記錄 full-text route、user PDF 或 legacy checkpoint |
+| `verify-pdf <source_id>` | `--locator`, `--note`, `--qc-status codex_qc_done/human_qc_done` | 記錄 locator/readability check 並提升 reading maturity |
+| `read <source_id>` | none | 顯示 source record |
+| `distill paper <source_id>` | `--slug` | 建立或更新 paper reading draft |
+| `paper status [source_id]` | optional `source_id` | 顯示 paper queue/status |
+| `paper feedback <source_id>` | `--level`, `--note`, `--reading-state`, `--fulltext-status`, `--confidence`, `--claim-readiness` | 記錄 human/AI reading feedback 並追加 ledger |
+| `paper queue` | `--limit` | 列出 active paper nudges |
+| `paper next` | none | 顯示最高優先 paper nudge |
+| `paper nudge` | `--limit` | 輸出可排程推播文字 |
+| `topic add <topic_id> <name>` | `--scope`, `--alias`, `--include`, `--exclude`, `--search`, `--cadence` | 新增 governed topic |
+| `topic list` | none | 列出 topic registry |
+| `topic lint` | none | 檢查 topic registry |
+| `query <text>` | `--no-record` | 搜尋 wiki 並預設記錄 hot-query |
+| `save <object_type> <title>` | `--slug`, `--body`, `--update` | 保存 question/concept/claim/overview 等非 paper object |
+| `synthesize <title>` | `--slug`, `--body`, `--update` | 建立或更新 draft synthesis |
+| `review` | none | 列出 pending gate/review items |
+| `lint` | `--mode all/structure-lint/evidence-lint/graph-lint/ars-handoff-lint/public-safety-lint/repair-plan` | 執行 RKF health checks |
+| `propagate <target>` | `--write` | 產生 affected-page propagation preview/audit |
+| `graph` | none | 匯出 research graph |
+| `status` | `--log-tail` | 輸出 RKF L0-L3 context capsule |
+| `world` | `--log-tail` | `status` alias，用於 future-agent session bootstrap |
+| `index` | none | 產生 compact LLM wiki index |
+| `log` | `--tail`, `--action`, `--note` | 讀取或追加 operation log |
+| `hot record <query>` | `--topic-id`, `--origin`, `--intent`, `--paper-lead`, `--notes` | 記錄 public-safe hot query event |
+| `hot refresh` | `--days` | 重新產生 `hot.md` dashboard |
+| `export graph` | none | 同 `graph` |
+| `export external-sandbox` | none | 產生外部 sandbox capsule |
+| `prompt external-sandbox` | none | 產生外部 sandbox prompt context |
 
 ### Source, Draft, And Reading
 

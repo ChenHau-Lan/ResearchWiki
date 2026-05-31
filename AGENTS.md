@@ -16,7 +16,7 @@ boundaries control when claims or synthesis become stable.
 |---|---|---|
 | `rkf-evidence-vault` | Source capture, candidate discovery, full-text availability, user PDF routing, PDF/OCR/visual reading state | DOI, URL, PDF, literature discovery, source intake, 文獻搜尋, 找文章, 提供PDF, full text |
 | `rkf-knowledge-synthesis` | Paper drafts, maintained knowledge objects, topic review, and maturity-aware synthesis | paper note, synthesis, topic, claim, 整理成wiki, 論文筆記, 概念頁, topic整理 |
-| `rkf-wiki-core` | LLM Wiki retrieval, ARS reasoning handoff, save, graph, status, paper queue, sandbox context | LLM Wiki, query, save, graph, status, paper queue, 回寫wiki |
+| `rkf-wiki-core` | LLM Wiki retrieval, ARS reasoning handoff, save, graph, L0-L3 world context, paper queue, sandbox context | LLM Wiki, query, save, graph, world, status, paper queue, 回寫wiki |
 | `rkf-lint` | Health checks and repair planning for structure, maturity, evidence boundary, graph, public safety | lint, audit, repair plan, 檢查, 修復計畫, 發布安全 |
 | `rkf-connect` | Experimental shared database, multi-computer Drive links, and external sandbox access boundaries | shared database, Google Drive, symlink, sandbox access, 共享資料庫 |
 
@@ -36,7 +36,8 @@ translating ARS outputs into RKF proposals or reading-feedback events.
    `rkf-wiki-core`; when interpretation or recommendation is needed, let ARS
    reason over that context; save only through RKF proposal/synthesis rules.
 5. If the user asks to save discussion memory, export graph, check status, or
-   hand off to another sandbox, route to `rkf-wiki-core`.
+   hand off to another sandbox, route to `rkf-wiki-core`. Use `world` when a
+   future agent needs session bootstrap context.
 6. If the user asks to track frequently asked research questions or hot paper
    search demand, route to `rkf-wiki-core` hot-query behavior.
 7. If the user asks to review, clean up, merge/split, refresh, or recommend
@@ -68,6 +69,10 @@ translating ARS outputs into RKF proposals or reading-feedback events.
 - `state/reading/` is operational memory. It can record questions, answers,
   human corrections, annotations, trust changes, and blockers, but it does not
   automatically promote claims.
+- `CRITICAL_FACTS.md` stores short public-safe facts with `observed_at`,
+  `valid_from`, `confidence`, and `source_or_blocker` for future-agent retrieval.
+- Paper, synthesis, and topic pages should include a Future Agent Retrieval
+  Brief when they are newly created or rewritten.
 - Shared database setup is experimental. Machine-specific links and private
   paths must not become the committed source of truth.
 - Lint may report and plan repairs; it must not silently rewrite knowledge or

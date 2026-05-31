@@ -28,4 +28,11 @@ sources: []
 
 ## Claim Readiness
 
+## Future Agent Retrieval Brief
+
+- Read this page when:
+- Trust level:
+- Current gaps:
+- Next best action:
+
 ## Next Review

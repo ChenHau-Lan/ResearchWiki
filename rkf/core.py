@@ -1947,6 +1947,145 @@ def challenge_page(ws: Workspace, target: str, *, limit: int = 5) -> dict[str, A
     }
 
 
+def emerge_patterns(ws: Workspace, *, topic_id: str = "", limit: int = 8) -> list[dict[str, str]]:
+    patterns: list[dict[str, str]] = []
+    for item in paper_queue(ws):
+        if topic_id:
+            source = _source_records(ws).get(str(item["source_id"]), {})
+            source_topics = {str(value) for value in source.get("topic_ids", [])}
+            if topic_id not in source_topics:
+                continue
+        patterns.append(
+            {
+                "kind": "reading-queue",
+                "maturity": "low",
+                "summary": f"{item['source_id']} needs {item['action']} before stronger synthesis.",
+                "source_coverage": "partial",
+                "next_action": "; ".join(str(reason) for reason in item.get("reasons", [])) or "review reading state",
+            }
+        )
+        if len(patterns) >= limit:
+            return patterns
+
+    hot_counts: Counter[str] = Counter()
+    for event in recent_hot_events(ws) if ws.paths.hot_md.exists() else []:
+        topics = [str(value) for value in event.get("topic_ids", []) if str(value).strip()]
+        if topic_id and topic_id not in topics:
+            continue
+        query = str(event.get("normalized_query") or event.get("query") or "").strip()
+        if query:
+            hot_counts[query] += 1
+    for query, count in hot_counts.most_common(limit - len(patterns)):
+        patterns.append(
+            {
+                "kind": "hot-query",
+                "maturity": "low",
+                "summary": f"Repeated demand signal ({count}): {query}",
+                "source_coverage": "unknown",
+                "next_action": "map to topic, papers, or synthesis review",
+            }
+        )
+        if len(patterns) >= limit:
+            return patterns
+
+    for topic in ws.load_topics():
+        current_topic = str(topic.get("topic_id", ""))
+        if topic_id and current_topic != topic_id:
+            continue
+        patterns.append(
+            {
+                "kind": "topic-gap",
+                "maturity": "low",
+                "summary": f"Topic {current_topic or 'unknown'} may need pattern review: {topic.get('name', current_topic)}",
+                "source_coverage": "unknown",
+                "next_action": "review topic drift, stale synthesis, and reading queue",
+            }
+        )
+        if len(patterns) >= limit:
+            break
+    return patterns
+
+
+def write_emergent_synthesis(
+    ws: Workspace,
+    *,
+    patterns: list[dict[str, str]],
+    topic_id: str = "",
+) -> str:
+    ws.ensure_base()
+    slug_base = "emergent_patterns"
+    if topic_id:
+        slug_base += "_" + slugify(topic_id)
+    slug_base += "_" + today().replace("-", "_")
+    path = ws.paths.knowledge / "synthesis" / f"{slug_base}.md"
+    if path.exists():
+        path = ws.paths.knowledge / "synthesis" / f"{slug_base}_{now_stamp()}.md"
+    topics = [topic_id] if topic_id else []
+    pattern_lines = ["## Emerging Patterns", ""]
+    if patterns:
+        for pattern in patterns:
+            pattern_lines.append(
+                f"- kind={pattern['kind']} | maturity={pattern['maturity']} | coverage={pattern['source_coverage']} | {pattern['summary']}"
+            )
+            pattern_lines.append(f"  - next_action: {pattern['next_action']}")
+    else:
+        pattern_lines.append("- No deterministic pattern found.")
+    body = "\n".join(
+        [
+            f"# Emergent Patterns {today()}",
+            "",
+            "This synthesis draft is AI-generated from existing RKF operational signals. It is not a stable claim.",
+            "",
+            *pattern_lines,
+            "",
+            "## AI Integration Note",
+            "",
+            "- ai_integrated: true",
+            f"- integrated_at: {today()}",
+            "- priority: low",
+            "- reason: Emergent pattern synthesis from RKF reading queue, hot queries, and topic state.",
+            "- input_source: rkf-emerge",
+            "- remaining_blocker: Needs human review, locators, and source coverage before trusted synthesis.",
+            "",
+            "## Future Agent Retrieval Brief",
+            "",
+            "- Read this page when: looking for unnamed patterns or synthesis gaps from active RKF state.",
+            "- Trust level: low maturity generated pattern draft.",
+            "- Current gaps: source coverage is partial or unknown.",
+            "- Next best action: review the listed papers/topics and promote only locator-supported claims.",
+        ]
+    )
+    text = (
+        "---\n"
+        "type: synthesis\n"
+        "status: draft\n"
+        "review_stage: ai-extracted\n"
+        "evidence_boundary: review-blocker\n"
+        "evidence_tier: review-blocker\n"
+        "synthesis_maturity: draft\n"
+        "source_coverage: partial\n"
+        "human_feedback_level: none\n"
+        "claim_readiness: not-ready\n"
+        f"last_synthesis_interaction: {today()}\n"
+        f"observed_at: {today()}\n"
+        f"valid_from: {today()}\n"
+        "valid_until:\n"
+        "supersedes:\n"
+        "ai_integrated: true\n"
+        "ai_integration_priority: low\n"
+        f"last_ai_integration: {today()}\n"
+        + ("topics:\n" + "".join(f"  - {topic}\n" for topic in topics) if topics else "topics: []\n")
+        + f"created: {today()}\n"
+        f"updated: {today()}\n"
+        "sources: []\n"
+        "---\n\n"
+        f"{body}\n"
+    )
+    write_text(path, text)
+    append_log(ws, "emerge", f"{relative_workspace_path(ws, path)} patterns={len(patterns)}")
+    return relative_workspace_path(ws, path)
+
+
 def _paper_page_index(ws: Workspace) -> dict[str, tuple[Path, dict[str, Any], str]]:
     index: dict[str, tuple[Path, dict[str, Any], str]] = {}
     for path, meta, body in knowledge_page_records(ws):
@@ -2266,6 +2405,8 @@ def external_sandbox_capsule(ws: Workspace) -> Path:
         "query",
         "save",
         "synthesize",
+        "synthesize auto",
+        "emerge",
         "hot record",
         "hot refresh",
         "paper status",

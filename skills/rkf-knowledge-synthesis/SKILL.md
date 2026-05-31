@@ -1,6 +1,6 @@
 ---
 name: rkf-knowledge-synthesis
-description: Write and maintain RKF knowledge objects from active reading state and governed wiki context: paper drafts, questions, concepts, claims, topics, synthesis, overviews, meetings, seminars, and topic review recommendations. Use when the task asks to create, update, synthesize, organize wiki knowledge, review topics, merge or split topics, refresh topic search strings, 整理成wiki, 論文筆記, 文獻摘要, 概念頁, 問題頁, 主題治理, topic整理, topic建議, or 綜整.
+description: Write and maintain RKF knowledge objects from active reading state and governed wiki context: paper drafts, questions, concepts, claims, topics, synthesis, emergent pattern drafts, overviews, meetings, seminars, and topic review recommendations. Use when the task asks to create, update, synthesize, auto-synthesize, emerge patterns, organize wiki knowledge, review topics, merge or split topics, refresh topic search strings, 整理成wiki, 論文筆記, 文獻摘要, 概念頁, 問題頁, 主題治理, topic整理, topic建議, or 綜整.
 ---
 
 # RKF Knowledge Synthesis
@@ -19,6 +19,7 @@ boundary, maturity boundary, or review blocker.
 | `save-concept` | Preserve reusable method, mechanism, dataset, instrument, or variable | concept page |
 | `save-claim` | Preserve a supported or reviewable claim | claim page or review item |
 | `synthesize` | Save cross-source judgment, research recommendation, or durable answer | synthesis page with maturity fields |
+| `emerge` | Find unnamed patterns from reading queue, hot queries, feedback gaps, and topic state | low-maturity synthesis draft |
 | `topic-governance` | Topic ID, aliases, scope, include/exclude, default search | topic registry/page |
 | `topic-review` | Regularly inspect topic drift, stale candidates, duplicate topics, and search quality | topic review report and update proposal |
 
@@ -31,6 +32,8 @@ Use this skill when the user says things like:
 - "Record what we currently understand about this paper."
 - "Make a concept/question/synthesis page."
 - "Connect these papers into a recommendation."
+- "Find unnamed patterns from my current wiki."
+- "Run nightly synthesis but keep it low maturity."
 - "Save this query answer as durable synthesis."
 - "Review this topic and suggest merge/split/search-string updates."
 - "把這篇 paper 先整理成 draft"
@@ -45,6 +48,10 @@ Use `synthesize` when an answer crosses multiple sources, supports a research
 decision, will likely be asked again, exposes evidence gaps, changes topic
 direction, or reflects repeated human interaction. Otherwise return a query
 answer or save a smaller question/concept.
+
+Use `emerge` or `synthesize auto` when the user wants pattern discovery from
+existing RKF state. The output starts as `synthesis_maturity: draft`,
+`source_coverage: partial` or unknown, and `claim_readiness: not-ready`.
 
 ## Topic Review Heuristic
 
@@ -61,6 +68,8 @@ include/exclude rules, canonical pages, and candidate backlog cleanup.
 - A paper page can mature through user questions, AI answers, human corrections,
   annotations, checked locators, and synthesis review.
 - Cross-source judgment belongs in synthesis.
+- Auto-synthesis does not require candidate records, but it also does not
+  promote stable claims.
 - Query answers are not wiki pages until deliberately saved.
 - Every promoted claim needs a locator, human feedback, existing wiki source, or
   explicit review blocker.

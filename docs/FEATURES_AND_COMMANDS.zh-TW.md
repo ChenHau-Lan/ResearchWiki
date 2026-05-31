@@ -24,6 +24,8 @@ repo 已有的能力、日常怎麼用、以及哪些檔案或目錄看起來只
 | Priority evolve | 低風險 rewrite existing page，並在頁內留下 `AI Integration Note`；高風險只留下 blocker / maturity downgrade | knowledge pages |
 | Reconcile | 自動找同 topic/page 間的 contradiction hints，並以 AI Integration Note 寫入 blocker | knowledge pages |
 | Challenge | 用 RKF 自己的知識反駁目前頁面或 synthesis，不建立 stable claim | terminal critique |
+| Emerge / auto-synthesis | 從 reading queue、hot queries、topic state 找 unnamed patterns，建立 low-maturity synthesis draft | terminal report / `knowledge/synthesis/*.md` |
+| Agent prompt templates | Morning/nightly/weekly/health agent prompt，不建立實際 automation | `prompts/agents/*.md` |
 | Bi-temporal memory | claim / synthesis / critical facts 可記錄 `observed_at`、`valid_from`、`valid_until`、`supersedes` | frontmatter / `CRITICAL_FACTS.md` |
 | Propagation review | 新 evidence、reading maturity 或 synthesis 後列出可能受影響頁面，作為 preview/audit fallback | terminal report 或 `state/gates/propagation/*.md` |
 | Graph export | 輸出 source/evidence/wiki/topic typed links | `graph/research_graph.json` |
@@ -76,11 +78,13 @@ python3 tools/rk.py <command>
 | `query <text>` | `--no-record` | 搜尋 wiki 並預設記錄 hot-query |
 | `save <object_type> <title>` | `--slug`, `--body`, `--update` | 保存 question/concept/claim/overview 等非 paper object |
 | `synthesize <title>` | `--slug`, `--body`, `--update` | 建立或更新 draft synthesis |
+| `synthesize auto` | `--write`, `--topic-id`, `--limit` | `emerge` 的 auto-synthesis alias |
 | `review` | none | 列出 pending gate/review items |
 | `lint` | `--mode all/structure-lint/evidence-lint/graph-lint/ars-handoff-lint/public-safety-lint/repair-plan` | 執行 RKF health checks |
 | `evolve <target>` | `--note`, `--source`, `--priority low/medium/high`, `--blocker`, `--dry-run` | maturity-aware 直接整合低風險頁面更新並留下 AI Integration Note |
 | `reconcile` | `--topic-id`, `--limit`, `--dry-run` | 找矛盾並把高風險矛盾寫成 AI-marked blocker |
 | `challenge <target>` | `--limit` | 用 RKF 既有頁面列出 counterpoints、missing evidence、maturity downgrade 建議 |
+| `emerge` | `--topic-id`, `--limit`, `--write` | 找 unnamed patterns；`--write` 建立 low-maturity synthesis draft |
 | `propagate <target>` | `--write` | 產生 affected-page propagation preview/audit |
 | `graph` | none | 匯出 research graph |
 | `status` | `--log-tail` | 輸出 RKF L0-L3 context capsule |
@@ -242,6 +246,14 @@ Find contradictions and challenge a page:
 python3 tools/rk.py reconcile --topic-id aerosol-cloud
 python3 tools/rk.py reconcile --dry-run
 python3 tools/rk.py challenge knowledge/synthesis/example.md --limit 5
+```
+
+Find unnamed patterns and save a low-maturity synthesis draft:
+
+```bash
+python3 tools/rk.py emerge --limit 8
+python3 tools/rk.py emerge --write --topic-id aerosol-cloud
+python3 tools/rk.py synthesize auto --write --limit 8
 ```
 
 Generate propagation preview/audit fallback:

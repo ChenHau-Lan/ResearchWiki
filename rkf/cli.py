@@ -15,6 +15,7 @@ from .core import (
     challenge_page,
     create_paper_note,
     create_source,
+    emerge_patterns,
     external_sandbox_capsule,
     evolve_page,
     export_graph,
@@ -39,6 +40,7 @@ from .core import (
     today,
     update_paper_maturity,
     verify_pdf,
+    write_emergent_synthesis,
     write_acquisition_checkpoint,
     write_json,
 )
@@ -329,6 +331,18 @@ def cmd_save(args: argparse.Namespace) -> int:
 
 
 def cmd_synthesize(args: argparse.Namespace) -> int:
+    if args.title == "auto":
+        ws = Workspace()
+        patterns = emerge_patterns(ws, topic_id=getattr(args, "topic_id", "") or "", limit=getattr(args, "limit", 8))
+        print(f"emergent patterns: {len(patterns)}")
+        for pattern in patterns:
+            print(f"- {pattern['kind']}\tmaturity={pattern['maturity']}\tcoverage={pattern['source_coverage']}\t{pattern['summary']}")
+        if getattr(args, "write", False):
+            path = write_emergent_synthesis(ws, patterns=patterns, topic_id=getattr(args, "topic_id", "") or "")
+            print(f"wrote: {path}")
+        else:
+            print("rule: low-maturity synthesis preview; rerun with --write to save")
+        return 0
     args.object_type = "synthesis"
     return cmd_save(args)
 
@@ -444,6 +458,21 @@ def cmd_challenge(args: argparse.Namespace) -> int:
     print("maturity downgrade suggestions:")
     for item in result["maturity_suggestions"]:
         print(f"- {item}")
+    return 0
+
+
+def cmd_emerge(args: argparse.Namespace) -> int:
+    ws = Workspace()
+    patterns = emerge_patterns(ws, topic_id=args.topic_id or "", limit=args.limit)
+    print(f"emergent patterns: {len(patterns)}")
+    for pattern in patterns:
+        print(f"- {pattern['kind']}\tmaturity={pattern['maturity']}\tcoverage={pattern['source_coverage']}\t{pattern['summary']}")
+        print(f"  next_action: {pattern['next_action']}")
+    if args.write:
+        path = write_emergent_synthesis(ws, patterns=patterns, topic_id=args.topic_id or "")
+        print(f"wrote: {path}")
+    else:
+        print("rule: low-maturity synthesis preview; rerun with --write to save")
     return 0
 
 
@@ -642,6 +671,9 @@ def build_parser() -> argparse.ArgumentParser:
     synthesize.add_argument("--slug")
     synthesize.add_argument("--body")
     synthesize.add_argument("--update", action="store_true", help="Intentionally replace an existing synthesis with the same slug")
+    synthesize.add_argument("--write", action="store_true", help="When title is 'auto', save the emergent synthesis draft")
+    synthesize.add_argument("--topic-id", help="When title is 'auto', limit emergence to a topic")
+    synthesize.add_argument("--limit", type=int, default=8, help="When title is 'auto', limit emergent pattern count")
     synthesize.set_defaults(func=cmd_synthesize)
 
     review = sub.add_parser("review", help="List pending gates and review items")
@@ -670,6 +702,12 @@ def build_parser() -> argparse.ArgumentParser:
     challenge.add_argument("target", help="Knowledge page path to challenge")
     challenge.add_argument("--limit", type=int, default=5)
     challenge.set_defaults(func=cmd_challenge)
+
+    emerge = sub.add_parser("emerge", help="Find unnamed patterns and optionally save low-maturity synthesis")
+    emerge.add_argument("--topic-id", help="Limit emergence to a topic")
+    emerge.add_argument("--limit", type=int, default=8)
+    emerge.add_argument("--write", action="store_true", help="Save a low-maturity synthesis draft")
+    emerge.set_defaults(func=cmd_emerge)
 
     propagate = sub.add_parser("propagate", help="Generate affected-page propagation preview/audit review")
     propagate.add_argument("target", help="Source ID or knowledge page path to review for propagation")

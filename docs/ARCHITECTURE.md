@@ -23,6 +23,8 @@ export, ARS handoff proposals, and optional shared-database connections.
 | Priority Evolve | Rewrite low-risk existing pages with visible AI Integration Notes and maturity-aware blockers | governed page update |
 | Reconcile | Detect contradictions across same-topic pages and write AI-marked blockers when needed | page-local blockers |
 | Challenge | Use existing RKF pages to argue against a target answer or synthesis | terminal critique only |
+| Emerge | Detect unnamed patterns from active reading, hot queries, and topic state | low-maturity synthesis draft |
+| Agent Prompts | Morning, nightly, weekly, and health operating prompts | `prompts/agents/*.md` |
 | Bi-Temporal Memory | Track when RKF observed a claim and when the described fact is valid | frontmatter and critical facts |
 | Propagation Review | Identify pages affected by new reading, evidence, or synthesis | manual preview/audit fallback |
 | ARS Bridge | Convert ARS research/reasoning/writing/review output into RKF proposals or reading feedback | proposals only |
@@ -40,6 +42,7 @@ flowchart TD
     F --> M["world<br/>L0-L3 context capsule"]
     F --> N["evolve<br/>AI Integration Note"]
     N --> O["reconcile<br/>AI-marked blocker"]
+    N --> Q["emerge<br/>low-maturity pattern synthesis"]
     H --> P["challenge<br/>counterpoints only"]
     G["RKF query"] --> H["retrieve governed wiki context"]
     G --> I["hot-query event<br/>public-safe demand signal"]
@@ -90,6 +93,9 @@ flowchart TD
   silently resolve stable claims.
 - `challenge` is adversarial retrieval over RKF's own pages. It produces
   counterpoints and downgrade suggestions, not new stable knowledge.
+- `emerge` may create low-maturity synthesis drafts from existing RKF signals
+  without requiring candidate records. It starts as partial/unknown coverage and
+  not-ready claim readiness.
 - Claim, synthesis, and critical facts use minimal temporal metadata:
   `observed_at`, `valid_from`, optional `valid_until`, and optional `supersedes`.
 

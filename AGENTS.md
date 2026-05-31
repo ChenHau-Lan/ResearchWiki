@@ -15,7 +15,7 @@ boundaries control when claims or synthesis become stable.
 | Skill | Purpose | Natural-Language Triggers |
 |---|---|---|
 | `rkf-evidence-vault` | Source capture, candidate discovery, full-text availability, user PDF routing, PDF/OCR/visual reading state | DOI, URL, PDF, literature discovery, source intake, 文獻搜尋, 找文章, 提供PDF, full text |
-| `rkf-knowledge-synthesis` | Paper drafts, maintained knowledge objects, topic review, and maturity-aware synthesis | paper note, synthesis, topic, claim, 整理成wiki, 論文筆記, 概念頁, topic整理 |
+| `rkf-knowledge-synthesis` | Paper drafts, maintained knowledge objects, topic review, emerge, and maturity-aware synthesis | paper note, synthesis, emerge, auto synthesis, topic, claim, 整理成wiki, 論文筆記, 概念頁, topic整理 |
 | `rkf-wiki-core` | LLM Wiki retrieval, ARS reasoning handoff, save, graph, L0-L3 world context, evolve, challenge, paper queue, sandbox context | LLM Wiki, query, save, graph, world, evolve, challenge, status, paper queue, 回寫wiki |
 | `rkf-lint` | Health checks, reconcile detection, and repair planning for structure, maturity, evidence boundary, graph, public safety | lint, reconcile, audit, repair plan, 檢查, 修復計畫, 發布安全 |
 | `rkf-connect` | Experimental shared database, multi-computer Drive links, and external sandbox access boundaries | shared database, Google Drive, symlink, sandbox access, 共享資料庫 |
@@ -46,9 +46,11 @@ translating ARS outputs into RKF proposals or reading-feedback events.
    `rkf-lint` when the request is structural drift detection or repair planning.
    Use `reconcile` when the task is contradiction detection across existing
    pages.
-8. If the user asks to set up shared RAW/wiki folders, connect multiple
+8. If the user asks for unnamed patterns, nightly synthesis, or auto-synthesis,
+   route to `rkf-knowledge-synthesis` `emerge`; the output starts low maturity.
+9. If the user asks to set up shared RAW/wiki folders, connect multiple
    computers, or grant external sandbox access, route to `rkf-connect`.
-9. If the user asks for deep research, paper writing, peer review, or a full
+10. If the user asks for deep research, paper writing, peer review, or a full
    research-to-paper workflow, use ARS externally; return durable results to
    RKF only through the bridge protocol.
 
@@ -83,6 +85,8 @@ translating ARS outputs into RKF proposals or reading-feedback events.
   maturity-downgraded until reviewed.
 - `challenge` is allowed to argue against a page using RKF knowledge, but its
   output is critique only.
+- `emerge` and `synthesize auto` create low-maturity synthesis drafts only.
+  They do not require candidate records and must not promote stable claims.
 - AI-integrated stable claim or synthesis content needs `observed_at`,
   `valid_from`, and an `AI Integration Note`.
 - Shared database setup is experimental. Machine-specific links and private

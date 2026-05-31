@@ -478,6 +478,38 @@ class RKFCliTests(unittest.TestCase):
         self.assertIn("missing observed_at", result.stdout)
         self.assertIn("missing valid_from", result.stdout)
 
+    def test_emerge_creates_low_maturity_synthesis_without_candidates(self) -> None:
+        self.run_rk("capture", "doi", "10.1234/Pattern.Signal", "--title", "Pattern Signal")
+
+        result = self.run_rk("emerge", "--write", "--limit", "3").stdout
+
+        self.assertIn("emergent patterns:", result)
+        self.assertIn("wrote: knowledge/synthesis/", result)
+        synthesis_pages = list((self.root / "knowledge" / "synthesis").glob("emergent_patterns_*.md"))
+        self.assertEqual(len(synthesis_pages), 1)
+        text = synthesis_pages[0].read_text(encoding="utf-8")
+        self.assertIn("synthesis_maturity: draft", text)
+        self.assertIn("source_coverage: partial", text)
+        self.assertIn("claim_readiness: not-ready", text)
+        self.assertIn("ai_integrated: true", text)
+        self.assertIn("AI Integration Note", text)
+        self.assertFalse(list((self.root / "state" / "search_runs").glob("*/candidates.json")))
+
+    def test_synthesize_auto_alias_writes_emergent_synthesis(self) -> None:
+        self.run_rk("capture", "doi", "10.1234/Auto.Signal", "--title", "Auto Signal")
+
+        result = self.run_rk("synthesize", "auto", "--write", "--limit", "2").stdout
+
+        self.assertIn("emergent patterns:", result)
+        self.assertIn("wrote: knowledge/synthesis/", result)
+
+    def test_agent_prompt_templates_exist_without_creating_automation(self) -> None:
+        prompt_dir = REPO / "prompts" / "agents"
+        for name in ("morning.md", "nightly.md", "weekly.md", "health.md"):
+            text = (prompt_dir / name).read_text(encoding="utf-8")
+            self.assertIn("python3 tools/rk.py", text)
+        self.assertIn("Do not create app automations", (prompt_dir / "nightly.md").read_text(encoding="utf-8"))
+
     def test_status_and_world_print_workspace_bootstrap(self) -> None:
         (self.root / "CRITICAL_FACTS.md").write_text(
             "- fact_id=rkf-purpose | observed_at=2026-05-31 | valid_from=2026-05-31 | confidence=high | source_or_blocker=README.md | RKF preserves active academic reading maturity.\n",
@@ -795,11 +827,13 @@ class RKFCliTests(unittest.TestCase):
             "query <text>",
             "save <object_type> <title>",
             "synthesize <title>",
+            "synthesize auto",
             "review",
             "lint",
             "evolve <target>",
             "reconcile",
             "challenge <target>",
+            "emerge",
             "propagate <target>",
             "graph",
             "status",

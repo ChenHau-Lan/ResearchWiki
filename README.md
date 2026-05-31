@@ -29,6 +29,7 @@ user feedback raises understanding maturity
 stable claim -> locator, supported wiki source, human feedback, or blocker
 low-risk rewrite -> AI Integration Note + maturity-aware page update
 reconcile/challenge -> AI-marked blockers and counterpoints, not silent trust
+emerge -> low-maturity pattern synthesis from existing RKF signals
 hot.md == public-safe research demand dashboard, not evidence
 ```
 
@@ -44,6 +45,7 @@ Use RKF through natural-language research requests:
 - "Use evolve to add a retrieval brief or reading-state note to this existing page."
 - "Reconcile contradictions in this topic and mark anything AI-integrated."
 - "Challenge this synthesis using only my existing RKF knowledge."
+- "Find unnamed patterns tonight, but keep them low maturity."
 - "Review this topic registry and suggest merges, splits, stale candidates, and better search strings."
 - "Run maintenance checks for reading maturity, evidence boundaries, graph links, and public safety."
 - "Record this paper-search question in hot.md so topic review sees repeated demand."
@@ -147,6 +149,22 @@ Claim and synthesis pages can carry minimal bi-temporal metadata:
 `observed_at`, `valid_from`, optional `valid_until`, and optional `supersedes`.
 AI-integrated stable content must include an AI Integration Note plus
 `observed_at` and `valid_from`.
+
+## Emergent Pattern Synthesis
+
+`python3 tools/rk.py emerge` scans existing RKF state for unnamed patterns:
+paper reading queue, hot-query demand, human-feedback gaps, and topic state. It
+does not require candidate records and does not use open-web retrieval. With
+`--write`, it creates a low-maturity synthesis draft marked
+`synthesis_maturity: draft`, `source_coverage: partial`, and
+`claim_readiness: not-ready`.
+
+`python3 tools/rk.py synthesize auto --write` is a compatibility alias for the
+same auto-synthesis behavior.
+
+Agent prompt templates live under `prompts/agents/` for morning, nightly,
+weekly, and health reviews. They are repository prompts only; actual app
+automations require separate user approval.
 
 ## Hot Research Questions
 

@@ -48,6 +48,8 @@ Use this skill when the user says things like:
 - External sandboxes are read-only by default.
 - A trusted sandbox may write through RKF CLI only when the user grants the RKF
   repo as a writable workspace and the workflow still passes RKF gates.
+- A trusted sandbox may record public-safe hot-query signals through RKF, but
+  those signals remain operational memory in `hot.md`, not evidence.
 - Sandbox outputs become RKF save/review proposals when write access is missing,
   topic fit is unclear, evidence is incomplete, PDF QC is missing, or locators
   are insufficient.

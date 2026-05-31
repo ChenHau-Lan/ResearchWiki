@@ -234,7 +234,9 @@ Flow:
    context.
 2. ARS analyzes the governed wiki context and proposes recommendations.
 3. RKF marks evidence gaps and missing artifacts.
-4. Save as synthesis only when the answer crosses multiple sources, supports a
+4. RKF records a public-safe hot-query signal so repeated questions can inform
+   topic review.
+5. Save as synthesis only when the answer crosses multiple sources, supports a
    research decision, will be reused, or changes topic direction.
 
 The example synthesis recommends treating TAMEX, SoWMEX/TiMREX, and
@@ -242,6 +244,42 @@ TAHOPE/PRECIP as a design ladder from terrain-rainfall diagnosis to radar
 microphysics, data assimilation, prediction products, and data governance.
 
 ![Query answer](assets/rkf_taiwan_atmospheric_experiment/06_query_answer.png)
+
+## Use `hot.md` For Recurring Research Demand
+
+`hot.md` is the single retrieval file for questions and paper-search requests
+that keep coming back. Use it to see which topics are currently active, which
+questions are being repeated, which paper leads are being searched, and which
+queries do not yet fit a governed topic.
+
+It is operational memory only. A line in `hot.md` does not make a claim true,
+does not count as evidence, and does not create a paper page. It tells RKF what
+the research workflow is asking for so topic review can respond with better
+aliases, search strings, candidate backlog work, or new topic proposals.
+
+Typical uses:
+
+- Ask the wiki or search for papers; RKF records a public-safe hot-query event.
+- Review `hot.md` before topic maintenance to see repeated questions and stale
+  search demand.
+- Treat unknown-topic queries as triage items, not automatic new topics.
+- Use frequent questions to decide whether to save a durable question,
+  synthesis, or topic-review proposal.
+
+External sandbox use:
+
+- Sandboxes should return hot-query proposals or record short, public-safe
+  research questions through RKF hot-query behavior.
+- Do not create separate hot-query files and do not use a separate sandbox
+  inbox.
+- Records should stay short and use this format:
+
+```text
+- 2026-05-26 | origin=external-sandbox | topic=aerosol-ice-phase-clouds | intent=paper-search | query="supercooled liquid IWP aerosol mechanism"
+```
+
+Never put PDFs, article text, browser captures, raw chat transcripts, private
+Drive paths, local filesystem paths, tokens, or secrets into `hot.md`.
 
 ## Why Maintenance Matters
 
@@ -266,8 +304,8 @@ Suggested rhythm:
 - Stable topic: monthly checks for stale synthesis, unresolved candidates, and
   duplicate concepts.
 - Before sharing or publishing: public-safety lint is mandatory.
-- After durable wiki writes: refresh `index.md` and keep `log.md` as the
-  operation trail for the next LLM session.
+- After durable wiki writes: refresh `index.md`, keep `log.md` as the operation
+  trail for the next LLM session, and review `hot.md` for recurring questions.
 
 ## Experimental: Shared Database Across Computers
 

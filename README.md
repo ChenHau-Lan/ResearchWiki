@@ -24,6 +24,7 @@ ARS output != evidence by itself
 paper page -> requires reviewed source artifact, usually a QCed PDF
 query answer != wiki page until saved as question, claim, or synthesis
 LLM discussion -> save/review proposal
+hot.md == public-safe research demand dashboard, not evidence
 ```
 
 ## Quick Start
@@ -38,6 +39,7 @@ Use RKF through natural-language research requests:
 - "Review this topic registry and suggest merges, splits, stale candidates, and better search strings."
 - "Run maintenance checks for topic drift, evidence boundaries, graph links, and public safety."
 - "Connect this RKF wiki to another computer or external sandbox through my shared research folder."
+- "Record this paper-search question in hot.md so topic review sees what I keep asking."
 
 ## Skills At A Glance
 
@@ -81,6 +83,19 @@ RKF does not keep durable full article text as a public knowledge layer. Tools
 may temporarily read PDF text, OCR output, or browser text to support analysis,
 but saved knowledge must keep locators, review status, and evidence boundaries.
 
+## Hot Research Questions
+
+`hot.md` is the single retrieval file for recent research demand. RKF records
+short public-safe query and discovery lines in this Markdown file, then
+summarizes the last 30 days by topic, repeated question, paper/search lead, and
+unknown-topic triage.
+
+This layer is operational memory only: it helps decide which topics need review,
+which searches are recurring, and where new topic proposals may be needed. It
+does not count as evidence and does not promote claims. External sandboxes
+should return hot-query proposals or record through RKF hot-query behavior; do
+not create separate hot-query files.
+
 ## Validation
 
 ```bash
@@ -106,6 +121,7 @@ the real shared data under one Drive location, for example:
   wiki/
     index.md
     log.md
+    hot.md
     knowledge/
     state/
     governance/
@@ -122,7 +138,8 @@ When `storage.wiki_root` is configured, RKF treats that folder as the active
 wiki database. Runtime paths for `knowledge`, `state`, `governance`, and
 `graph` resolve under that shared folder. `index.md` is the compact LLM
 retrieval entrypoint, and `log.md` is the append-only operation trail used for
-cross-session continuity.
+cross-session continuity. `hot.md` is the rolling public-safe question dashboard
+and retrieval record.
 
 External sandbox access should be read-only by default. For read-only use, run
 `python3 tools/rk.py prompt external-sandbox` to generate the local context

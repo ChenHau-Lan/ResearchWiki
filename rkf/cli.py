@@ -23,7 +23,9 @@ from .core import (
     lint_topics,
     parse_frontmatter,
     read_json,
+    record_hot_query,
     relative_workspace_path,
+    refresh_hot_markdown,
     slugify,
     today,
     verify_pdf,
@@ -78,6 +80,8 @@ def cmd_discover(args: argparse.Namespace) -> int:
         "created": today(),
     }
     write_json(run_dir / "candidates.json", payload)
+    record_hot_query(ws, query=args.query, topic_id=args.topic_id or "", origin="local", intent="discover")
+    refresh_hot_markdown(ws)
     print(f"wrote discovery run: {relative_workspace_path(ws, run_dir)}")
     print("candidates: 0")
     return 0
@@ -192,6 +196,9 @@ def cmd_query(args: argparse.Namespace) -> int:
     print(f"matches: {len(matches)}")
     for match, page_type, topics, tier in matches:
         print(f"- {match}\ttype={page_type}\ttier={tier}\ttopics={topics or 'none'}")
+    if not args.no_record:
+        record_hot_query(ws, query=args.text, origin="local", intent="query")
+        refresh_hot_markdown(ws)
     return 0
 
 
@@ -297,6 +304,30 @@ def cmd_log(args: argparse.Namespace) -> int:
     return 0
 
 
+def cmd_hot_record(args: argparse.Namespace) -> int:
+    ws = Workspace()
+    event = record_hot_query(
+        ws,
+        query=args.query,
+        topic_id=args.topic_id or "",
+        origin=args.origin,
+        intent=args.intent,
+        paper_leads=args.paper_lead or [],
+        notes=args.notes or "",
+    )
+    refresh_hot_markdown(ws)
+    print(f"recorded hot query: {event['event_id']}")
+    print(f"topics: {','.join(event.get('topic_ids', [])) or 'unknown'}")
+    return 0
+
+
+def cmd_hot_refresh(args: argparse.Namespace) -> int:
+    ws = Workspace()
+    path = refresh_hot_markdown(ws, days=args.days)
+    print(f"wrote: {relative_workspace_path(ws, path)}")
+    return 0
+
+
 def cmd_export(args: argparse.Namespace) -> int:
     if args.export_type == "graph":
         return cmd_graph(args)
@@ -374,8 +405,9 @@ def build_parser() -> argparse.ArgumentParser:
     topic_lint = topic_sub.add_parser("lint")
     topic_lint.set_defaults(func=cmd_topic_lint)
 
-    query = sub.add_parser("query", help="Read-only search across knowledge pages")
+    query = sub.add_parser("query", help="Search knowledge pages and record a hot-query event by default")
     query.add_argument("text")
+    query.add_argument("--no-record", action="store_true", help="Do not record this query in the hot-query layer")
     query.set_defaults(func=cmd_query)
 
     save = sub.add_parser("save", help="Save a non-paper knowledge object")
@@ -409,6 +441,24 @@ def build_parser() -> argparse.ArgumentParser:
     log.add_argument("--action")
     log.add_argument("--note")
     log.set_defaults(func=cmd_log)
+
+    hot = sub.add_parser("hot", help="Record and summarize hot research questions")
+    hot_sub = hot.add_subparsers(dest="hot_command", required=True)
+    hot_record = hot_sub.add_parser("record", help="Record a public-safe hot query event")
+    hot_record.add_argument("query")
+    hot_record.add_argument("--topic-id")
+    hot_record.add_argument("--origin", choices=["local", "external-sandbox"], default="local")
+    hot_record.add_argument(
+        "--intent",
+        choices=["query", "discover", "paper-search", "proposal"],
+        default="query",
+    )
+    hot_record.add_argument("--paper-lead", action="append")
+    hot_record.add_argument("--notes")
+    hot_record.set_defaults(func=cmd_hot_record)
+    hot_refresh = hot_sub.add_parser("refresh", help="Regenerate hot.md summary from its records")
+    hot_refresh.add_argument("--days", type=int, default=30)
+    hot_refresh.set_defaults(func=cmd_hot_refresh)
 
     export = sub.add_parser("export", help="Export graph or external sandbox capsule")
     export.add_argument("export_type", choices=["graph", "external-sandbox"])

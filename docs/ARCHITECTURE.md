@@ -19,6 +19,7 @@ captures, OCR/visual reading notes, questions, concepts, claims, and synthesis.
 | Verification Gates | Check source identity, legal route, PDF/OCR/visual QC, claim support | public-safe gate summaries only |
 | Knowledge Objects | Maintain paper, question, concept, claim, topic, synthesis, overview, meeting, seminar pages | concise Markdown only |
 | Research Graph | Export typed source/evidence/wiki/topic edges | generated public-safe graph |
+| Hot Query Layer | Track recent public-safe research questions and paper-search demand | single retrieval file: `hot.md` |
 | ARS Bridge | Convert ARS research/reasoning/writing/review output into RKF proposals | proposals only, not evidence |
 | Connect | Manage experimental shared RAW/wiki folders and external sandbox access boundaries | connection plans only; no private paths |
 
@@ -34,6 +35,7 @@ flowchart TD
     F --> G["distill paper<br/>wiki page"]
     G --> H["save / synthesize<br/>questions, concepts, claims"]
     I["RKF query"] --> J["retrieve governed wiki context"]
+    I --> Q["hot-query event<br/>public-safe demand signal"]
     J --> K["ARS reasoning"]
     K --> L["RKF save or synthesis proposal"]
     L --> H
@@ -58,6 +60,8 @@ flowchart TD
 - `GateDecision`: source identity, acquisition, PDF/OCR/visual QC,
   claim-support, or synthesis-merge checkpoint.
 - `GraphEdge`: typed relation among sources, evidence, topics, and wiki pages.
+- `HotQueryEvent`: public-safe query/search demand signal summarized into
+  `hot.md`; it is operational memory, not evidence.
 
 ## Evidence Rules
 
@@ -70,6 +74,8 @@ flowchart TD
 - Public pages must not contain copied article text or private evidence paths.
 - Topics should be reviewed regularly for drift, duplicate scopes, stale
   candidates, missing canonical synthesis, and weak default search strings.
+- Hot-query events and `hot.md` must not contain raw transcripts, private paths,
+  PDFs, browser captures, or article text.
 
 ## Storage And Connection Strategy
 
@@ -79,6 +85,8 @@ RKF separates public memory from private or machine-specific artifacts:
   pages, graph exports, examples, and tests.
 - Private evidence root: PDFs, authorized full text, screenshots, browser
   captures, OCR outputs, attachments, and other non-public evidence artifacts.
+- Hot-query state: `hot.md` is the source of truth and the readable 30-day
+  dashboard; do not split hot-query records into separate state files.
 
 The multi-computer version is an experimental `rkf-connect` concern. The
 current pattern is to keep real shared `RAW` and `wiki` folders in one Google

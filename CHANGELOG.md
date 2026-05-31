@@ -2,6 +2,8 @@
 
 ## Unreleased
 
+- Add the hot-query layer: `hot.md` as a single public-safe retrieval file with
+  CLI recording and refresh commands.
 - Route RKF runtime paths through configured `storage.wiki_root` so CLI query,
   lint, graph, index, and log operations use the shared wiki database when one
   is configured.

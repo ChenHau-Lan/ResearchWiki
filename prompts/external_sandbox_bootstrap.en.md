@@ -32,7 +32,11 @@ python3 tools/rk.py capture doi "10.xxxx/xxxxx" --title "Paper title" --topic-id
 python3 tools/rk.py acquire "source_id" --pdf "/private/path/to/paper.pdf" --approve
 python3 tools/rk.py verify-pdf "source_id" --locator "p. 3 Fig. 2; p. 8 Section 4" --note "QC notes"
 python3 tools/rk.py distill paper "source_id" --slug "author-year-short-title"
+python3 tools/rk.py hot record "short paper-search question" --topic-id "topic-id" --origin external-sandbox --intent paper-search
 ```
+
+For hot-query tracking, use the CLI command above or return a short hot-query
+proposal. Do not create separate hot-query files or a sandbox inbox.
 
 If you do not have write access, or the evidence is incomplete, do not edit the
 wiki directly. Return a proposal instead.
@@ -45,6 +49,8 @@ wiki directly. Return a proposal instead.
   QC, and locator notes.
 - Do not save PDFs, full article text, browser captures, private Drive paths,
   tokens, or local secrets.
+- Do not put raw chat transcripts, private paths, PDFs, browser captures, or
+  full article text into `hot.md` or hot-query events.
 - Temporary PDF text or OCR may be used for reading, but full text must not be
   committed to RKF.
 
@@ -70,6 +76,7 @@ evidence_boundary: candidate only | PDF acquired | PDF QC needed | locator avail
 confidence: low | medium | high | mixed
 recommended_rkf_mode: capture | acquire | verify-pdf | distill | save | review | synthesize
 reason_to_save: one sentence
+hot_query: optional short public-safe question to record in hot.md
 notes: short notes only; no full article text
 ```
 

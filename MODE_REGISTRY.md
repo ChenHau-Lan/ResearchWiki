@@ -29,7 +29,8 @@ tool commands are an implementation detail.
 
 | Mode | English / 中文 Trigger | Output | Oversight | Write Boundary |
 |---|---|---|---|---|
-| `query` | ask what the wiki knows; 問知識庫, 從wiki回答 | governed context + optional ARS analysis | Medium | none unless saved |
+| `query` | ask what the wiki knows; 問知識庫, 從wiki回答 | governed context + optional ARS analysis | Medium | hot-query event unless disabled; no knowledge write unless saved |
+| `hot-query` | recurring research question, paper-search demand; 熱門問題, 常問題目, hot.md | retrieval dashboard | Low | `hot.md` |
 | `save` | persist durable non-paper knowledge; 回寫wiki, 保存討論結果 | selected knowledge object | Medium | `knowledge/` |
 | `graph` | export links and state; 知識圖譜, graph links | graph JSON | Low | `graph/` |
 | `external-sandbox` | create a compact wiki context capsule; 外部sandbox prompt, context capsule | context capsule | Medium | `prompts/` |

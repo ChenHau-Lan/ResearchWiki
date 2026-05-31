@@ -30,7 +30,11 @@ python3 tools/rk.py capture doi "10.xxxx/xxxxx" --title "Paper title" --topic-id
 python3 tools/rk.py acquire "source_id" --pdf "/private/path/to/paper.pdf" --approve
 python3 tools/rk.py verify-pdf "source_id" --locator "p. 3 Fig. 2; p. 8 Section 4" --note "QC notes"
 python3 tools/rk.py distill paper "source_id" --slug "author-year-short-title"
+python3 tools/rk.py hot record "short paper-search question" --topic-id "topic-id" --origin external-sandbox --intent paper-search
 ```
+
+若要記錄熱門研究問題，使用上面的 CLI，或回傳短的 hot-query proposal。不要建立
+hot-query 分檔，也不要設置 sandbox inbox。
 
 如果沒有寫入權限，或證據不完整，請不要直接改 wiki。改輸出 proposal。
 
@@ -40,6 +44,8 @@ python3 tools/rk.py distill paper "source_id" --slug "author-year-short-title"
 - ARS/deep-research reports are not evidence by themselves.
 - 沒有合法 artifact、PDF/OCR/visual QC、locator notes，就不要生成正式 paper wiki page。
 - 不要保存 PDF、全文、browser capture、私人 Drive path、token、local secret。
+- 不要把 raw chat transcript、私人路徑、PDF、browser capture 或全文放進 `hot.md`
+  或 hot-query events。
 - 暫時讀取 PDF text/OCR 可以用來理解文章，但不要把完整文本寫入 RKF。
 
 ## Proposal Fallback
@@ -64,6 +70,7 @@ evidence_boundary: candidate only | PDF acquired | PDF QC needed | locator avail
 confidence: low | medium | high | mixed
 recommended_rkf_mode: capture | acquire | verify-pdf | distill | save | review | synthesize
 reason_to_save: one sentence
+hot_query: optional short public-safe question to record in hot.md
 notes: short notes only; no full article text
 ```
 

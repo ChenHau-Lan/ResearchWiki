@@ -12,8 +12,10 @@ import json
 import os
 import re
 import shutil
+from collections import Counter, defaultdict
 from dataclasses import dataclass
-from datetime import date, datetime
+from datetime import date, datetime, timedelta
+from hashlib import sha1
 from pathlib import Path
 from typing import Any
 
@@ -58,6 +60,17 @@ LOCAL_PATH_PATTERNS = [
     re.compile("/" + r"Users/(?!\[\^)[^/\s]+"),
     re.compile(r"C:\\Users\\", re.IGNORECASE),
 ]
+HOT_RECORDS_START = "<!-- RKF-HOT-RECORDS:START -->"
+HOT_RECORDS_END = "<!-- RKF-HOT-RECORDS:END -->"
+HOT_GENERATED_START = "<!-- RKF-HOT-GENERATED:START -->"
+HOT_GENERATED_END = "<!-- RKF-HOT-GENERATED:END -->"
+HOT_EVENT_SCHEMA = "rkf-hot-query-event-v1"
+HOT_QUERY_MAX_CHARS = 500
+HOT_NOTES_MAX_CHARS = 1000
+HOT_DEFAULT_WINDOW_DAYS = 30
+HOT_RECORD_RE = re.compile(
+    r"^-\s*(?P<date>\d{4}-\d{2}-\d{2})\s*\|\s*origin=(?P<origin>[^|]+)\|\s*topic=(?P<topic>[^|]+)\|\s*intent=(?P<intent>[^|]+)\|\s*query=\"(?P<query>[^\"]*)\"(?:\s*\|\s*leads=\"(?P<leads>[^\"]*)\")?(?:\s*\|\s*notes=\"(?P<notes>[^\"]*)\")?\s*$"
+)
 
 
 def today() -> str:
@@ -261,6 +274,7 @@ class WorkspacePaths:
     wiki_root: Path
     index: Path
     log: Path
+    hot_md: Path
     state: Path
     sources: Path
     evidence_index: Path
@@ -308,6 +322,7 @@ class Workspace:
             wiki_root=wiki_root,
             index=wiki_root / "index.md",
             log=wiki_root / "log.md",
+            hot_md=wiki_root / "hot.md",
             state=state,
             sources=state / "sources",
             evidence_index=state / "evidence",
@@ -618,6 +633,317 @@ def add_topic(
     return topic
 
 
+def normalize_hot_query(value: str) -> str:
+    value = value.strip().lower()
+    value = re.sub(r"\s+", " ", value)
+    value = value.strip("\"'")
+    return value
+
+
+def assert_public_safe_hot_value(value: str, *, field: str, max_chars: int) -> None:
+    if len(value) > max_chars:
+        raise SystemExit(f"hot query {field} is too long; refusing possible pasted transcript or article text")
+    for pattern in LOCAL_PATH_PATTERNS:
+        if pattern.search(value):
+            raise SystemExit(f"hot query {field} contains a local/private path")
+
+
+def hot_event_id(*, created: str, origin: str, intent: str, normalized_query: str, topic_ids: list[str]) -> str:
+    payload = json.dumps(
+        {
+            "created": created,
+            "origin": origin,
+            "intent": intent,
+            "normalized_query": normalized_query,
+            "topic_ids": sorted(topic_ids),
+        },
+        sort_keys=True,
+    )
+    return "hot_" + sha1(payload.encode("utf-8")).hexdigest()[:16]
+
+
+def _topic_match_text(topic: dict[str, Any]) -> str:
+    chunks: list[str] = [
+        str(topic.get("topic_id", "")).replace("-", " "),
+        str(topic.get("name", "")),
+        str(topic.get("scope", "")),
+    ]
+    for key in ("aliases", "include", "default_search_strings"):
+        chunks.extend(str(item) for item in topic.get(key, []))
+    text = " ".join(chunks).lower().replace('"', " ")
+    return re.sub(r"[^a-z0-9]+", " ", text)
+
+
+def infer_hot_topics(ws: Workspace, query: str, explicit_topic_id: str = "") -> tuple[list[str], str]:
+    explicit_topic_id = explicit_topic_id.strip()
+    if explicit_topic_id and explicit_topic_id.lower() not in {"none", "unknown"}:
+        return [explicit_topic_id], "explicit"
+    normalized = normalize_hot_query(query)
+    query_words = {word for word in re.findall(r"[a-z0-9]+", normalized) if len(word) >= 3}
+    scored: list[tuple[int, str]] = []
+    for topic in ws.load_topics():
+        topic_id = str(topic.get("topic_id", ""))
+        if not topic_id:
+            continue
+        score = 0
+        candidates = [topic_id.replace("-", " "), str(topic.get("name", ""))]
+        candidates.extend(str(item) for item in topic.get("aliases", []))
+        for phrase in candidates:
+            phrase_key = normalize_hot_query(phrase.replace("-", " "))
+            if phrase_key and phrase_key in normalized:
+                score += 4
+        topic_words = set(_topic_match_text(topic).split())
+        overlap = query_words & topic_words
+        score += min(len(overlap), 4)
+        if score >= 2:
+            scored.append((score, topic_id))
+    if not scored:
+        return [], "unknown"
+    scored.sort(key=lambda item: (-item[0], item[1]))
+    best_score = scored[0][0]
+    return [topic_id for score, topic_id in scored if score == best_score], "matched"
+
+
+def record_hot_query(
+    ws: Workspace,
+    *,
+    query: str,
+    topic_id: str = "",
+    origin: str = "local",
+    intent: str = "query",
+    paper_leads: list[str] | None = None,
+    notes: str = "",
+    created: str = "",
+) -> dict[str, Any]:
+    ws.ensure_base()
+    assert_public_safe_hot_value(query, field="query", max_chars=HOT_QUERY_MAX_CHARS)
+    assert_public_safe_hot_value(notes, field="notes", max_chars=HOT_NOTES_MAX_CHARS)
+    paper_leads = paper_leads or []
+    for lead in paper_leads:
+        assert_public_safe_hot_value(lead, field="paper_leads", max_chars=HOT_QUERY_MAX_CHARS)
+    normalized_query = normalize_hot_query(query)
+    if not normalized_query:
+        raise SystemExit("hot query cannot be empty")
+    created = created or datetime.now().isoformat(timespec="seconds")
+    topic_ids, topic_fit = infer_hot_topics(ws, query, topic_id)
+    event = {
+        "schema": HOT_EVENT_SCHEMA,
+        "event_id": hot_event_id(
+            created=created,
+            origin=origin,
+            intent=intent,
+            normalized_query=normalized_query,
+            topic_ids=topic_ids,
+        ),
+        "created": created,
+        "origin": origin,
+        "intent": intent,
+        "query": query.strip(),
+        "normalized_query": normalized_query,
+        "topic_ids": topic_ids,
+        "topic_fit": topic_fit,
+        "paper_leads": paper_leads,
+        "notes": notes.strip(),
+    }
+    append_hot_record(ws, event)
+    append_log(ws, "hot-record", f"{intent} topics={','.join(topic_ids) or 'unknown'} query={normalized_query[:80]}")
+    return event
+
+
+def _hot_escape(value: str) -> str:
+    return value.replace('"', "'").replace("\n", " ").strip()
+
+
+def _hot_record_line(event: dict[str, Any]) -> str:
+    created = str(event.get("created", today()))[:10]
+    origin = _hot_escape(str(event.get("origin", "local")))
+    intent = _hot_escape(str(event.get("intent", "query")))
+    topic_ids = [str(item) for item in event.get("topic_ids", []) if str(item).strip()]
+    topic = ",".join(topic_ids) if topic_ids else "unknown"
+    query = _hot_escape(str(event.get("query", "")))
+    line = f'- {created} | origin={origin} | topic={topic} | intent={intent} | query="{query}"'
+    leads = [_hot_escape(str(item)) for item in event.get("paper_leads", []) if str(item).strip()]
+    notes = _hot_escape(str(event.get("notes", "")))
+    if leads:
+        line += f' | leads="{"; ".join(leads)}"'
+    if notes:
+        line += f' | notes="{notes}"'
+    return line
+
+
+def _extract_block(text: str, start_marker: str, end_marker: str) -> str:
+    if start_marker not in text or end_marker not in text:
+        return ""
+    start = text.index(start_marker) + len(start_marker)
+    end = text.index(end_marker, start)
+    return text[start:end].strip("\n")
+
+
+def _parse_hot_line(line: str) -> dict[str, Any] | None:
+    stripped = line.strip()
+    if not stripped or stripped.startswith("<!--"):
+        return None
+    match = HOT_RECORD_RE.match(stripped)
+    if not match:
+        return None
+    topic_raw = match.group("topic").strip()
+    topic_ids = [] if topic_raw.lower() in {"", "none", "unknown"} else [item.strip() for item in topic_raw.split(",") if item.strip()]
+    query = match.group("query").strip()
+    normalized_query = normalize_hot_query(query)
+    leads = [item.strip() for item in (match.group("leads") or "").split(";") if item.strip()]
+    notes = (match.group("notes") or "").strip()
+    created = match.group("date")
+    return {
+        "schema": HOT_EVENT_SCHEMA,
+        "event_id": hot_event_id(
+            created=created,
+            origin=match.group("origin").strip(),
+            intent=match.group("intent").strip(),
+            normalized_query=normalized_query,
+            topic_ids=topic_ids,
+        ),
+        "created": created,
+        "origin": match.group("origin").strip(),
+        "intent": match.group("intent").strip(),
+        "query": query,
+        "normalized_query": normalized_query,
+        "topic_ids": topic_ids,
+        "topic_fit": "explicit" if topic_ids else "unknown",
+        "paper_leads": leads,
+        "notes": notes,
+    }
+
+
+def _hot_records_text(ws: Workspace) -> str:
+    if not ws.paths.hot_md.exists():
+        return ""
+    return _extract_block(read_text(ws.paths.hot_md), HOT_RECORDS_START, HOT_RECORDS_END)
+
+
+def load_hot_events(ws: Workspace) -> list[dict[str, Any]]:
+    events: list[dict[str, Any]] = []
+    for line in _hot_records_text(ws).splitlines():
+        event = _parse_hot_line(line)
+        if event is not None:
+            events.append(event)
+    return events
+
+
+def append_hot_record(ws: Workspace, event: dict[str, Any]) -> None:
+    if not ws.paths.hot_md.exists():
+        write_text(ws.paths.hot_md, render_hot_markdown(ws))
+    text = read_text(ws.paths.hot_md)
+    record_line = _hot_record_line(event)
+    if HOT_RECORDS_START not in text or HOT_RECORDS_END not in text:
+        text = render_hot_markdown(ws)
+    start = text.index(HOT_RECORDS_START) + len(HOT_RECORDS_START)
+    end = text.index(HOT_RECORDS_END, start)
+    existing = text[start:end].strip("\n")
+    replacement = "\n" + (existing + "\n" if existing else "") + record_line + "\n"
+    write_text(ws.paths.hot_md, text[:start] + replacement + text[end:])
+
+
+def _event_date(event: dict[str, Any]) -> date | None:
+    created = str(event.get("created", ""))
+    try:
+        return datetime.fromisoformat(created).date()
+    except ValueError:
+        try:
+            return date.fromisoformat(created[:10])
+        except ValueError:
+            return None
+
+
+def recent_hot_events(ws: Workspace, *, days: int = HOT_DEFAULT_WINDOW_DAYS) -> list[dict[str, Any]]:
+    cutoff = date.today() - timedelta(days=days - 1)
+    recent: list[dict[str, Any]] = []
+    for event in load_hot_events(ws):
+        event_day = _event_date(event)
+        if event_day is None or event_day >= cutoff:
+            recent.append(event)
+    return recent
+
+
+def _format_counter(counter: Counter[str], *, empty: str) -> list[str]:
+    if not counter:
+        return [f"- {empty}"]
+    return [f"- {name}: {count}" for name, count in counter.most_common()]
+
+
+def render_hot_markdown(ws: Workspace, *, days: int = HOT_DEFAULT_WINDOW_DAYS) -> str:
+    events = recent_hot_events(ws, days=days)
+    records = _hot_records_text(ws)
+    topic_names = {str(topic.get("topic_id", "")): str(topic.get("name", "")) for topic in ws.load_topics()}
+    topic_counts: Counter[str] = Counter()
+    question_counts: dict[str, Counter[str]] = defaultdict(Counter)
+    paper_leads: Counter[str] = Counter()
+    unknown: Counter[str] = Counter()
+    for event in events:
+        query = str(event.get("normalized_query") or event.get("query", "")).strip()
+        if not query:
+            continue
+        topic_ids = [str(item) for item in event.get("topic_ids", []) if str(item).strip()]
+        if not topic_ids:
+            unknown[query] += 1
+            continue
+        for topic_id in topic_ids:
+            topic_counts[topic_id] += 1
+            question_counts[topic_id][query] += 1
+        for lead in event.get("paper_leads", []):
+            if str(lead).strip():
+                paper_leads[str(lead).strip()] += 1
+    lines = [
+        "# Hot Research Questions",
+        "",
+        f"Generated: {today()}",
+        f"Window: last {days} days",
+        "",
+        "This dashboard records public-safe research demand signals. It is not evidence, not a knowledge page, and not a stable claim source.",
+        "",
+        HOT_GENERATED_START,
+        "",
+        "## Top Topics",
+        "",
+    ]
+    if topic_counts:
+        for topic_id, count in topic_counts.most_common():
+            label = topic_names.get(topic_id, topic_id)
+            lines.append(f"- {topic_id} ({label}): {count}")
+    else:
+        lines.append("- No topic-linked hot queries in this window.")
+    lines.extend(["", "## Frequent Questions By Topic", ""])
+    if question_counts:
+        for topic_id in sorted(question_counts):
+            label = topic_names.get(topic_id, topic_id)
+            lines.append(f"### {topic_id} - {label}")
+            lines.extend(_format_counter(question_counts[topic_id], empty="No questions recorded."))
+            lines.append("")
+    else:
+        lines.append("- No frequent questions recorded.")
+        lines.append("")
+    lines.extend(["## Paper/Search Leads", ""])
+    lines.extend(_format_counter(paper_leads, empty="No paper/search leads recorded."))
+    lines.extend(["", "## Unknown-Topic Triage", ""])
+    lines.extend(_format_counter(unknown, empty="No unknown-topic queries in this window."))
+    lines.extend(["", HOT_GENERATED_END, "", "## Query Records", ""])
+    lines.append("Records below are the retrieval source for this file. Keep them short and public-safe.")
+    lines.append('Format: `- YYYY-MM-DD | origin=local | topic=topic-id | intent=query | query="short question"`')
+    lines.append("")
+    lines.append(HOT_RECORDS_START)
+    if records:
+        lines.append(records.rstrip())
+    lines.append(HOT_RECORDS_END)
+    lines.append("")
+    return "\n".join(lines)
+
+
+def refresh_hot_markdown(ws: Workspace, *, days: int = HOT_DEFAULT_WINDOW_DAYS) -> Path:
+    ws.ensure_base()
+    write_text(ws.paths.hot_md, render_hot_markdown(ws, days=days))
+    append_log(ws, "hot-refresh", f"generated {relative_workspace_path(ws, ws.paths.hot_md)}")
+    return ws.paths.hot_md
+
+
 def generate_wiki_index(ws: Workspace) -> Path:
     ws.ensure_base()
     lines = [
@@ -741,6 +1067,15 @@ def lint_public_safety(ws: Workspace) -> list[str]:
                     errors.append(f"{rel}: local/private path pattern: {match}")
             if rel.startswith("knowledge/papers/") and len(text) > 120000:
                 errors.append(f"{rel}: unusually large paper page may contain copied article text")
+    if ws.paths.hot_md.exists():
+        rel = relative_workspace_path(ws, ws.paths.hot_md)
+        text = ws.paths.hot_md.read_text(encoding="utf-8", errors="replace")
+        for pattern in LOCAL_PATH_PATTERNS:
+            for match in pattern.findall(text):
+                errors.append(f"{rel}: local/private path pattern: {match}")
+        for line_number, line in enumerate(text.splitlines(), start=1):
+            if len(line) > HOT_NOTES_MAX_CHARS:
+                errors.append(f"{rel}:{line_number}: unusually long hot-query line may contain pasted transcript or article text")
     return errors
 
 
@@ -773,7 +1108,20 @@ def export_graph(ws: Workspace) -> dict[str, Any]:
 
 
 def external_sandbox_capsule(ws: Workspace) -> Path:
-    allowed_modes = ["capture", "discover", "acquire", "verify-pdf", "distill", "query", "save", "synthesize", "lint", "graph"]
+    allowed_modes = [
+        "capture",
+        "discover",
+        "acquire",
+        "verify-pdf",
+        "distill",
+        "query",
+        "save",
+        "synthesize",
+        "hot record",
+        "hot refresh",
+        "lint",
+        "graph",
+    ]
     path = ws.paths.prompts / "external_sandbox_context.md"
     write_text(
         path,
@@ -783,6 +1131,7 @@ def external_sandbox_capsule(ws: Workspace) -> Path:
         "- Public-safe boundary: do not paste PDFs, full article text, local secrets, or private Drive paths into public wiki pages.\n"
         "- Evidence rule: metadata, search candidates, and ARS reports are not evidence; a QCed PDF artifact is required before paper distillation.\n"
         "- Durable path: PDF evidence -> PDF QC -> wiki page.\n"
+        "- Hot-query rule: public-safe research questions may be recorded in hot.md with `python3 tools/rk.py hot record`; do not create separate hot-query files.\n"
         "- Target save layers: paper, question, concept, claim, synthesis, topic, meeting, seminar, review item.\n"
         "- Allowed modes: "
         + ", ".join(allowed_modes)

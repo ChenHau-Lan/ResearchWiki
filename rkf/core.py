@@ -1653,7 +1653,7 @@ def propose_propagation(ws: Workspace, target: str, *, write: bool = False) -> d
         "target_type": target_kind,
         "affected_pages": impacts,
         "blockers": blockers,
-        "rule": "proposal-only; do not rewrite knowledge pages automatically",
+        "rule": "manual preview/audit fallback; use evolve for maturity-aware low-risk integration",
     }
     if write:
         proposal_path = ws.paths.gates / "propagation" / f"{slugify(target_id, 48)}_{now_stamp()}.md"
@@ -1663,7 +1663,7 @@ def propose_propagation(ws: Workspace, target: str, *, write: bool = False) -> d
             f"- Target: {target_id}",
             f"- Target type: {target_kind}",
             f"- Created: {today()}",
-            "- Rule: proposal-only; do not rewrite knowledge pages automatically",
+            "- Rule: manual preview/audit fallback; use evolve for maturity-aware low-risk integration",
             "",
             "## Affected Pages",
             "",
@@ -1680,8 +1680,107 @@ def propose_propagation(ws: Workspace, target: str, *, write: bool = False) -> d
             lines.append("- No deterministic blockers found.")
         write_text(proposal_path, "\n".join(lines) + "\n")
         proposal["proposal_path"] = relative_workspace_path(ws, proposal_path)
-        append_log(ws, "propagate", f"{target_id} affected={len(impacts)} proposal={proposal['proposal_path']}")
+    append_log(ws, "propagate", f"{target_id} affected={len(impacts)} proposal={proposal['proposal_path']}")
     return proposal
+
+
+def _replace_or_append_section(body: str, heading: str, content: str) -> str:
+    heading_line = f"## {heading}"
+    pattern = re.compile(rf"(^## {re.escape(heading)}\n)(.*?)(?=^## |\Z)", re.DOTALL | re.MULTILINE)
+    replacement = f"{heading_line}\n\n{content.strip()}\n\n"
+    if pattern.search(body):
+        return pattern.sub(replacement, body).rstrip() + "\n"
+    return body.rstrip() + "\n\n" + replacement
+
+
+def _ensure_future_agent_brief(body: str, *, trust_level: str, gaps: str, next_action: str) -> str:
+    if re.search(r"^## Future Agent Retrieval Brief\b", body, flags=re.MULTILINE):
+        return body
+    content = (
+        "- Read this page when: future agents need the current maturity-aware interpretation for this object.\n"
+        f"- Trust level: {trust_level}\n"
+        f"- Current gaps: {gaps}\n"
+        f"- Next best action: {next_action}"
+    )
+    return _replace_or_append_section(body, "Future Agent Retrieval Brief", content)
+
+
+def evolve_page(
+    ws: Workspace,
+    target: str,
+    *,
+    note: str,
+    input_source: str = "codex",
+    priority: str = "low",
+    blocker: str = "",
+    write: bool = True,
+) -> dict[str, Any]:
+    ws.ensure_base()
+    if priority not in {"low", "medium", "high"}:
+        raise SystemExit(f"unsupported evolve priority: {priority}")
+    for field, value in (("evolve note", note), ("input source", input_source), ("blocker", blocker)):
+        if value:
+            assert_public_safe_hot_value(value, field=field, max_chars=HOT_NOTES_MAX_CHARS)
+    path = _resolve_knowledge_path(ws, target)
+    if path is None:
+        raise SystemExit(f"evolve target not found: {target}")
+    text = read_text(path)
+    meta, body = parse_frontmatter(text)
+    if not meta:
+        raise SystemExit(f"evolve target has no frontmatter: {target}")
+
+    page_type = str(meta.get("type", "knowledge"))
+    risk_blockers: list[str] = []
+    if priority == "high":
+        risk_blockers.append(blocker or "High-risk stable claim, source conflict, publication-ready synthesis, or delete/merge choice requires human review.")
+    if page_type == "claim" and priority != "low":
+        risk_blockers.append("Claim-like content remains not-ready until locator, human feedback, or explicit blocker is reviewed.")
+    if page_type == "synthesis" and priority == "high":
+        meta["synthesis_maturity"] = "draft"
+        meta["source_coverage"] = str(meta.get("source_coverage") or "unknown")
+
+    meta["ai_integrated"] = True
+    meta["ai_integration_priority"] = priority
+    meta["last_ai_integration"] = today()
+    meta["updated"] = today()
+    if page_type in {"paper", "claim", "synthesis"} and priority == "high":
+        meta["claim_readiness"] = "not-ready"
+    elif page_type == "synthesis":
+        meta.setdefault("synthesis_maturity", "draft")
+        meta.setdefault("source_coverage", "unknown")
+        meta.setdefault("claim_readiness", "not-ready")
+
+    remaining_blocker = "; ".join(dict.fromkeys(risk_blockers)) if risk_blockers else blocker
+    if not remaining_blocker:
+        remaining_blocker = "none for low-risk integration; stable claims still need normal evidence boundary."
+    note_content = (
+        "- ai_integrated: true\n"
+        f"- integrated_at: {today()}\n"
+        f"- priority: {priority}\n"
+        f"- reason: {note.strip()}\n"
+        f"- input_source: {input_source.strip()}\n"
+        f"- remaining_blocker: {remaining_blocker}"
+    )
+    body = _ensure_future_agent_brief(
+        body,
+        trust_level="low maturity until human review or locator support is added" if priority != "low" else "low-risk operational update",
+        gaps=remaining_blocker,
+        next_action="review blockers before promoting stable claims" if risk_blockers else "continue normal reading maturity updates",
+    )
+    body = _replace_or_append_section(body, "AI Integration Note", note_content)
+
+    updated_text = frontmatter(meta) + body.rstrip() + "\n"
+    rel = relative_workspace_path(ws, path)
+    if write:
+        write_text(path, updated_text)
+        append_log(ws, "evolve", f"{rel} priority={priority} ai_integrated=true")
+    return {
+        "path": rel,
+        "priority": priority,
+        "ai_integrated": True,
+        "blockers": risk_blockers,
+        "wrote": write,
+    }
 
 
 def _paper_page_index(ws: Workspace) -> dict[str, tuple[Path, dict[str, Any], str]]:
@@ -2005,6 +2104,8 @@ def external_sandbox_capsule(ws: Workspace) -> Path:
         "paper next",
         "paper nudge",
         "status",
+        "world",
+        "evolve",
         "propagate",
         "lint",
         "graph",

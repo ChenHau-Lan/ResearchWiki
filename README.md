@@ -27,6 +27,7 @@ candidate != claim evidence
 ARS output == proposal or reading feedback until reviewed
 user feedback raises understanding maturity
 stable claim -> locator, supported wiki source, human feedback, or blocker
+low-risk rewrite -> AI Integration Note + maturity-aware page update
 hot.md == public-safe research demand dashboard, not evidence
 ```
 
@@ -39,6 +40,7 @@ Use RKF through natural-language research requests:
 - "I read this paper; record my feedback and raise its trust level."
 - "Ask the wiki what we know, and use ARS to reason over the retrieved context."
 - "Show the L0-L3 world context before this research session."
+- "Use evolve to add a retrieval brief or reading-state note to this existing page."
 - "Review this topic registry and suggest merges, splits, stale candidates, and better search strings."
 - "Run maintenance checks for reading maturity, evidence boundaries, graph links, and public safety."
 - "Record this paper-search question in hot.md so topic review sees repeated demand."
@@ -66,6 +68,7 @@ flowchart LR
     D --> E["Reading ledger<br/>questions, feedback, blockers"]
     E --> F["Claims and synthesis<br/>only when maturity is sufficient"]
     F --> G["World context<br/>L0-L3 capsule"]
+    F --> M["Priority evolve<br/>AI Integration Note"]
     H["RKF query"] --> I["Hot-query event"]
     H --> J["Governed wiki context"]
     J --> K["ARS reasoning"]
@@ -112,6 +115,18 @@ and contradiction hints; L3 graph/detail links and validation state.
 `valid_from`, `confidence`, and `source_or_blocker` so future agents can recover
 the durable baseline without turning private notes or article text into wiki
 state.
+
+## Priority Evolve
+
+`python3 tools/rk.py evolve <page> --note "..."`
+is the normal RKF-native path for low-risk updates to existing pages. It writes
+an `AI Integration Note`, marks the page `ai_integrated: true`, and keeps
+maturity conservative. High-risk stable claim promotion, source identity
+conflicts, publication-ready synthesis, and delete/merge choices are written as
+inline blockers or maturity downgrades instead of silent trust upgrades.
+
+`propagate` remains available as a manual preview/audit fallback when you want
+to inspect affected pages before deciding what to integrate.
 
 ## Hot Research Questions
 

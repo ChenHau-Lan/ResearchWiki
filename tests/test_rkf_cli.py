@@ -290,7 +290,77 @@ class RKFCliTests(unittest.TestCase):
         self.assertIn("review blockers:", result)
         proposals = list((self.root / "state" / "gates" / "propagation").glob("*.md"))
         self.assertEqual(len(proposals), 1)
-        self.assertIn("proposal-only", proposals[0].read_text(encoding="utf-8"))
+        self.assertIn("manual preview/audit fallback", proposals[0].read_text(encoding="utf-8"))
+
+    def test_evolve_writes_ai_integration_note_for_low_risk_page(self) -> None:
+        concept = self.root / "knowledge" / "concepts" / "aerosol_seed.md"
+        concept.parent.mkdir(parents=True)
+        concept.write_text(
+            "---\n"
+            "type: concept\n"
+            "status: draft\n"
+            "review_stage: ai-extracted\n"
+            "topics: []\n"
+            "evidence_boundary: review-blocker\n"
+            "created: 2026-05-25\n"
+            "updated: 2026-05-25\n"
+            "---\n\n"
+            "# Aerosol Seed\n\n"
+            "Aerosol cloud mechanism note.\n",
+            encoding="utf-8",
+        )
+
+        result = self.run_rk(
+            "evolve",
+            "knowledge/concepts/aerosol_seed.md",
+            "--note",
+            "Add future-agent retrieval metadata after reading queue review.",
+            "--source",
+            "unit-test",
+        ).stdout
+
+        self.assertIn("ai_integrated: true", result)
+        text = concept.read_text(encoding="utf-8")
+        self.assertIn("ai_integrated: true", text)
+        self.assertIn("AI Integration Note", text)
+        self.assertIn("Future Agent Retrieval Brief", text)
+        self.assertIn("Add future-agent retrieval metadata", text)
+
+    def test_evolve_high_priority_leaves_blocker_and_downgrades_claim(self) -> None:
+        claim = self.root / "knowledge" / "claims" / "stable_claim.md"
+        claim.parent.mkdir(parents=True)
+        claim.write_text(
+            "---\n"
+            "type: claim\n"
+            "status: draft\n"
+            "review_stage: ai-extracted\n"
+            "topics: []\n"
+            "evidence_boundary: review-blocker\n"
+            "claim_readiness: claim-ready\n"
+            "created: 2026-05-25\n"
+            "updated: 2026-05-25\n"
+            "---\n\n"
+            "# Stable Claim\n\n"
+            "This needs review.\n",
+            encoding="utf-8",
+        )
+
+        result = self.run_rk(
+            "evolve",
+            "knowledge/claims/stable_claim.md",
+            "--priority",
+            "high",
+            "--note",
+            "Potential stable-claim promotion requires blocker instead of direct trust upgrade.",
+            "--source",
+            "unit-test",
+        ).stdout
+
+        self.assertIn("blockers:", result)
+        text = claim.read_text(encoding="utf-8")
+        self.assertIn("claim_readiness: not-ready", text)
+        self.assertIn("remaining_blocker:", text)
+        self.assertIn("High-risk stable claim", text)
 
     def test_status_and_world_print_workspace_bootstrap(self) -> None:
         (self.root / "CRITICAL_FACTS.md").write_text(
@@ -611,6 +681,7 @@ class RKFCliTests(unittest.TestCase):
             "synthesize <title>",
             "review",
             "lint",
+            "evolve <target>",
             "propagate <target>",
             "graph",
             "status",

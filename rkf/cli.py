@@ -15,6 +15,7 @@ from .core import (
     create_paper_note,
     create_source,
     external_sandbox_capsule,
+    evolve_page,
     export_graph,
     generate_wiki_index,
     infer_evidence_tier,
@@ -383,7 +384,30 @@ def cmd_propagate(args: argparse.Namespace) -> int:
     if proposal.get("proposal_path"):
         print(f"wrote: {proposal['proposal_path']}")
     else:
-        print("rule: proposal-only; rerun with --write to create a review gate")
+        print("rule: preview/audit fallback; rerun with --write to create a review gate")
+    return 0
+
+
+def cmd_evolve(args: argparse.Namespace) -> int:
+    ws = Workspace()
+    result = evolve_page(
+        ws,
+        args.target,
+        note=args.note,
+        input_source=args.source,
+        priority=args.priority,
+        blocker=args.blocker or "",
+        write=not args.dry_run,
+    )
+    print(f"evolve target: {result['path']}")
+    print(f"priority: {result['priority']}")
+    print(f"ai_integrated: {str(result['ai_integrated']).lower()}")
+    print(f"wrote: {str(result['wrote']).lower()}")
+    blockers = result.get("blockers", [])
+    if blockers:
+        print("blockers:")
+        for blocker in blockers:
+            print(f"- {blocker}")
     return 0
 
 
@@ -590,6 +614,15 @@ def build_parser() -> argparse.ArgumentParser:
     lint = sub.add_parser("lint", help="Validate RKF structure, evidence, graph, ARS handoff, or public safety")
     lint.add_argument("--mode", choices=sorted(LINT_MODES), default="all")
     lint.set_defaults(func=cmd_lint)
+
+    evolve = sub.add_parser("evolve", help="Directly integrate low-risk page updates with an AI Integration Note")
+    evolve.add_argument("target", help="Knowledge page path to rewrite")
+    evolve.add_argument("--note", required=True, help="Public-safe reason for the integration")
+    evolve.add_argument("--source", default="codex", help="Public-safe input source label")
+    evolve.add_argument("--priority", choices=["low", "medium", "high"], default="low")
+    evolve.add_argument("--blocker", help="Explicit blocker to leave on the page")
+    evolve.add_argument("--dry-run", action="store_true", help="Render decision without writing the page")
+    evolve.set_defaults(func=cmd_evolve)
 
     propagate = sub.add_parser("propagate", help="Generate affected-page propagation preview/audit review")
     propagate.add_argument("target", help="Source ID or knowledge page path to review for propagation")

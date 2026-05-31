@@ -16,7 +16,7 @@ boundaries control when claims or synthesis become stable.
 |---|---|---|
 | `rkf-evidence-vault` | Source capture, candidate discovery, full-text availability, user PDF routing, PDF/OCR/visual reading state | DOI, URL, PDF, literature discovery, source intake, 文獻搜尋, 找文章, 提供PDF, full text |
 | `rkf-knowledge-synthesis` | Paper drafts, maintained knowledge objects, topic review, and maturity-aware synthesis | paper note, synthesis, topic, claim, 整理成wiki, 論文筆記, 概念頁, topic整理 |
-| `rkf-wiki-core` | LLM Wiki retrieval, ARS reasoning handoff, save, graph, L0-L3 world context, paper queue, sandbox context | LLM Wiki, query, save, graph, world, status, paper queue, 回寫wiki |
+| `rkf-wiki-core` | LLM Wiki retrieval, ARS reasoning handoff, save, graph, L0-L3 world context, evolve, paper queue, sandbox context | LLM Wiki, query, save, graph, world, evolve, status, paper queue, 回寫wiki |
 | `rkf-lint` | Health checks and repair planning for structure, maturity, evidence boundary, graph, public safety | lint, audit, repair plan, 檢查, 修復計畫, 發布安全 |
 | `rkf-connect` | Experimental shared database, multi-computer Drive links, and external sandbox access boundaries | shared database, Google Drive, symlink, sandbox access, 共享資料庫 |
 
@@ -31,7 +31,8 @@ translating ARS outputs into RKF proposals or reading-feedback events.
    is available, or what human feedback was given, route to `rkf-evidence-vault`
    for reading-state updates or `rkf-wiki-core` for paper queue/status.
 3. If the user asks to write or update wiki knowledge, route to
-   `rkf-knowledge-synthesis`.
+   `rkf-knowledge-synthesis`. Use `evolve` for low-risk direct integration into
+   an existing page when the update can be marked AI-integrated and maturity-aware.
 4. If the user asks to query the wiki, retrieve governed RKF context with
    `rkf-wiki-core`; when interpretation or recommendation is needed, let ARS
    reason over that context; save only through RKF proposal/synthesis rules.
@@ -73,6 +74,11 @@ translating ARS outputs into RKF proposals or reading-feedback events.
   `valid_from`, `confidence`, and `source_or_blocker` for future-agent retrieval.
 - Paper, synthesis, and topic pages should include a Future Agent Retrieval
   Brief when they are newly created or rewritten.
+- Low-risk rewrites may update existing pages through `evolve`, but every AI
+  rewrite must leave an `AI Integration Note`.
+- High-risk stable claim promotion, source identity conflicts,
+  publication-ready synthesis, and delete/merge choices must remain blocked or
+  maturity-downgraded until reviewed.
 - Shared database setup is experimental. Machine-specific links and private
   paths must not become the committed source of truth.
 - Lint may report and plan repairs; it must not silently rewrite knowledge or

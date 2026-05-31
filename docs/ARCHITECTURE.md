@@ -20,6 +20,7 @@ export, ARS handoff proposals, and optional shared-database connections.
 | Hot Query Layer | Track recent public-safe research questions and paper-search demand | single retrieval file: `hot.md` |
 | L0-L3 World Context | Rebuild session context from identity, critical facts, active reading, synthesis, graph links, and validation state | terminal capsule, public-safe |
 | Critical Facts | Store short public-safe facts with temporal metadata for future agents | `CRITICAL_FACTS.md` |
+| Priority Evolve | Rewrite low-risk existing pages with visible AI Integration Notes and maturity-aware blockers | governed page update |
 | Propagation Review | Identify pages affected by new reading, evidence, or synthesis | manual preview/audit fallback |
 | ARS Bridge | Convert ARS research/reasoning/writing/review output into RKF proposals or reading feedback | proposals only |
 | Connect | Manage experimental shared RAW/wiki folders and external sandbox access boundaries | connection plans only; no private paths |
@@ -34,6 +35,7 @@ flowchart TD
     D --> E["claim readiness<br/>not-ready / locator-needed / claim-ready / synthesis-ready"]
     E --> F["knowledge synthesis<br/>claims, concepts, synthesis"]
     F --> M["world<br/>L0-L3 context capsule"]
+    F --> N["evolve<br/>AI Integration Note"]
     G["RKF query"] --> H["retrieve governed wiki context"]
     G --> I["hot-query event<br/>public-safe demand signal"]
     H --> J["ARS reasoning"]
@@ -74,6 +76,10 @@ flowchart TD
 - Public pages must not contain copied article text or private evidence paths.
 - `world` is the default session bootstrap: it summarizes L0 critical facts, L1
   active reading, L2 synthesis/readiness, and L3 graph/detail links.
+- `evolve` is the normal low-risk direct integration path. Every rewrite leaves
+  an AI Integration Note and keeps stable claim or publication-ready content
+  blocked until a locator, human feedback, supported source, or explicit blocker
+  is reviewed.
 - Propagation remains available as a manual preview/audit fallback.
 
 ## Storage And Connection Strategy

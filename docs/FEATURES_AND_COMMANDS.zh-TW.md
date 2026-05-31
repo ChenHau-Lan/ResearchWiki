@@ -21,7 +21,8 @@ repo 已有的能力、日常怎麼用、以及哪些檔案或目錄看起來只
 | L0-L3 world context | 快速重建 identity、critical facts、active reading、claim readiness、graph/detail links 與 validation state | terminal report |
 | Critical facts | 保存短句、public-safe、可重用且有時間 metadata 的 facts | `CRITICAL_FACTS.md` |
 | Future Agent Retrieval Brief | 在 paper / synthesis / topic template 說明何時讀頁、可信度、缺口與下一步 | `templates/rkf/*.md`、knowledge pages |
-| Propagation review | 新 evidence、reading maturity 或 synthesis 後列出可能受影響頁面 | terminal report 或 `state/gates/propagation/*.md` |
+| Priority evolve | 低風險 rewrite existing page，並在頁內留下 `AI Integration Note`；高風險只留下 blocker / maturity downgrade | knowledge pages |
+| Propagation review | 新 evidence、reading maturity 或 synthesis 後列出可能受影響頁面，作為 preview/audit fallback | terminal report 或 `state/gates/propagation/*.md` |
 | Graph export | 輸出 source/evidence/wiki/topic typed links | `graph/research_graph.json` |
 | Index generation | 產生 LLM retrieval 入口，包含 maturity hints | `index.md` |
 | External sandbox capsule | 產生外部 sandbox 使用的 RKF context | `prompts/external_sandbox_context.md` |
@@ -74,6 +75,7 @@ python3 tools/rk.py <command>
 | `synthesize <title>` | `--slug`, `--body`, `--update` | 建立或更新 draft synthesis |
 | `review` | none | 列出 pending gate/review items |
 | `lint` | `--mode all/structure-lint/evidence-lint/graph-lint/ars-handoff-lint/public-safety-lint/repair-plan` | 執行 RKF health checks |
+| `evolve <target>` | `--note`, `--source`, `--priority low/medium/high`, `--blocker`, `--dry-run` | maturity-aware 直接整合低風險頁面更新並留下 AI Integration Note |
 | `propagate <target>` | `--write` | 產生 affected-page propagation preview/audit |
 | `graph` | none | 匯出 research graph |
 | `status` | `--log-tail` | 輸出 RKF L0-L3 context capsule |
@@ -222,7 +224,14 @@ Run public repo safety scan:
 python3 tools/public_safety_scan.py
 ```
 
-Generate proposal-first propagation review:
+Apply a maturity-aware low-risk rewrite with an AI Integration Note:
+
+```bash
+python3 tools/rk.py evolve knowledge/concepts/example.md --note "Add retrieval brief after reading queue review." --source "daily-agent"
+python3 tools/rk.py evolve knowledge/claims/example.md --priority high --note "Potential stable claim conflict." --blocker "Needs locator or human review before promotion."
+```
+
+Generate propagation preview/audit fallback:
 
 ```bash
 python3 tools/rk.py propagate knowledge/synthesis/example.md

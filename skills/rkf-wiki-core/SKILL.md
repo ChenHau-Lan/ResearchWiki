@@ -1,6 +1,6 @@
 ---
 name: rkf-wiki-core
-description: Operate the RKF LLM Wiki memory: retrieve governed wiki context, coordinate ARS reasoning, save durable discussion results, track paper reading queues, export graph, and create compact context capsules. Use when the task mentions LLM Wiki, knowledge base memory, query, save, graph, paper queue, nudge, reading feedback, wiki context capsule, 問知識庫, 回寫wiki, 保存討論結果, 查詢wiki, 知識圖譜, paper推播, or context capsule. Use rkf-connect for multi-computer shared folders or sandbox access permissions.
+description: Operate the RKF LLM Wiki memory: retrieve governed wiki context, coordinate ARS reasoning, save durable discussion results, evolve low-risk pages with AI Integration Notes, track paper reading queues, export graph, and create compact context capsules. Use when the task mentions LLM Wiki, knowledge base memory, query, save, evolve, graph, paper queue, nudge, reading feedback, wiki context capsule, 問知識庫, 回寫wiki, 保存討論結果, 查詢wiki, 知識圖譜, paper推播, or context capsule. Use rkf-connect for multi-computer shared folders or sandbox access permissions.
 ---
 
 # RKF Wiki Core
@@ -19,9 +19,10 @@ maturity and claim boundaries.
 | `paper-feedback` | Record user questions, corrections, annotations, or trust changes | ledger event and maturity update |
 | `paper-queue` | List papers needing PDF, human feedback, repeated-question review, or synthesis review | prioritized queue |
 | `paper-nudge` | Produce scheduled public-safe paper reminders | nudge text |
-| `status` | Reconstruct compact workspace state at the start of a session | source/evidence/topic/log/maturity summary |
+| `world` | Reconstruct L0-L3 workspace context at the start of a session | critical facts, active reading, readiness, graph links |
 | `save` | Save durable non-paper knowledge with boundary | knowledge object |
-| `propagate` | Identify pages affected by new evidence or synthesis | proposal-only review gate |
+| `evolve` | Directly integrate low-risk existing-page updates | page rewrite with AI Integration Note |
+| `propagate` | Identify pages affected by new evidence or synthesis | preview/audit review gate |
 | `graph` | Export typed source/evidence/wiki links | `graph/research_graph.json` |
 | `external-sandbox` | Generate compact wiki context prompt | context capsule |
 
@@ -37,6 +38,7 @@ Use this skill when the user says things like:
 - "Generate today paper nudge."
 - "Record my correction for this paper."
 - "Show me the current RKF status before we continue."
+- "Evolve this page with an AI Integration Note."
 - "Which pages might this new evidence affect? Do not rewrite them yet."
 - "Export the research graph."
 - "Make a context capsule for another sandbox."
@@ -72,8 +74,9 @@ change, human correction, or review blocker.
 - Save must choose a target layer.
 - Saving must not overwrite existing knowledge unless the update path is
   explicit.
-- Propagation review is proposal-only and must not rewrite stable pages by
-  itself.
+- `evolve` may rewrite low-risk existing-page sections, but every rewrite must
+  leave an AI Integration Note and conservative maturity state.
+- `propagate` is a manual preview/audit fallback for affected-page review.
 - A query answer is not a wiki page until saved.
 - Do not save unsupported chat claims as stable knowledge.
 - External sandbox results return as save/review/synthesis proposals.

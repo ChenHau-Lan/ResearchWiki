@@ -21,9 +21,13 @@ Minimum acceptance tests:
 - Graph lint detects dangling source and evidence references.
 - ARS handoff lint keeps ARS-derived material as a proposal or review blocker.
 - Save refuses accidental overwrites unless update is explicit.
-- Propagation review writes proposal gates without rewriting knowledge pages.
-- Workspace status/world prints a compact session bootstrap with maturity
-  counts.
+- `world` prints an L0-L3 context capsule with critical facts, active reading,
+  claim readiness, contradiction hints, graph links, and validation state.
+- `evolve` writes low-risk AI Integration Notes and high-risk blockers.
+- `reconcile` detects contradictions and marks them as AI-integrated blockers.
+- `challenge` returns counterpoints without creating stable claims.
+- `emerge` creates low-maturity synthesis without requiring candidate records.
+- Propagation review remains a preview/audit fallback.
 - External sandbox capsule states reading maturity and ARS evidence boundaries.
 - Active docs do not reference deleted routers or article-text workflow.
 - Public safety scan rejects PDFs, article text dumps, local paths, and private

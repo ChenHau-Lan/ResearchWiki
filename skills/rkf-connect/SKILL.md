@@ -18,7 +18,7 @@ skill.
 | `sandbox-grant` | Give an external sandbox safe read context and boundaries | access capsule |
 | `sandbox-bootstrap` | Start another sandbox with RKF path, CLI, and reading-boundary rules | bootstrap prompt |
 | `sandbox-direct-write` | Let a trusted sandbox use RKF CLI directly while preserving maturity and claim boundaries | guarded write workflow |
-| `sandbox-save-proposal` | Convert sandbox discoveries into RKF proposals | save/review proposal |
+| `sandbox-save-proposal` | Convert sandbox discoveries into RKF proposals or low-risk AI-marked updates | save/review proposal, evolve/reconcile/emerge request |
 
 ## Trigger Phrases
 
@@ -31,6 +31,7 @@ Use this skill when the user says things like:
 - "Start RKF mode in another sandbox."
 - "Let another sandbox search papers and add them to RKF."
 - "Save useful questions from another sandbox back to RKF."
+- "Let another sandbox return evolve/reconcile/emerge updates."
 - "建立共享資料庫在不同電腦"
 - "把 Drive 裡的 RAW 和 wiki 連到 RKF 資料夾"
 - "設定外部 sandbox 可以讀 wiki"
@@ -53,6 +54,8 @@ Use this skill when the user says things like:
 - Sandbox outputs become RKF save/review proposals when write access is missing,
   topic fit is unclear, full text is unavailable, reading maturity is low,
   locators are insufficient, or human review is needed.
+- Trusted external sandboxes may return `evolve`, `reconcile`, or `emerge`
+  updates when every write is AI-marked, public-safe, and maturity-aware.
 - Never expose private tokens, account-specific paths, or unpublished evidence
   in public docs.
 
@@ -74,6 +77,7 @@ paper search
   -> paper reading draft
   -> full-text status update; request user PDF only when unavailable
   -> reading feedback or locator check
+  -> optional evolve/reconcile/emerge update with AI Integration Note
   -> claim/synthesis readiness review
   -> lint and public-safety scan
 ```

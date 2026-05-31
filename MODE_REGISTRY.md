@@ -22,6 +22,7 @@ tool commands are an implementation detail.
 | `save-concept` | recurring method, mechanism, dataset, variable; 概念頁, 方法, 儀器, 變數 | concept page | Medium | `knowledge/concepts/` |
 | `save-claim` | locator-backed or reviewable claim; claim, 主張, 證據句 | claim page/review item | High | `knowledge/claims/` |
 | `synthesize` | cross-source judgment, reusable recommendation, repeated human-reviewed answer; 綜整, synthesis, 研究建議 | synthesis page with maturity fields | High | `knowledge/synthesis/` |
+| `emerge` | unnamed patterns, nightly synthesis, auto-synthesis; emerge, synthesize auto, pattern discovery | low-maturity synthesis draft | Medium | `knowledge/synthesis/` only with `--write` |
 | `topic-governance` | topic ID, aliases, scope, default search; 主題治理, topic registry | topic registry/page | Medium | `governance/`, `knowledge/topics/` |
 | `topic-review` | regular topic review, merge/split suggestion, stale candidate cleanup, search refresh; 定期查看topic, topic整理, topic建議 | topic review report and update proposal | Medium | `governance/`, review queue |
 
@@ -35,9 +36,11 @@ tool commands are an implementation detail.
 | `paper-feedback` | record user question, correction, annotation, trust change; 記錄feedback, 人工註解 | ledger event and maturity update | Medium | `state/reading/`, paper frontmatter |
 | `paper-queue` | papers needing PDF, feedback, repeated-question review, synthesis review; paper queue, paper推播 | prioritized queue | Low | terminal/report |
 | `paper-nudge` | scheduled registered-paper reminder; daily paper nudge, 每日推播 | public-safe nudge text | Low | terminal/report or automation digest |
-| `status` | compact workspace bootstrap, current state; status, world, 接續thread | source/evidence/topic/log/maturity summary | Low | terminal/report |
+| `world` | L0-L3 workspace bootstrap, current state; status, world, 接續thread | critical facts, active reading, readiness, graph links | Low | terminal/report |
 | `save` | persist durable non-paper knowledge; 回寫wiki, 保存討論結果 | selected knowledge object; explicit update required for overwrite | Medium | `knowledge/` |
-| `propagate` | affected-page review after new evidence or synthesis; propagation review, 受影響頁面 | proposal-only review gate | Medium | terminal/report or `state/gates/propagation/` |
+| `evolve` | low-risk direct page integration; rewrite existing page, AI Integration Note, 自動演化 | AI-marked page rewrite or high-risk blocker | Medium/High by priority | target knowledge page |
+| `challenge` | use RKF knowledge to argue against a target; 反駁自己, challenge synthesis | counterpoints and downgrade suggestions | Medium | terminal/report only |
+| `propagate` | affected-page preview/audit after new evidence or synthesis; propagation review, 受影響頁面 | manual preview/audit fallback | Medium | terminal/report or `state/gates/propagation/` |
 | `graph` | export links and state; 知識圖譜, graph links | graph JSON | Low | `graph/` |
 | `external-sandbox` | create a compact wiki context capsule; 外部sandbox prompt, context capsule | context capsule | Medium | `prompts/` |
 
@@ -50,6 +53,7 @@ tool commands are an implementation detail.
 | `graph-lint` | typed graph and wiki links; 圖譜檢查, broken links | findings | Low | terminal/report |
 | `ars-handoff-lint` | ARS output labeled as proposal; ARS回寫檢查 | findings | Medium | terminal/report |
 | `public-safety-lint` | PDFs, article text, local paths, private state; 發布安全, private path | findings | High | terminal/report |
+| `reconcile` | contradiction scan and AI-marked blockers; 矛盾整合, reconcile | contradiction report or page-local blockers | High | target pages through `evolve` |
 | `repair-plan` | repair suggestions; 修復計畫, 不自動改 | plan only | Medium | report |
 
 ## `rkf-connect`

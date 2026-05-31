@@ -35,6 +35,9 @@ python3 tools/rk.py acquire "source_id" --pdf "/private/path/to/paper.pdf"
 python3 tools/rk.py verify-pdf "source_id" --locator "p. 3 Fig. 2; p. 8 Section 4" --note "Locator/readability notes"
 python3 tools/rk.py paper feedback "source_id" --level discussed --note "User question, correction, or reading note"
 python3 tools/rk.py paper queue
+python3 tools/rk.py world --log-tail 10
+python3 tools/rk.py emerge --limit 8
+python3 tools/rk.py reconcile --dry-run --limit 8
 python3 tools/rk.py hot record "short paper-search question" --topic-id "topic-id" --origin external-sandbox --intent paper-search
 ```
 
@@ -43,6 +46,11 @@ proposal. Do not create separate hot-query files or a sandbox inbox.
 
 If you do not have write access, or the claim boundary is incomplete, do not
 edit stable wiki knowledge directly. Return a proposal instead.
+
+Low-risk direct updates may use `evolve` only when the page will show an AI
+Integration Note and conservative maturity. `reconcile` may write blockers for
+contradictions; `challenge` is critique only; `emerge` creates low-maturity
+synthesis drafts from existing RKF state.
 
 ## Reading And Evidence Rules
 
@@ -86,7 +94,7 @@ fulltext_status: unknown | needs-user-pdf | user-pdf-provided | publisher-html |
 human_feedback_level: none | skimmed | discussed | annotated | trusted
 evidence_boundary: metadata-only | locator available | existing RKF page | human-reviewed | review blocker
 confidence: low | medium | high | mixed
-recommended_rkf_mode: capture | acquire | verify-pdf | distill | paper-feedback | save | review | synthesize
+recommended_rkf_mode: capture | acquire | verify-pdf | distill | paper-feedback | save | review | synthesize | evolve | reconcile | challenge | emerge
 reason_to_save: one sentence
 hot_query: optional short public-safe question to record in hot.md
 notes: short notes only; no full article text

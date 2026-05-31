@@ -38,6 +38,8 @@ Use this skill when the user says things like:
 
 - Metadata and search candidates can start paper drafts, but are not evidence
   for stable claims.
+- Candidate backlogs are for discovery and reading triage, not a required stage
+  for `emerge` or synthesis drafts.
 - Missing full text should set `fulltext_status: needs-user-pdf` and enter the
   active paper queue.
 - Acquisition checkpoints are legacy compatibility, not the normal path.

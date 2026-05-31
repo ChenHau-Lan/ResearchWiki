@@ -264,7 +264,7 @@ python3 tools/rk.py propagate knowledge/synthesis/example.md --write
 python3 tools/rk.py propagate doi_10_1234_example --write
 ```
 
-Print compact session bootstrap:
+Print L0-L3 session bootstrap:
 
 ```bash
 python3 tools/rk.py status

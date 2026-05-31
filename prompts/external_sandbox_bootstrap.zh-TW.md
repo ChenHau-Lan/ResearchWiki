@@ -34,6 +34,9 @@ python3 tools/rk.py acquire "source_id" --pdf "/private/path/to/paper.pdf"
 python3 tools/rk.py verify-pdf "source_id" --locator "p. 3 Fig. 2; p. 8 Section 4" --note "Locator/readability notes"
 python3 tools/rk.py paper feedback "source_id" --level discussed --note "User question, correction, or reading note"
 python3 tools/rk.py paper queue
+python3 tools/rk.py world --log-tail 10
+python3 tools/rk.py emerge --limit 8
+python3 tools/rk.py reconcile --dry-run --limit 8
 python3 tools/rk.py hot record "short paper-search question" --topic-id "topic-id" --origin external-sandbox --intent paper-search
 ```
 
@@ -42,6 +45,10 @@ hot-query 分檔，也不要設置 sandbox inbox。
 
 如果沒有寫入權限，或 claim boundary 不完整，請不要直接改 stable wiki
 knowledge。改輸出 proposal。
+
+低風險 direct update 可以使用 `evolve`，但頁面必須留下 AI Integration Note 並保持
+保守 maturity。`reconcile` 可以替矛盾寫 blocker；`challenge` 只產生 critique；
+`emerge` 只從既有 RKF state 建立 low-maturity synthesis draft。
 
 ## Reading And Evidence Rules
 
@@ -83,7 +90,7 @@ fulltext_status: unknown | needs-user-pdf | user-pdf-provided | publisher-html |
 human_feedback_level: none | skimmed | discussed | annotated | trusted
 evidence_boundary: metadata-only | locator available | existing RKF page | human-reviewed | review blocker
 confidence: low | medium | high | mixed
-recommended_rkf_mode: capture | acquire | verify-pdf | distill | paper-feedback | save | review | synthesize
+recommended_rkf_mode: capture | acquire | verify-pdf | distill | paper-feedback | save | review | synthesize | evolve | reconcile | challenge | emerge
 reason_to_save: one sentence
 hot_query: optional short public-safe question to record in hot.md
 notes: short notes only; no full article text

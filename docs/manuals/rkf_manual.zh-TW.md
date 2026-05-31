@@ -51,6 +51,10 @@ source_coverage: unknown | partial | representative | systematic
 human_feedback_level: none | skimmed | discussed | annotated | trusted
 claim_readiness: not-ready | locator-needed | claim-ready | synthesis-ready
 last_synthesis_interaction: YYYY-MM-DD
+observed_at: YYYY-MM-DD
+valid_from: YYYY-MM-DD
+valid_until: optional
+supersedes: optional
 ```
 
 Synthesis 可以先保持 draft-quality，用來累積問題與 source gap。當 coverage、feedback
@@ -117,6 +121,47 @@ python3 tools/rk.py paper nudge --limit 5
 Queue 會優先列出 metadata-only、需要 user PDF、缺人為 feedback、反覆被問，或已準備
 進 synthesis review 的 paper。
 
+### 用 world context 開始 session
+
+```bash
+python3 tools/rk.py world --log-tail 10
+```
+
+`world` 會回傳 L0-L3 context capsule：critical facts、active reading、
+claim readiness、contradiction hints、graph links 與 validation state。
+
+### Evolve 既有頁面
+
+```bash
+python3 tools/rk.py evolve knowledge/concepts/example.md --note "Add retrieval brief after reading review." --source "daily-agent"
+```
+
+低風險更新可以直接 rewrite existing pages，但必須留下 AI Integration Note。高風險
+stable claim promotion、source identity conflict、publication-ready synthesis、
+delete/merge choices 應寫成 blocker 或 maturity downgrade。
+
+### Reconcile 矛盾並 challenge synthesis
+
+```bash
+python3 tools/rk.py reconcile --topic-id aerosol-cloud
+python3 tools/rk.py reconcile --dry-run
+python3 tools/rk.py challenge knowledge/synthesis/example.md --limit 5
+```
+
+`reconcile` 會把矛盾標成 AI-integrated blockers。`challenge` 只回傳 counterpoints
+與 downgrade suggestions，不建立 stable claims。
+
+### 發現 unnamed patterns
+
+```bash
+python3 tools/rk.py emerge --limit 8
+python3 tools/rk.py emerge --write --topic-id aerosol-cloud
+python3 tools/rk.py synthesize auto --write --limit 8
+```
+
+Auto-synthesis 只使用既有 RKF reading、hot-query、feedback 與 topic state。它不需要
+candidate records，且一律從 low maturity 開始。
+
 ## Skill Routing
 
 | Task | Skill | Mode |
@@ -127,9 +172,11 @@ Queue 會優先列出 metadata-only、需要 user PDF、缺人為 feedback、反
 | Check locators/readability | `rkf-evidence-vault` | `verify-pdf` |
 | Create/update paper draft | `rkf-knowledge-synthesis` | `distill-paper` |
 | Save question/concept/claim/synthesis | `rkf-knowledge-synthesis` | `save-*` / `synthesize` |
+| Find unnamed patterns | `rkf-knowledge-synthesis` | `emerge` / `synthesize auto` |
 | Query wiki and record hot demand | `rkf-wiki-core` | `query` / `hot-query` |
+| Evolve or challenge existing pages | `rkf-wiki-core` | `evolve` / `challenge` |
 | Track paper queue and feedback | `rkf-wiki-core` | `paper-*` |
-| Run maintenance checks | `rkf-lint` | `structure`, `evidence`, `graph`, `ARS`, `public-safety` |
+| Run maintenance checks or reconcile contradictions | `rkf-lint` | `structure`, `evidence`, `graph`, `ARS`, `public-safety`, `reconcile` |
 | Connect external sandboxes | `rkf-connect` | `sandbox-*` |
 
 ## Save Rules
@@ -138,6 +185,10 @@ Queue 會優先列出 metadata-only、需要 user PDF、缺人為 feedback、反
 - Paper draft 只描述單一 source；跨來源判斷屬於 synthesis。
 - Candidate 不是 evidence，但可以啟動 reading draft。
 - ARS output 是 proposal，除非 RKF review 將它提升。
+- `emerge` 不需要 candidate records，且一律先是 draft synthesis。
+- 每次 AI rewrite 都需要 AI Integration Note。
+- Stable AI-integrated claim/synthesis content 需要 `observed_at` 和
+  `valid_from`。
 - Stable claim 需要 locator support、human feedback、existing RKF source，或明確
   blocker。
 - Durable article text、PDF、browser capture、private Drive path、local secret 不得
@@ -154,6 +205,10 @@ python3 tools/rk.py prompt external-sandbox
 有寫入權限的 trusted sandbox 可以使用 CLI，但必須保留相同的 maturity 與 claim
 boundary。如果 sandbox 只有 search results、topic fit 不清楚、缺 full text、reading
 maturity 太低，或 locator 不足，就應回傳 proposal，而不是直接改 stable claims。
+
+Trusted sandbox 可以回傳 `evolve`、`reconcile` 或 `emerge` 更新，但必須保持
+AI-marked 且 maturity-aware。RKF 內不新增 open-web 或 multimodal ingest pipeline；
+外部研究擴展主要交給 ARS。
 
 ## Validation
 

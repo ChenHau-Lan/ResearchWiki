@@ -23,6 +23,9 @@ candidate != claim evidence
 ARS output == proposal 或 reading feedback，直到被 review
 user feedback 會提高 understanding maturity
 stable claim -> locator、supported wiki source、human feedback 或 blocker
+low-risk rewrite -> AI Integration Note + maturity-aware page update
+reconcile/challenge -> AI-marked blocker 與 counterpoints，不是 silent trust
+emerge -> 從既有 RKF 訊號產生 low-maturity pattern synthesis
 hot.md == public-safe 研究需求 dashboard，不是 evidence
 ```
 
@@ -32,7 +35,11 @@ hot.md == public-safe 研究需求 dashboard，不是 evidence
 - 「列出哪些已登錄 paper 需要我提供 PDF 或 human feedback。」
 - 「我讀完這篇了，把我的反饋記錄進 reading ledger，並提高 trust level。」
 - 「問知識庫目前知道什麼，並用 ARS 對取回 context 推理。」
-- 「這次 reading update 後，列出可能需要 propagation review 的頁面。」
+- 「開始前先顯示 L0-L3 world context。」
+- 「用 evolve 補上這頁的 retrieval brief 或 reading-state note。」
+- 「Reconcile 這個 topic 的矛盾，並標明 AI integration。」
+- 「用我自己的 RKF knowledge challenge 這個 synthesis。」
+- 「今晚找 unnamed patterns，但保持 low maturity。」
 - 「整理這個 topic registry，建議 merge、split、過期候選與新的 search strings。」
 - 「做一次 reading maturity、evidence boundary、graph link、public safety 維護檢查。」
 - 「把這個 paper-search 問題記到 hot.md，讓 topic review 看見反覆需求。」
@@ -59,7 +66,8 @@ flowchart LR
     C --> D["Reading maturity<br/>metadata / abstract / partial / fulltext / human-reviewed"]
     D --> E["Reading ledger<br/>問題、反饋、blocker"]
     E --> F["Claims and synthesis<br/>成熟度足夠才升級"]
-    F --> G["Propagation review<br/>受影響頁面 proposal"]
+    F --> G["World context<br/>L0-L3 capsule"]
+    F --> M["Priority evolve<br/>AI Integration Note"]
     H["RKF query"] --> I["Hot-query event"]
     H --> J["Governed wiki context"]
     J --> K["ARS reasoning"]
@@ -92,6 +100,46 @@ Synthesis page 也追蹤 `synthesis_maturity`、`source_coverage`、
 RKF 可以產生 active paper queue，列出需要 paper draft、user-provided PDF、human
 feedback、locator 或 synthesis review 的 paper。這讓 wiki 更主動，但不會讓 unsupported
 claim 自動變成 stable knowledge。
+
+## World Context
+
+`python3 tools/rk.py world` 會輸出 L0-L3 context capsule：L0 identity、
+critical facts、active blockers；L1 active papers、paper queue、hot queries、
+recent reading feedback；L2 topic、synthesis、claim readiness、contradiction
+hints；L3 graph/detail links 和 validation state。
+
+`CRITICAL_FACTS.md` 保存短句、public-safe、可重用且有 `observed_at`、
+`valid_from`、`confidence`、`source_or_blocker` 的 facts，讓未來 agent 不需要
+把私人筆記或全文塞進 wiki。
+
+## Priority Evolve
+
+`python3 tools/rk.py evolve <page> --note "..."`
+是低風險更新 existing pages 的正常路徑。它會寫入 `AI Integration Note`，標記
+`ai_integrated: true`，並保持 maturity 保守。Stable claim promotion、source
+identity conflict、publication-ready synthesis、delete/merge choices 都要留 blocker
+或 maturity downgrade，不能靜默升級信任。
+
+`propagate` 仍保留為 manual preview/audit fallback，用於先看受影響頁面。
+
+## Reconcile、Challenge 與 Emerge
+
+`python3 tools/rk.py reconcile` 會掃描同 topic 頁面中的明顯 tension；寫入時透過
+high-priority `evolve` 留下 AI-marked blocker，不假裝已經 human-resolved。
+
+`python3 tools/rk.py challenge <page>` 只用現有 RKF pages 列出 counterpoints、
+missing evidence 與 maturity downgrade 建議。Challenge output 是 critique，不是
+stable claim evidence。
+
+`python3 tools/rk.py emerge` 從 reading queue、hot-query demand、human-feedback
+gap 與 topic state 找 unnamed patterns。它不需要 candidate records，也不使用 open-web
+retrieval。使用 `--write` 時會建立 low-maturity synthesis draft：
+`synthesis_maturity: draft`、`source_coverage: partial`、`claim_readiness: not-ready`。
+
+`python3 tools/rk.py synthesize auto --write` 是同一套 auto-synthesis 行為的 alias。
+
+Agent prompt templates 位於 `prompts/agents/`，包含 morning、nightly、weekly、
+health。這些只是 repo prompt；真正建立 app automation 需要使用者另外批准。
 
 ## 熱門研究問題
 

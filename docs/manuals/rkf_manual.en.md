@@ -53,6 +53,10 @@ source_coverage: unknown | partial | representative | systematic
 human_feedback_level: none | skimmed | discussed | annotated | trusted
 claim_readiness: not-ready | locator-needed | claim-ready | synthesis-ready
 last_synthesis_interaction: YYYY-MM-DD
+observed_at: YYYY-MM-DD
+valid_from: YYYY-MM-DD
+valid_until: optional
+supersedes: optional
 ```
 
 Synthesis can remain draft-quality while it collects questions and source gaps.
@@ -120,6 +124,48 @@ python3 tools/rk.py paper nudge --limit 5
 The queue should prioritize papers that are metadata-only, need a user PDF,
 lack human feedback, have repeated questions, or are ready for synthesis review.
 
+### Start a session with world context
+
+```bash
+python3 tools/rk.py world --log-tail 10
+```
+
+`world` returns the L0-L3 context capsule: critical facts, active reading,
+claim readiness, contradiction hints, graph links, and validation state.
+
+### Evolve an existing page
+
+```bash
+python3 tools/rk.py evolve knowledge/concepts/example.md --note "Add retrieval brief after reading review." --source "daily-agent"
+```
+
+Low-risk updates may rewrite existing pages when they leave an AI Integration
+Note. High-risk stable claim promotion, source identity conflicts,
+publication-ready synthesis, and delete/merge choices should be written as
+blockers or maturity downgrades.
+
+### Reconcile contradictions and challenge a synthesis
+
+```bash
+python3 tools/rk.py reconcile --topic-id aerosol-cloud
+python3 tools/rk.py reconcile --dry-run
+python3 tools/rk.py challenge knowledge/synthesis/example.md --limit 5
+```
+
+`reconcile` marks contradictions as AI-integrated blockers. `challenge` returns
+counterpoints and downgrade suggestions only; it does not create stable claims.
+
+### Discover unnamed patterns
+
+```bash
+python3 tools/rk.py emerge --limit 8
+python3 tools/rk.py emerge --write --topic-id aerosol-cloud
+python3 tools/rk.py synthesize auto --write --limit 8
+```
+
+Auto-synthesis uses existing RKF reading, hot-query, feedback, and topic state.
+It does not require candidate records and starts as low maturity.
+
 ## Skill Routing
 
 | Task | Skill | Mode |
@@ -130,9 +176,11 @@ lack human feedback, have repeated questions, or are ready for synthesis review.
 | Check locators/readability | `rkf-evidence-vault` | `verify-pdf` |
 | Create/update paper draft | `rkf-knowledge-synthesis` | `distill-paper` |
 | Save question/concept/claim/synthesis | `rkf-knowledge-synthesis` | `save-*` / `synthesize` |
+| Find unnamed patterns | `rkf-knowledge-synthesis` | `emerge` / `synthesize auto` |
 | Query wiki and record hot demand | `rkf-wiki-core` | `query` / `hot-query` |
+| Evolve or challenge existing pages | `rkf-wiki-core` | `evolve` / `challenge` |
 | Track paper queue and feedback | `rkf-wiki-core` | `paper-*` |
-| Run maintenance checks | `rkf-lint` | `structure`, `evidence`, `graph`, `ARS`, `public-safety` |
+| Run maintenance checks or reconcile contradictions | `rkf-lint` | `structure`, `evidence`, `graph`, `ARS`, `public-safety`, `reconcile` |
 | Connect external sandboxes | `rkf-connect` | `sandbox-*` |
 
 ## Save Rules
@@ -141,6 +189,10 @@ lack human feedback, have repeated questions, or are ready for synthesis review.
 - A paper draft reports one source; cross-source judgment belongs in synthesis.
 - A candidate is not evidence, but it can start a reading draft.
 - ARS output is a proposal unless RKF review promotes it.
+- `emerge` does not require candidate records and starts as draft synthesis.
+- Every AI rewrite needs an AI Integration Note.
+- Stable AI-integrated claim/synthesis content needs `observed_at` and
+  `valid_from`.
 - Stable claims require locator support, human feedback, an existing RKF source,
   or an explicit blocker.
 - Durable article text, PDFs, browser captures, private Drive paths, and local
@@ -158,6 +210,10 @@ Trusted sandboxes with write access may use the CLI, but they must preserve the
 same maturity and claim boundaries. If a sandbox only has search results,
 unclear topic fit, missing full text, low reading maturity, or insufficient
 locators, it should return a proposal instead of editing stable claims.
+
+Trusted sandboxes may return `evolve`, `reconcile`, or `emerge` updates when the
+changes remain AI-marked and maturity-aware. They should not implement open-web
+or multimodal ingestion pipelines inside RKF; use ARS for external research.
 
 ## Validation
 

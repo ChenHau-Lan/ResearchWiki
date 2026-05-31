@@ -18,6 +18,8 @@
   and wiki pages.
 - `HotQueryEvent`: public-safe query/search demand signal stored in `hot.md`;
   not evidence.
+- `AI Integration Note`: page-local audit note for direct AI rewrites,
+  reconciliation blockers, and low-maturity generated context.
 
 ## Source Status
 
@@ -74,6 +76,22 @@ Synthesis pages may carry:
 - `claim_readiness`
 - `last_synthesis_interaction`
 
+Claim and synthesis pages may carry minimal temporal metadata:
+
+- `observed_at`: when RKF recorded or integrated the content.
+- `valid_from`: when the described fact or interpretation starts applying.
+- `valid_until`: optional expiry or replacement date.
+- `supersedes`: optional replaced page, fact, or synthesis.
+
+AI-integrated content may carry:
+
+- `ai_integrated`: true when an AI update rewrote or generated page content.
+- `ai_integration_priority`: `low`, `medium`, or `high`.
+- `last_ai_integration`
+
+Stable AI-integrated claim or synthesis content must include an AI Integration
+Note plus `observed_at` and `valid_from`.
+
 ## Knowledge Types
 
 - `paper`
@@ -120,6 +138,14 @@ Paper drafts require:
 
 A draft may be created before full text is available. Missing full text should
 set `fulltext_status: needs-user-pdf` and queue the paper for user action.
+
+## Auto-Evolution Rule
+
+`evolve` is the normal low-risk direct update path. It must leave an AI
+Integration Note and keep maturity conservative. `reconcile` can add blockers
+for contradictions. `challenge` is critique only. `emerge` can create
+low-maturity synthesis drafts from existing RKF signals without requiring
+candidate records.
 
 ## Claim Boundary
 

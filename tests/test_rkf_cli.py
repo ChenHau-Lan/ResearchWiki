@@ -785,6 +785,42 @@ class RKFCliTests(unittest.TestCase):
         self.assertNotIn("manual " + "interprets", manual_text)
         self.assertNotIn("本手冊" + "把", manual_zh)
 
+    def test_normative_docs_do_not_reintroduce_obsolete_flow_language(self) -> None:
+        paths = [
+            "README.md",
+            "README.zh-TW.md",
+            "AGENTS.md",
+            "MODE_REGISTRY.md",
+            "docs/ARCHITECTURE.md",
+            "docs/FEATURES_AND_COMMANDS.zh-TW.md",
+            "docs/manuals/rkf_manual.en.md",
+            "docs/manuals/rkf_manual.zh-TW.md",
+            "core/README.md",
+            "core/agent_contract.md",
+            "core/data_contract.md",
+            "core/test_contract.md",
+            "prompts/external_sandbox_bootstrap.en.md",
+            "prompts/external_sandbox_bootstrap.zh-TW.md",
+        ]
+        paths.extend(str(path.relative_to(REPO)) for path in (REPO / "skills").glob("rkf-*/SKILL.md"))
+        text = "\n".join((REPO / path).read_text(encoding="utf-8", errors="replace") for path in paths)
+        forbidden = [
+            "proposal-first",
+            "proposal-only",
+            "candidate required",
+            "candidate is required",
+            "QCed PDF",
+            "paper wiki page requires",
+            "capture -> acquire -> verify-pdf -> distill",
+            "no automatic rewrites",
+        ]
+        for phrase in forbidden:
+            self.assertNotIn(phrase, text)
+        self.assertIn("evolve", text)
+        self.assertIn("reconcile", text)
+        self.assertIn("emerge", text)
+        self.assertIn("AI Integration Note", text)
+
     def test_all_knowledge_page_types_have_templates(self) -> None:
         expected = {
             "claim.md",

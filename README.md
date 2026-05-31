@@ -24,6 +24,7 @@ ARS output != evidence by itself
 paper page -> requires reviewed source artifact, usually a QCed PDF
 query answer != wiki page until saved as question, claim, or synthesis
 LLM discussion -> save/review proposal
+hot.md == public-safe research demand dashboard, not evidence
 ```
 
 ## Quick Start
@@ -38,6 +39,7 @@ Use RKF through natural-language research requests:
 - "Review this topic registry and suggest merges, splits, stale candidates, and better search strings."
 - "Run maintenance checks for topic drift, evidence boundaries, graph links, and public safety."
 - "Connect this RKF wiki to another computer or external sandbox through my shared research folder."
+- "Record this paper-search question in hot.md so topic review sees what I keep asking."
 
 ## Skills At A Glance
 
@@ -81,6 +83,19 @@ RKF does not keep durable full article text as a public knowledge layer. Tools
 may temporarily read PDF text, OCR output, or browser text to support analysis,
 but saved knowledge must keep locators, review status, and evidence boundaries.
 
+## Hot Research Questions
+
+`hot.md` is the single retrieval file for recent research demand. RKF records
+short public-safe query and discovery lines in this Markdown file, then
+summarizes the last 30 days by topic, repeated question, paper/search lead, and
+unknown-topic triage.
+
+This layer is operational memory only: it helps decide which topics need review,
+which searches are recurring, and where new topic proposals may be needed. It
+does not count as evidence and does not promote claims. External sandboxes
+should return hot-query proposals or record through RKF hot-query behavior; do
+not create separate hot-query files.
+
 ## Validation
 
 ```bash
@@ -102,19 +117,45 @@ the real shared data under one Drive location, for example:
 
 ```text
 <Drive ResearchSync>/
-  RAW/
+  raw/
   wiki/
+    index.md
+    log.md
+    hot.md
+    knowledge/
+    state/
+    governance/
+    graph/
 ```
 
 Then each computer links those Drive folders into its local RKF project folder
 with that operating system's local link mechanism: `ln` or symlink on macOS and
-Linux, junction/symlink on Windows. The Drive folder stores the real RAW and
+Linux, junction/symlink on Windows. The Drive folder stores the real raw and
 wiki files; the local RKF folder only connects to them. Do not commit
 machine-specific links or private Drive paths as the public source of truth.
 
-External sandbox access should be read-only by default. When a sandbox produces
-a useful question, claim, or synthesis, return it as an RKF save/review proposal
-with evidence boundaries instead of writing stable wiki knowledge directly.
+When `storage.wiki_root` is configured, RKF treats that folder as the active
+wiki database. Runtime paths for `knowledge`, `state`, `governance`, and
+`graph` resolve under that shared folder. `index.md` is the compact LLM
+retrieval entrypoint, and `log.md` is the append-only operation trail used for
+cross-session continuity. `hot.md` is the rolling public-safe question dashboard
+and retrieval record.
+
+External sandbox access should be read-only by default. For read-only use, run
+`python3 tools/rk.py prompt external-sandbox` to generate the local context
+capsule, then paste `prompts/external_sandbox_bootstrap.en.md` or
+`prompts/external_sandbox_bootstrap.zh-TW.md` into the other sandbox as its
+startup instructions.
+
+A trusted research sandbox can also receive the RKF repo as a writable workspace
+and operate through the RKF CLI directly. This does not skip governance: paper
+intake still follows `capture -> acquire -> verify-pdf -> distill`. Search
+results are candidates, not evidence; without a legal artifact, PDF/OCR/visual
+QC, and locator notes, the sandbox must not create a stable paper wiki page.
+
+When a sandbox lacks write access, or when topic fit, PDF QC, locators, or claim
+support are incomplete, it should return an RKF save/review proposal with the
+evidence boundary and let RKF decide whether to save stable wiki knowledge.
 
 ## Version Management
 
@@ -129,9 +170,4 @@ Version rules:
 - Experimental features stay labeled experimental until they have stable tests
   and migration guidance.
 
-Release notes:
-
-- `v1.0.0`: first public RKF baseline. Defines the LLM Wiki-based research
-  memory model, five active RKF skills, topic review, evidence gates, ARS bridge
-  protocol, shared-database experiment, bilingual manuals, page templates, and
-  the Taiwan atmospheric experiment example.
+See [CHANGELOG.md](CHANGELOG.md) for detailed version history.

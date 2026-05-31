@@ -14,6 +14,7 @@ boundaries.
 | Mode | Use For | Output |
 |---|---|---|
 | `query` | Retrieve governed RKF context and, when useful, ask ARS to reason over it | answer plus save/synthesis proposal |
+| `hot-query` | Track repeated public-safe research questions and paper-search demand | generated `hot.md` summary |
 | `save` | Save durable non-paper knowledge with boundary | knowledge object |
 | `graph` | Export typed source/evidence/wiki links | `graph/research_graph.json` |
 | `external-sandbox` | Generate compact wiki context prompt | context capsule |
@@ -51,6 +52,8 @@ blocker.
 ## Rules
 
 - Retrieval is not persistence.
+- Hot-query recording is operational demand tracking, not evidence or a saved
+  knowledge object.
 - Save must choose a target layer.
 - A query answer is not a wiki page until saved.
 - Do not save unsupported chat claims as stable knowledge.

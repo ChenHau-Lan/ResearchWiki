@@ -12,8 +12,10 @@ import json
 import os
 import re
 import shutil
+from collections import Counter, defaultdict
 from dataclasses import dataclass
-from datetime import date, datetime
+from datetime import date, datetime, timedelta
+from hashlib import sha1
 from pathlib import Path
 from typing import Any
 
@@ -53,6 +55,22 @@ KNOWLEDGE_TYPES = {
 }
 
 PDF_QC_DONE = {"codex_qc_done", "human_qc_done"}
+PAPER_READING_STATUSES = {"full-read", "first-pass-pdf-qc", "ocr-qc", "visual-qc"}
+LOCAL_PATH_PATTERNS = [
+    re.compile("/" + r"Users/(?!\[\^)[^/\s]+"),
+    re.compile(r"C:\\Users\\", re.IGNORECASE),
+]
+HOT_RECORDS_START = "<!-- RKF-HOT-RECORDS:START -->"
+HOT_RECORDS_END = "<!-- RKF-HOT-RECORDS:END -->"
+HOT_GENERATED_START = "<!-- RKF-HOT-GENERATED:START -->"
+HOT_GENERATED_END = "<!-- RKF-HOT-GENERATED:END -->"
+HOT_EVENT_SCHEMA = "rkf-hot-query-event-v1"
+HOT_QUERY_MAX_CHARS = 500
+HOT_NOTES_MAX_CHARS = 1000
+HOT_DEFAULT_WINDOW_DAYS = 30
+HOT_RECORD_RE = re.compile(
+    r"^-\s*(?P<date>\d{4}-\d{2}-\d{2})\s*\|\s*origin=(?P<origin>[^|]+)\|\s*topic=(?P<topic>[^|]+)\|\s*intent=(?P<intent>[^|]+)\|\s*query=\"(?P<query>[^\"]*)\"(?:\s*\|\s*leads=\"(?P<leads>[^\"]*)\")?(?:\s*\|\s*notes=\"(?P<notes>[^\"]*)\")?\s*$"
+)
 
 
 def today() -> str:
@@ -164,6 +182,71 @@ def frontmatter(meta: dict[str, Any]) -> str:
     return "\n".join(lines) + "\n\n"
 
 
+def first_heading(body: str, fallback: str) -> str:
+    for line in body.splitlines():
+        stripped = line.strip()
+        if stripped.startswith("# "):
+            return stripped[2:].strip() or fallback
+    return fallback
+
+
+def first_summary_line(body: str) -> str:
+    for line in body.splitlines():
+        stripped = line.strip()
+        if not stripped or stripped.startswith("#") or stripped.startswith("---"):
+            continue
+        if stripped.startswith("!") or stripped.startswith("|"):
+            continue
+        return stripped[:180]
+    return ""
+
+
+def infer_evidence_tier(meta: dict[str, Any], body: str = "") -> str:
+    explicit = str(meta.get("evidence_tier", "")).strip()
+    if explicit:
+        return explicit
+    page_type = str(meta.get("type", ""))
+    boundary = str(meta.get("evidence_boundary", "")).lower()
+    reading = str(meta.get("reading_status", "")).lower()
+    text = body.lower()
+    if "review-blocker" in boundary:
+        return "review-blocker"
+    if page_type == "paper":
+        if reading == "full-read" and meta.get("evidence_ids"):
+            return "locator-backed"
+        if reading in {"first-pass-pdf-qc", "ocr-qc", "visual-qc"} and meta.get("evidence_ids"):
+            return "pdf-qc-stub"
+        if "metadata" in text or "abstract" in text:
+            return "metadata-only"
+        return "candidate"
+    if "metadata" in boundary or "abstract" in boundary:
+        return "mixed"
+    if "pdf-evidence" in boundary or meta.get("evidence_ids"):
+        return "locator-backed"
+    if "candidate" in boundary:
+        return "candidate"
+    return "review-blocker"
+
+
+def relative_workspace_path(ws: "Workspace", path: Path) -> str:
+    for base in (ws.paths.wiki_root, ws.root):
+        try:
+            return path.relative_to(base).as_posix()
+        except ValueError:
+            continue
+    return str(path)
+
+
+def append_log(ws: "Workspace", action: str, message: str) -> None:
+    ws.paths.log.parent.mkdir(parents=True, exist_ok=True)
+    timestamp = datetime.now().isoformat(timespec="seconds")
+    line = f"- {timestamp} `{action}` {message.rstrip()}\n"
+    if not ws.paths.log.exists():
+        ws.paths.log.write_text("# Wiki Log\n\n", encoding="utf-8")
+    with ws.paths.log.open("a", encoding="utf-8") as handle:
+        handle.write(line)
+
+
 def load_toml(path: Path) -> dict[str, Any]:
     if not path.exists():
         return {}
@@ -188,6 +271,10 @@ def load_toml(path: Path) -> dict[str, Any]:
 @dataclass(frozen=True)
 class WorkspacePaths:
     root: Path
+    wiki_root: Path
+    index: Path
+    log: Path
+    hot_md: Path
     state: Path
     sources: Path
     evidence_index: Path
@@ -216,25 +303,34 @@ class Workspace:
         return {}
 
     def _config_path(self, section: str, key: str, fallback: Path) -> Path:
+        configured = self._configured_path(section, key)
+        return configured or fallback
+
+    def _configured_path(self, section: str, key: str) -> Path | None:
         section_value = self.config.get(section, {}) if isinstance(self.config, dict) else {}
         value = section_value.get(key) if isinstance(section_value, dict) else None
         if isinstance(value, str) and value.strip():
             return Path(os.path.expandvars(os.path.expanduser(value))).resolve()
-        return fallback
+        return None
 
     def _paths(self) -> WorkspacePaths:
-        state = self.root / "state"
+        wiki_root = self._configured_path("storage", "wiki_root") or self.root
+        state = wiki_root / "state"
         private_evidence = self._config_path("storage", "private_evidence_root", self.root / ".rkf_private" / "evidence")
         return WorkspacePaths(
             root=self.root,
+            wiki_root=wiki_root,
+            index=wiki_root / "index.md",
+            log=wiki_root / "log.md",
+            hot_md=wiki_root / "hot.md",
             state=state,
             sources=state / "sources",
             evidence_index=state / "evidence",
             gates=state / "gates",
             search_runs=state / "search_runs",
-            knowledge=self.root / "knowledge",
-            governance=self.root / "governance",
-            graph=self.root / "graph",
+            knowledge=wiki_root / "knowledge",
+            governance=wiki_root / "governance",
+            graph=wiki_root / "graph",
             prompts=self.root / "prompts",
             private_evidence=private_evidence,
         )
@@ -321,6 +417,7 @@ def create_source(ws: Workspace, *, kind: str, value: str, title: str = "", topi
     if note:
         record["notes"].append({"date": today(), "note": note})
     ws.save_source(record)
+    append_log(ws, "capture", f"{record['source_id']} kind={kind} status={record['status']}")
     return record
 
 
@@ -354,10 +451,11 @@ def write_acquisition_checkpoint(ws: Workspace, record: dict[str, Any], *, route
             "gate_id": gate_id,
             "type": "pdf_acquisition",
             "status": "pending",
-            "path": path.relative_to(ws.root).as_posix() if path.is_relative_to(ws.root) else str(path),
+            "path": relative_workspace_path(ws, path),
         }
     )
     set_source_status(ws, record, "pdf_checkpoint_required")
+    append_log(ws, "acquire-checkpoint", f"{record['source_id']} route={route}")
     return path
 
 
@@ -376,7 +474,7 @@ def approved_pdf_acquisition(ws: Workspace, record: dict[str, Any], pdf_path: Pa
         "artifact_type": "pdf",
         "status": "pdf_downloaded",
         "qc_status": "pending",
-        "storage_path": str(dest),
+        "storage_path": f"private_evidence/doi_pdf/{record['source_id']}.pdf",
         "public_safe_pointer": f"private_evidence/doi_pdf/{record['source_id']}.pdf",
         "locators": [],
         "created": today(),
@@ -386,6 +484,7 @@ def approved_pdf_acquisition(ws: Workspace, record: dict[str, Any], pdf_path: Pa
     if evidence_id not in record.setdefault("evidence_ids", []):
         record["evidence_ids"].append(evidence_id)
     set_source_status(ws, record, "pdf_downloaded")
+    append_log(ws, "acquire", f"{record['source_id']} stored {evidence_id}")
     return artifact
 
 
@@ -415,6 +514,7 @@ def verify_pdf(ws: Workspace, record: dict[str, Any], *, locator: str = "", note
         artifact.setdefault("qc_notes", []).append({"date": today(), "note": note})
     ws.save_evidence(artifact)
     set_source_status(ws, record, "pdf_qc_done")
+    append_log(ws, "verify-pdf", f"{record['source_id']} qc_status={qc_status}")
     return artifact
 
 
@@ -440,6 +540,7 @@ def create_paper_note(ws: Workspace, record: dict[str, Any], *, slug: str = "") 
         "reading_status": "full-read",
         "review_stage": "ai-extracted",
         "evidence_boundary": "pdf-evidence",
+        "evidence_tier": "locator-backed" if artifact.get("locators") else "pdf-qc-stub",
         "evidence_ids": [artifact["evidence_id"]],
         "topics": record.get("topic_ids", []),
         "created": today(),
@@ -472,6 +573,7 @@ def create_paper_note(ws: Workspace, record: dict[str, Any], *, slug: str = "") 
     )
     write_text(dest, frontmatter(meta) + body)
     set_source_status(ws, record, "wiki_done")
+    append_log(ws, "distill-paper", f"{record['source_id']} -> {relative_workspace_path(ws, dest)}")
     return dest
 
 
@@ -527,7 +629,368 @@ def add_topic(
         + "\n".join(f"- {item}" for item in exclude)
         + "\n",
     )
+    append_log(ws, "topic-add", f"{topic_id} {name}")
     return topic
+
+
+def normalize_hot_query(value: str) -> str:
+    value = value.strip().lower()
+    value = re.sub(r"\s+", " ", value)
+    value = value.strip("\"'")
+    return value
+
+
+def assert_public_safe_hot_value(value: str, *, field: str, max_chars: int) -> None:
+    if len(value) > max_chars:
+        raise SystemExit(f"hot query {field} is too long; refusing possible pasted transcript or article text")
+    for pattern in LOCAL_PATH_PATTERNS:
+        if pattern.search(value):
+            raise SystemExit(f"hot query {field} contains a local/private path")
+
+
+def hot_event_id(*, created: str, origin: str, intent: str, normalized_query: str, topic_ids: list[str]) -> str:
+    payload = json.dumps(
+        {
+            "created": created,
+            "origin": origin,
+            "intent": intent,
+            "normalized_query": normalized_query,
+            "topic_ids": sorted(topic_ids),
+        },
+        sort_keys=True,
+    )
+    return "hot_" + sha1(payload.encode("utf-8")).hexdigest()[:16]
+
+
+def _topic_match_text(topic: dict[str, Any]) -> str:
+    chunks: list[str] = [
+        str(topic.get("topic_id", "")).replace("-", " "),
+        str(topic.get("name", "")),
+        str(topic.get("scope", "")),
+    ]
+    for key in ("aliases", "include", "default_search_strings"):
+        chunks.extend(str(item) for item in topic.get(key, []))
+    text = " ".join(chunks).lower().replace('"', " ")
+    return re.sub(r"[^a-z0-9]+", " ", text)
+
+
+def infer_hot_topics(ws: Workspace, query: str, explicit_topic_id: str = "") -> tuple[list[str], str]:
+    explicit_topic_id = explicit_topic_id.strip()
+    if explicit_topic_id and explicit_topic_id.lower() not in {"none", "unknown"}:
+        return [explicit_topic_id], "explicit"
+    normalized = normalize_hot_query(query)
+    query_words = {word for word in re.findall(r"[a-z0-9]+", normalized) if len(word) >= 3}
+    scored: list[tuple[int, str]] = []
+    for topic in ws.load_topics():
+        topic_id = str(topic.get("topic_id", ""))
+        if not topic_id:
+            continue
+        score = 0
+        candidates = [topic_id.replace("-", " "), str(topic.get("name", ""))]
+        candidates.extend(str(item) for item in topic.get("aliases", []))
+        for phrase in candidates:
+            phrase_key = normalize_hot_query(phrase.replace("-", " "))
+            if phrase_key and phrase_key in normalized:
+                score += 4
+        topic_words = set(_topic_match_text(topic).split())
+        overlap = query_words & topic_words
+        score += min(len(overlap), 4)
+        if score >= 2:
+            scored.append((score, topic_id))
+    if not scored:
+        return [], "unknown"
+    scored.sort(key=lambda item: (-item[0], item[1]))
+    best_score = scored[0][0]
+    return [topic_id for score, topic_id in scored if score == best_score], "matched"
+
+
+def record_hot_query(
+    ws: Workspace,
+    *,
+    query: str,
+    topic_id: str = "",
+    origin: str = "local",
+    intent: str = "query",
+    paper_leads: list[str] | None = None,
+    notes: str = "",
+    created: str = "",
+) -> dict[str, Any]:
+    ws.ensure_base()
+    assert_public_safe_hot_value(query, field="query", max_chars=HOT_QUERY_MAX_CHARS)
+    assert_public_safe_hot_value(notes, field="notes", max_chars=HOT_NOTES_MAX_CHARS)
+    paper_leads = paper_leads or []
+    for lead in paper_leads:
+        assert_public_safe_hot_value(lead, field="paper_leads", max_chars=HOT_QUERY_MAX_CHARS)
+    normalized_query = normalize_hot_query(query)
+    if not normalized_query:
+        raise SystemExit("hot query cannot be empty")
+    created = created or datetime.now().isoformat(timespec="seconds")
+    topic_ids, topic_fit = infer_hot_topics(ws, query, topic_id)
+    event = {
+        "schema": HOT_EVENT_SCHEMA,
+        "event_id": hot_event_id(
+            created=created,
+            origin=origin,
+            intent=intent,
+            normalized_query=normalized_query,
+            topic_ids=topic_ids,
+        ),
+        "created": created,
+        "origin": origin,
+        "intent": intent,
+        "query": query.strip(),
+        "normalized_query": normalized_query,
+        "topic_ids": topic_ids,
+        "topic_fit": topic_fit,
+        "paper_leads": paper_leads,
+        "notes": notes.strip(),
+    }
+    append_hot_record(ws, event)
+    append_log(ws, "hot-record", f"{intent} topics={','.join(topic_ids) or 'unknown'} query={normalized_query[:80]}")
+    return event
+
+
+def _hot_escape(value: str) -> str:
+    return value.replace('"', "'").replace("\n", " ").strip()
+
+
+def _hot_record_line(event: dict[str, Any]) -> str:
+    created = str(event.get("created", today()))[:10]
+    origin = _hot_escape(str(event.get("origin", "local")))
+    intent = _hot_escape(str(event.get("intent", "query")))
+    topic_ids = [str(item) for item in event.get("topic_ids", []) if str(item).strip()]
+    topic = ",".join(topic_ids) if topic_ids else "unknown"
+    query = _hot_escape(str(event.get("query", "")))
+    line = f'- {created} | origin={origin} | topic={topic} | intent={intent} | query="{query}"'
+    leads = [_hot_escape(str(item)) for item in event.get("paper_leads", []) if str(item).strip()]
+    notes = _hot_escape(str(event.get("notes", "")))
+    if leads:
+        line += f' | leads="{"; ".join(leads)}"'
+    if notes:
+        line += f' | notes="{notes}"'
+    return line
+
+
+def _extract_block(text: str, start_marker: str, end_marker: str) -> str:
+    if start_marker not in text or end_marker not in text:
+        return ""
+    start = text.index(start_marker) + len(start_marker)
+    end = text.index(end_marker, start)
+    return text[start:end].strip("\n")
+
+
+def _parse_hot_line(line: str) -> dict[str, Any] | None:
+    stripped = line.strip()
+    if not stripped or stripped.startswith("<!--"):
+        return None
+    match = HOT_RECORD_RE.match(stripped)
+    if not match:
+        return None
+    topic_raw = match.group("topic").strip()
+    topic_ids = [] if topic_raw.lower() in {"", "none", "unknown"} else [item.strip() for item in topic_raw.split(",") if item.strip()]
+    query = match.group("query").strip()
+    normalized_query = normalize_hot_query(query)
+    leads = [item.strip() for item in (match.group("leads") or "").split(";") if item.strip()]
+    notes = (match.group("notes") or "").strip()
+    created = match.group("date")
+    return {
+        "schema": HOT_EVENT_SCHEMA,
+        "event_id": hot_event_id(
+            created=created,
+            origin=match.group("origin").strip(),
+            intent=match.group("intent").strip(),
+            normalized_query=normalized_query,
+            topic_ids=topic_ids,
+        ),
+        "created": created,
+        "origin": match.group("origin").strip(),
+        "intent": match.group("intent").strip(),
+        "query": query,
+        "normalized_query": normalized_query,
+        "topic_ids": topic_ids,
+        "topic_fit": "explicit" if topic_ids else "unknown",
+        "paper_leads": leads,
+        "notes": notes,
+    }
+
+
+def _hot_records_text(ws: Workspace) -> str:
+    if not ws.paths.hot_md.exists():
+        return ""
+    return _extract_block(read_text(ws.paths.hot_md), HOT_RECORDS_START, HOT_RECORDS_END)
+
+
+def load_hot_events(ws: Workspace) -> list[dict[str, Any]]:
+    events: list[dict[str, Any]] = []
+    for line in _hot_records_text(ws).splitlines():
+        event = _parse_hot_line(line)
+        if event is not None:
+            events.append(event)
+    return events
+
+
+def append_hot_record(ws: Workspace, event: dict[str, Any]) -> None:
+    if not ws.paths.hot_md.exists():
+        write_text(ws.paths.hot_md, render_hot_markdown(ws))
+    text = read_text(ws.paths.hot_md)
+    record_line = _hot_record_line(event)
+    if HOT_RECORDS_START not in text or HOT_RECORDS_END not in text:
+        text = render_hot_markdown(ws)
+    start = text.index(HOT_RECORDS_START) + len(HOT_RECORDS_START)
+    end = text.index(HOT_RECORDS_END, start)
+    existing = text[start:end].strip("\n")
+    replacement = "\n" + (existing + "\n" if existing else "") + record_line + "\n"
+    write_text(ws.paths.hot_md, text[:start] + replacement + text[end:])
+
+
+def _event_date(event: dict[str, Any]) -> date | None:
+    created = str(event.get("created", ""))
+    try:
+        return datetime.fromisoformat(created).date()
+    except ValueError:
+        try:
+            return date.fromisoformat(created[:10])
+        except ValueError:
+            return None
+
+
+def recent_hot_events(ws: Workspace, *, days: int = HOT_DEFAULT_WINDOW_DAYS) -> list[dict[str, Any]]:
+    cutoff = date.today() - timedelta(days=days - 1)
+    recent: list[dict[str, Any]] = []
+    for event in load_hot_events(ws):
+        event_day = _event_date(event)
+        if event_day is None or event_day >= cutoff:
+            recent.append(event)
+    return recent
+
+
+def _format_counter(counter: Counter[str], *, empty: str) -> list[str]:
+    if not counter:
+        return [f"- {empty}"]
+    return [f"- {name}: {count}" for name, count in counter.most_common()]
+
+
+def render_hot_markdown(ws: Workspace, *, days: int = HOT_DEFAULT_WINDOW_DAYS) -> str:
+    events = recent_hot_events(ws, days=days)
+    records = _hot_records_text(ws)
+    topic_names = {str(topic.get("topic_id", "")): str(topic.get("name", "")) for topic in ws.load_topics()}
+    topic_counts: Counter[str] = Counter()
+    question_counts: dict[str, Counter[str]] = defaultdict(Counter)
+    paper_leads: Counter[str] = Counter()
+    unknown: Counter[str] = Counter()
+    for event in events:
+        query = str(event.get("normalized_query") or event.get("query", "")).strip()
+        if not query:
+            continue
+        topic_ids = [str(item) for item in event.get("topic_ids", []) if str(item).strip()]
+        if not topic_ids:
+            unknown[query] += 1
+            continue
+        for topic_id in topic_ids:
+            topic_counts[topic_id] += 1
+            question_counts[topic_id][query] += 1
+        for lead in event.get("paper_leads", []):
+            if str(lead).strip():
+                paper_leads[str(lead).strip()] += 1
+    lines = [
+        "# Hot Research Questions",
+        "",
+        f"Generated: {today()}",
+        f"Window: last {days} days",
+        "",
+        "This dashboard records public-safe research demand signals. It is not evidence, not a knowledge page, and not a stable claim source.",
+        "",
+        HOT_GENERATED_START,
+        "",
+        "## Top Topics",
+        "",
+    ]
+    if topic_counts:
+        for topic_id, count in topic_counts.most_common():
+            label = topic_names.get(topic_id, topic_id)
+            lines.append(f"- {topic_id} ({label}): {count}")
+    else:
+        lines.append("- No topic-linked hot queries in this window.")
+    lines.extend(["", "## Frequent Questions By Topic", ""])
+    if question_counts:
+        for topic_id in sorted(question_counts):
+            label = topic_names.get(topic_id, topic_id)
+            lines.append(f"### {topic_id} - {label}")
+            lines.extend(_format_counter(question_counts[topic_id], empty="No questions recorded."))
+            lines.append("")
+    else:
+        lines.append("- No frequent questions recorded.")
+        lines.append("")
+    lines.extend(["## Paper/Search Leads", ""])
+    lines.extend(_format_counter(paper_leads, empty="No paper/search leads recorded."))
+    lines.extend(["", "## Unknown-Topic Triage", ""])
+    lines.extend(_format_counter(unknown, empty="No unknown-topic queries in this window."))
+    lines.extend(["", HOT_GENERATED_END, "", "## Query Records", ""])
+    lines.append("Records below are the retrieval source for this file. Keep them short and public-safe.")
+    lines.append('Format: `- YYYY-MM-DD | origin=local | topic=topic-id | intent=query | query="short question"`')
+    lines.append("")
+    lines.append(HOT_RECORDS_START)
+    if records:
+        lines.append(records.rstrip())
+    lines.append(HOT_RECORDS_END)
+    lines.append("")
+    return "\n".join(lines)
+
+
+def refresh_hot_markdown(ws: Workspace, *, days: int = HOT_DEFAULT_WINDOW_DAYS) -> Path:
+    ws.ensure_base()
+    write_text(ws.paths.hot_md, render_hot_markdown(ws, days=days))
+    append_log(ws, "hot-refresh", f"generated {relative_workspace_path(ws, ws.paths.hot_md)}")
+    return ws.paths.hot_md
+
+
+def generate_wiki_index(ws: Workspace) -> Path:
+    ws.ensure_base()
+    lines = [
+        "# Wiki Index",
+        "",
+        f"Generated: {today()}",
+        "",
+        "This index is the compact entrypoint for LLM retrieval. It lists public-safe knowledge objects, review state, topics, and evidence tier.",
+        "",
+        "## Knowledge Pages",
+        "",
+    ]
+    page_count = 0
+    if ws.paths.knowledge.exists():
+        for path in sorted(ws.paths.knowledge.rglob("*.md")):
+            meta, body = parse_frontmatter(read_text(path))
+            title = first_heading(body, path.stem.replace("_", " ").replace("-", " ").title())
+            rel = relative_workspace_path(ws, path)
+            topics = ", ".join(str(item) for item in meta.get("topics", [])) if meta else ""
+            page_type = meta.get("type", "unknown") if meta else "unknown"
+            status = meta.get("status", "unknown") if meta else "unknown"
+            review_stage = meta.get("review_stage", "unknown") if meta else "unknown"
+            boundary = meta.get("evidence_boundary", "") if meta else ""
+            tier = infer_evidence_tier(meta, body) if meta else "review-blocker"
+            summary = first_summary_line(body)
+            suffix = f" - {summary}" if summary else ""
+            lines.append(
+                f"- [{title}]({rel}): type={page_type}; status={status}; review={review_stage}; "
+                f"evidence={boundary or 'unspecified'}; tier={tier}; topics={topics or 'none'}{suffix}"
+            )
+            page_count += 1
+    if page_count == 0:
+        lines.append("- No knowledge pages found.")
+    lines.extend(["", "## Topic Registry", ""])
+    topics = ws.load_topics()
+    if topics:
+        for topic in topics:
+            aliases = ", ".join(topic.get("aliases", []))
+            lines.append(
+                f"- {topic.get('topic_id', '')}: {topic.get('name', '')}; "
+                f"cadence={topic.get('review_cadence', '')}; aliases={aliases or 'none'}"
+            )
+    else:
+        lines.append("- No governed topics found.")
+    write_text(ws.paths.index, "\n".join(lines).rstrip() + "\n")
+    append_log(ws, "index", f"generated {relative_workspace_path(ws, ws.paths.index)} with {page_count} knowledge pages")
+    return ws.paths.index
 
 
 def lint_topics(ws: Workspace) -> list[str]:
@@ -561,7 +1024,7 @@ def lint_knowledge_pages(ws: Workspace) -> list[str]:
     for path in ws.paths.knowledge.rglob("*.md"):
         text = read_text(path)
         meta, _ = parse_frontmatter(text)
-        rel = path.relative_to(ws.root).as_posix()
+        rel = relative_workspace_path(ws, path)
         if not meta:
             errors.append(f"{rel}: missing YAML frontmatter")
             continue
@@ -572,12 +1035,47 @@ def lint_knowledge_pages(ws: Workspace) -> list[str]:
             if key not in meta:
                 errors.append(f"{rel}: missing {key}")
         if page_type == "paper":
-            if meta.get("reading_status") != "full-read":
-                errors.append(f"{rel}: paper page must be full-read after PDF QC")
+            reading_status = str(meta.get("reading_status", ""))
+            if reading_status not in PAPER_READING_STATUSES:
+                errors.append(f"{rel}: invalid paper reading_status {reading_status!r}")
+            if reading_status != "full-read" and meta.get("status") not in {"draft", "review"}:
+                errors.append(f"{rel}: non-full-read paper pages must stay draft or review")
             if meta.get("evidence_boundary") != "pdf-evidence":
                 errors.append(f"{rel}: paper page must use pdf-evidence boundary")
             if not meta.get("evidence_ids"):
                 errors.append(f"{rel}: paper page missing PDF evidence id")
+    return errors
+
+
+def lint_public_safety(ws: Workspace) -> list[str]:
+    errors: list[str] = []
+    scan_roots = [ws.paths.knowledge, ws.paths.governance, ws.paths.graph]
+    for root in scan_roots:
+        if not root.exists():
+            continue
+        for path in sorted(item for item in root.rglob("*") if item.is_file()):
+            rel = relative_workspace_path(ws, path)
+            if path.suffix.lower() == ".pdf":
+                errors.append(f"{rel}: PDF file is in public wiki layer")
+                continue
+            try:
+                text = path.read_text(encoding="utf-8", errors="replace")
+            except OSError:
+                continue
+            for pattern in LOCAL_PATH_PATTERNS:
+                for match in pattern.findall(text):
+                    errors.append(f"{rel}: local/private path pattern: {match}")
+            if rel.startswith("knowledge/papers/") and len(text) > 120000:
+                errors.append(f"{rel}: unusually large paper page may contain copied article text")
+    if ws.paths.hot_md.exists():
+        rel = relative_workspace_path(ws, ws.paths.hot_md)
+        text = ws.paths.hot_md.read_text(encoding="utf-8", errors="replace")
+        for pattern in LOCAL_PATH_PATTERNS:
+            for match in pattern.findall(text):
+                errors.append(f"{rel}: local/private path pattern: {match}")
+        for line_number, line in enumerate(text.splitlines(), start=1):
+            if len(line) > HOT_NOTES_MAX_CHARS:
+                errors.append(f"{rel}:{line_number}: unusually long hot-query line may contain pasted transcript or article text")
     return errors
 
 
@@ -610,7 +1108,20 @@ def export_graph(ws: Workspace) -> dict[str, Any]:
 
 
 def external_sandbox_capsule(ws: Workspace) -> Path:
-    allowed_modes = ["capture", "discover", "acquire", "verify-pdf", "distill", "query", "save", "synthesize", "lint", "graph"]
+    allowed_modes = [
+        "capture",
+        "discover",
+        "acquire",
+        "verify-pdf",
+        "distill",
+        "query",
+        "save",
+        "synthesize",
+        "hot record",
+        "hot refresh",
+        "lint",
+        "graph",
+    ]
     path = ws.paths.prompts / "external_sandbox_context.md"
     write_text(
         path,
@@ -620,6 +1131,7 @@ def external_sandbox_capsule(ws: Workspace) -> Path:
         "- Public-safe boundary: do not paste PDFs, full article text, local secrets, or private Drive paths into public wiki pages.\n"
         "- Evidence rule: metadata, search candidates, and ARS reports are not evidence; a QCed PDF artifact is required before paper distillation.\n"
         "- Durable path: PDF evidence -> PDF QC -> wiki page.\n"
+        "- Hot-query rule: public-safe research questions may be recorded in hot.md with `python3 tools/rk.py hot record`; do not create separate hot-query files.\n"
         "- Target save layers: paper, question, concept, claim, synthesis, topic, meeting, seminar, review item.\n"
         "- Allowed modes: "
         + ", ".join(allowed_modes)

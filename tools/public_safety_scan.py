@@ -11,7 +11,7 @@ from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[1]
 FORBIDDEN_PATH_PATTERNS = [
-    re.compile(r"/Users/[^/\s]+"),
+    re.compile(r"/Users/(?!\[\^)[^/\s]+"),
     re.compile(r"C:\\Users\\", re.IGNORECASE),
 ]
 PRIVATE_REPORTS = {

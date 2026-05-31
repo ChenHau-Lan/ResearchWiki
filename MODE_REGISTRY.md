@@ -29,7 +29,8 @@ tool commands are an implementation detail.
 
 | Mode | English / 中文 Trigger | Output | Oversight | Write Boundary |
 |---|---|---|---|---|
-| `query` | ask what the wiki knows; 問知識庫, 從wiki回答 | governed context + optional ARS analysis | Medium | none unless saved |
+| `query` | ask what the wiki knows; 問知識庫, 從wiki回答 | governed context + optional ARS analysis | Medium | hot-query event unless disabled; no knowledge write unless saved |
+| `hot-query` | recurring research question, paper-search demand; 熱門問題, 常問題目, hot.md | retrieval dashboard | Low | `hot.md` |
 | `save` | persist durable non-paper knowledge; 回寫wiki, 保存討論結果 | selected knowledge object | Medium | `knowledge/` |
 | `graph` | export links and state; 知識圖譜, graph links | graph JSON | Low | `graph/` |
 | `external-sandbox` | create a compact wiki context capsule; 外部sandbox prompt, context capsule | context capsule | Medium | `prompts/` |
@@ -52,6 +53,8 @@ tool commands are an implementation detail.
 | `shared-database-plan` | shared database, Google Drive ResearchSync, RAW/wiki layout; 建立共享資料庫, 多電腦共享, Google Drive資料庫 | machine-neutral connection plan | High | docs/proposal only |
 | `link-workspace` | link Drive RAW/wiki into RKF folder, symlink, junction, ln; 連結wiki, 連結RAW, symlink, junction | per-machine link checklist | High | local setup notes; no committed links |
 | `sandbox-grant` | external sandbox read access, context capsule, permission boundary; 外部sandbox讀取wiki, sandbox授權 | access capsule with read/save boundaries | High | `prompts/` or handoff text |
+| `sandbox-bootstrap` | start RKF in another sandbox, external sandbox prompt; 在其他sandbox啟動RKF, 外部sandbox啟動提示 | reusable bootstrap prompt | Medium | committed prompt template only |
+| `sandbox-direct-write` | trusted sandbox can run RKF CLI, search papers and add wiki pages; 其他sandbox搜尋論文並加入wiki | gated CLI workflow | High | RKF CLI writes only after evidence gates |
 | `sandbox-save-proposal` | sandbox found useful question/claim/synthesis; sandbox回寫, 保存有意義問題 | RKF save/review proposal | Medium | review queue or proposal text |
 
 ## Bridge Protocol

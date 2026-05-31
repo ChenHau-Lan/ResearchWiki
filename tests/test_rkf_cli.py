@@ -8,7 +8,7 @@ import tempfile
 import unittest
 from pathlib import Path
 
-from rkf.core import normalize_doi, source_id_from_value
+from rkf.core import hot_event_id, normalize_doi, normalize_hot_query, source_id_from_value
 
 
 REPO = Path(__file__).resolve().parents[1]
@@ -71,6 +71,168 @@ class RKFCliTests(unittest.TestCase):
         self.run_rk("acquire", source_id, "--pdf", str(pdf), "--approve")
 
         self.assertTrue((private_root / "doi_pdf" / f"{source_id}.pdf").exists())
+
+    def test_configured_wiki_root_is_the_cli_database(self) -> None:
+        wiki_root = self.root / "DriveRoot" / "wiki"
+        (self.root / "rkf.workspace.toml").write_text(
+            f'[storage]\nwiki_root = "{wiki_root.as_posix()}"\n',
+            encoding="utf-8",
+        )
+
+        self.run_rk("synthesize", "Aerosol Note", "--body", "aerosol cloud evidence boundary")
+        page = wiki_root / "knowledge" / "synthesis" / "aerosol_note.md"
+        self.assertTrue(page.exists())
+        self.assertFalse((self.root / "knowledge" / "synthesis" / "aerosol_note.md").exists())
+
+        query = self.run_rk("query", "aerosol").stdout
+        self.assertIn("matches: 1", query)
+        self.assertIn("knowledge/synthesis/aerosol_note.md", query)
+
+        self.run_rk("index")
+        index = (wiki_root / "index.md").read_text(encoding="utf-8")
+        self.assertIn("Aerosol Note", index)
+        self.assertIn("tier=review-blocker", index)
+
+        log = self.run_rk("log", "--tail", "10").stdout
+        self.assertIn("`save`", log)
+        self.assertIn("`index`", log)
+
+    def test_hot_event_helpers_are_stable(self) -> None:
+        self.assertEqual(normalize_hot_query("  Aerosol   Cloud\nQuestion  "), "aerosol cloud question")
+        first = hot_event_id(
+            created="2026-05-26T10:00:00",
+            origin="local",
+            intent="query",
+            normalized_query="aerosol cloud question",
+            topic_ids=["aerosol-cloud"],
+        )
+        second = hot_event_id(
+            created="2026-05-26T10:00:00",
+            origin="local",
+            intent="query",
+            normalized_query="aerosol cloud question",
+            topic_ids=["aerosol-cloud"],
+        )
+        self.assertEqual(first, second)
+
+    def test_hot_record_refresh_and_topic_mapping(self) -> None:
+        self.run_rk(
+            "topic",
+            "add",
+            "aerosol-cloud",
+            "Aerosol Cloud",
+            "--scope",
+            "Aerosol cloud interaction literature",
+            "--search",
+            "aerosol cloud interaction",
+        )
+
+        result = self.run_rk(
+            "hot",
+            "record",
+            "Aerosol cloud paper search",
+            "--intent",
+            "paper-search",
+            "--paper-lead",
+            "10.1234/example",
+        ).stdout
+        self.assertIn("recorded hot query:", result)
+        self.assertIn("topics: aerosol-cloud", result)
+
+        hot = (self.root / "hot.md").read_text(encoding="utf-8")
+        self.assertIn("Aerosol Cloud", hot)
+        self.assertIn("aerosol cloud paper search: 1", hot)
+        self.assertIn("10.1234/example: 1", hot)
+        self.assertIn("<!-- RKF-HOT-RECORDS:START -->", hot)
+        self.assertIn('intent=paper-search | query="Aerosol cloud paper search"', hot)
+        self.assertFalse((self.root / "state" / "hot").exists())
+
+    def test_query_and_discover_record_hot_events(self) -> None:
+        self.run_rk(
+            "topic",
+            "add",
+            "aerosol-cloud",
+            "Aerosol Cloud",
+            "--scope",
+            "Aerosol cloud interaction literature",
+            "--search",
+            "aerosol cloud interaction",
+        )
+        self.run_rk("query", "aerosol cloud")
+        self.run_rk("discover", "aerosol cloud interaction", "--topic-id", "aerosol-cloud")
+        self.run_rk("query", "do not record this one", "--no-record")
+
+        hot = (self.root / "hot.md").read_text(encoding="utf-8")
+        self.assertIn("aerosol-cloud (Aerosol Cloud): 2", hot)
+        self.assertIn("aerosol cloud: 1", hot)
+        self.assertIn("aerosol cloud interaction: 1", hot)
+        self.assertNotIn("do not record this one", hot)
+
+    def test_hot_refresh_preserves_single_file_records(self) -> None:
+        self.run_rk(
+            "topic",
+            "add",
+            "aerosol-ice-phase-clouds",
+            "Aerosol Effects on Ice-Phase Clouds",
+            "--scope",
+            "Aerosol effects on ice phase and mixed phase clouds",
+            "--search",
+            "aerosol ice phase clouds",
+        )
+        self.run_rk(
+            "hot",
+            "record",
+            "supercooled liquid IWP aerosol mechanism",
+            "--topic-id",
+            "aerosol-ice-phase-clouds",
+            "--origin",
+            "external-sandbox",
+            "--intent",
+            "paper-search",
+        )
+        hot_path = self.root / "hot.md"
+
+        self.run_rk("hot", "refresh")
+        hot = hot_path.read_text(encoding="utf-8")
+        self.assertNotIn("RKF-HOT-INBOX", hot)
+        self.assertIn("aerosol-ice-phase-clouds (Aerosol Effects on Ice-Phase Clouds): 1", hot)
+        self.assertIn("supercooled liquid iwp aerosol mechanism: 1", hot)
+        self.assertIn('origin=external-sandbox | topic=aerosol-ice-phase-clouds | intent=paper-search', hot)
+
+    def test_hot_record_rejects_private_paths_and_oversized_text(self) -> None:
+        private_path = self.run_rk("hot", "record", "/" + "Users/example/private.pdf", check=False)
+        self.assertNotEqual(private_path.returncode, 0)
+        self.assertIn("local/private path", private_path.stderr + private_path.stdout)
+
+        oversized = self.run_rk("hot", "record", "x" * 501, check=False)
+        self.assertNotEqual(oversized.returncode, 0)
+        self.assertIn("too long", oversized.stderr + oversized.stdout)
+
+    def test_public_safety_lint_scans_public_wiki_layers(self) -> None:
+        wiki_root = self.root / "DriveRoot" / "wiki"
+        (self.root / "rkf.workspace.toml").write_text(
+            f'[storage]\nwiki_root = "{wiki_root.as_posix()}"\n',
+            encoding="utf-8",
+        )
+        page = wiki_root / "knowledge" / "concepts" / "private_path.md"
+        page.parent.mkdir(parents=True)
+        page.write_text(
+            "---\n"
+            "type: concept\n"
+            "status: draft\n"
+            "review_stage: ai-extracted\n"
+            "topics: []\n"
+            "created: 2026-05-25\n"
+            "updated: 2026-05-25\n"
+            "---\n\n"
+            "# Private Path\n\n"
+            "This page should not expose " + "/" + "Users/example/private.pdf.\n",
+            encoding="utf-8",
+        )
+
+        result = self.run_rk("lint", "--mode", "public-safety-lint", check=False)
+        self.assertNotEqual(result.returncode, 0)
+        self.assertIn("local/private path pattern", result.stdout)
 
     def test_metadata_only_source_cannot_be_distilled(self) -> None:
         self.run_rk("capture", "doi", "10.1111/metadata.only")

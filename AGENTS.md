@@ -33,18 +33,20 @@ translating ARS outputs into RKF proposals.
    reason over that context; save only through RKF proposal/synthesis rules.
 4. If the user asks to save discussion memory, export graph, or hand off to
    another sandbox, route to `rkf-wiki-core`.
-5. If the user asks to review, clean up, merge/split, refresh, or recommend
+5. If the user asks to track frequently asked research questions or hot paper
+   search demand, route to `rkf-wiki-core` hot-query behavior.
+6. If the user asks to review, clean up, merge/split, refresh, or recommend
    changes to topics, route to `rkf-knowledge-synthesis` `topic-review`; use
    `rkf-lint` when the request is structural drift detection or repair planning.
-6. If the user asks to set up shared RAW/wiki folders, connect multiple
+7. If the user asks to set up shared RAW/wiki folders, connect multiple
    computers, manage Google Drive links, or grant an external sandbox access to
    the wiki, route to `rkf-connect`.
-7. If the user asks to check, audit, diagnose, publish, schedule maintenance,
+8. If the user asks to check, audit, diagnose, publish, schedule maintenance,
    or repair the wiki, route to `rkf-lint`.
-8. If the user asks for deep research, paper writing, peer review, or a full
+9. If the user asks for deep research, paper writing, peer review, or a full
    research-to-paper workflow, use ARS skills externally; return durable results
    to RKF only through the bridge protocol.
-9. If a request mixes ARS work and RKF persistence, treat ARS output as a
+10. If a request mixes ARS work and RKF persistence, treat ARS output as a
    proposal first. Do not save it as evidence.
 
 ## Key Rules
@@ -60,6 +62,8 @@ translating ARS outputs into RKF proposals.
   blocker.
 - A query answer is not a wiki page until deliberately saved as a question,
   claim, concept, or synthesis.
+- `hot.md` is a public-safe operational demand retrieval file, not evidence or
+  stable knowledge.
 - Topics must be reviewed as living research controls: aliases, scope,
   include/exclude rules, default search strings, candidate backlog, and
   canonical synthesis links should be checked on a cadence.

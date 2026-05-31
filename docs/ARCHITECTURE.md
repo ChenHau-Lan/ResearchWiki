@@ -20,6 +20,7 @@ captures, OCR/visual reading notes, questions, concepts, claims, and synthesis.
 | Knowledge Objects | Maintain paper, question, concept, claim, topic, synthesis, overview, meeting, seminar pages | concise Markdown only |
 | Research Graph | Export typed source/evidence/wiki/topic edges | generated public-safe graph |
 | Hot Query Layer | Track recent public-safe research questions and paper-search demand | single retrieval file: `hot.md` |
+| Propagation Review | Identify pages affected by new evidence or synthesis | proposal gates only; no automatic rewrites |
 | ARS Bridge | Convert ARS research/reasoning/writing/review output into RKF proposals | proposals only, not evidence |
 | Connect | Manage experimental shared RAW/wiki folders and external sandbox access boundaries | connection plans only; no private paths |
 
@@ -39,6 +40,7 @@ flowchart TD
     J --> K["ARS reasoning"]
     K --> L["RKF save or synthesis proposal"]
     L --> H
+    H --> R["propagation review<br/>affected-page proposal"]
     M["lint maintenance"] --> B
     M --> F
     M --> H
@@ -72,6 +74,8 @@ flowchart TD
 - Claims need a locator, existing RKF page, or review blocker.
 - Durable full article text is not an RKF public knowledge layer.
 - Public pages must not contain copied article text or private evidence paths.
+- Saving and propagation are conservative: existing knowledge pages are not
+  overwritten or rewritten unless the update path is explicit and reviewable.
 - Topics should be reviewed regularly for drift, duplicate scopes, stale
   candidates, missing canonical synthesis, and weak default search strings.
 - Hot-query events and `hot.md` must not contain raw transcripts, private paths,

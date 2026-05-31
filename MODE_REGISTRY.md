@@ -31,7 +31,9 @@ tool commands are an implementation detail.
 |---|---|---|---|---|
 | `query` | ask what the wiki knows; 問知識庫, 從wiki回答 | governed context + optional ARS analysis | Medium | hot-query event unless disabled; no knowledge write unless saved |
 | `hot-query` | recurring research question, paper-search demand; 熱門問題, 常問題目, hot.md | retrieval dashboard | Low | `hot.md` |
-| `save` | persist durable non-paper knowledge; 回寫wiki, 保存討論結果 | selected knowledge object | Medium | `knowledge/` |
+| `status` | compact workspace bootstrap, current state; status, world, 接續thread | source/evidence/topic/log summary | Low | terminal/report |
+| `save` | persist durable non-paper knowledge; 回寫wiki, 保存討論結果 | selected knowledge object; explicit update required for overwrite | Medium | `knowledge/` |
+| `propagate` | affected-page review after new evidence or synthesis; propagation review, 受影響頁面 | proposal-only review gate | Medium | terminal/report or `state/gates/propagation/` |
 | `graph` | export links and state; 知識圖譜, graph links | graph JSON | Low | `graph/` |
 | `external-sandbox` | create a compact wiki context capsule; 外部sandbox prompt, context capsule | context capsule | Medium | `prompts/` |
 

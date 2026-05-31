@@ -36,6 +36,8 @@ Use RKF through natural-language research requests:
 - "This PDF is legally available. Check it and turn it into a paper wiki page."
 - "Ask the wiki what evidence-backed recommendations we have, and use ARS to analyze the retrieved context."
 - "Save this answer as a synthesis proposal if it is reusable."
+- "Show a compact RKF workspace status before we continue this research thread."
+- "After adding this evidence, show which pages may need propagation review; do not rewrite them automatically."
 - "Review this topic registry and suggest merges, splits, stale candidates, and better search strings."
 - "Run maintenance checks for topic drift, evidence boundaries, graph links, and public safety."
 - "Connect this RKF wiki to another computer or external sandbox through my shared research folder."
@@ -47,7 +49,7 @@ Use RKF through natural-language research requests:
 |---|---|
 | `rkf-evidence-vault` | Capture sources, stage discovery, manage legal evidence routes, verify paper-reading artifacts |
 | `rkf-knowledge-synthesis` | Distill reviewed evidence into paper pages and maintain questions, concepts, claims, topics, and synthesis |
-| `rkf-wiki-core` | Retrieve LLM Wiki context, coordinate ARS reasoning, save durable memory, export graph, generate sandbox capsule |
+| `rkf-wiki-core` | Retrieve LLM Wiki context, coordinate ARS reasoning, save durable memory, show status, export graph, generate sandbox capsule |
 | `rkf-lint` | Maintain structure, evidence boundaries, graph integrity, ARS handoff labels, public safety, and repair plans |
 | `rkf-connect` | Experimental shared-database setup for multiple computers and external sandbox access |
 
@@ -82,6 +84,12 @@ flowchart LR
 RKF does not keep durable full article text as a public knowledge layer. Tools
 may temporarily read PDF text, OCR output, or browser text to support analysis,
 but saved knowledge must keep locators, review status, and evidence boundaries.
+
+Saving is intentionally conservative. Non-paper `save` and `synthesize`
+operations refuse to overwrite an existing knowledge object unless the caller
+uses an explicit update path. Propagation is also proposal-first: RKF can list
+affected pages and write a review gate, but it does not silently rewrite stable
+knowledge pages.
 
 ## Hot Research Questions
 

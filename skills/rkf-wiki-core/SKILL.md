@@ -15,7 +15,9 @@ boundaries.
 |---|---|---|
 | `query` | Retrieve governed RKF context and, when useful, ask ARS to reason over it | answer plus save/synthesis proposal |
 | `hot-query` | Track repeated public-safe research questions and paper-search demand | generated `hot.md` summary |
+| `status` | Reconstruct compact workspace state at the start of a session | source/evidence/topic/log summary |
 | `save` | Save durable non-paper knowledge with boundary | knowledge object |
+| `propagate` | Identify pages affected by new evidence or synthesis | proposal-only review gate |
 | `graph` | Export typed source/evidence/wiki links | `graph/research_graph.json` |
 | `external-sandbox` | Generate compact wiki context prompt | context capsule |
 
@@ -26,6 +28,8 @@ Use this skill when the user says things like:
 - "What does my wiki know about this?"
 - "Use the wiki and ARS to analyze this question."
 - "Save this discussion back to the wiki."
+- "Show me the current RKF status before we continue."
+- "Which pages might this new evidence affect? Do not rewrite them yet."
 - "Export the research graph."
 - "Make a context capsule for another sandbox."
 - "問我的知識庫"
@@ -55,6 +59,10 @@ blocker.
 - Hot-query recording is operational demand tracking, not evidence or a saved
   knowledge object.
 - Save must choose a target layer.
+- Saving must not overwrite existing knowledge unless the update path is
+  explicit.
+- Propagation review is proposal-only and must not rewrite stable pages by
+  itself.
 - A query answer is not a wiki page until saved.
 - Do not save unsupported chat claims as stable knowledge.
 - External sandbox results return as save/review/synthesis proposals.

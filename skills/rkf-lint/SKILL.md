@@ -15,8 +15,8 @@ blurring, graph links from breaking, and private material out of Git.
 |---|---|
 | `structure-lint` | frontmatter, page type, required sections, topic registry |
 | `evidence-lint` | evidence gate, checkpoint/QC state, metadata-only promotion |
-| `graph-lint` | source/evidence/wiki/topic typed links |
-| `ars-handoff-lint` | ARS output is labeled as proposal, not evidence |
+| `graph-lint` | source/evidence/wiki/topic typed links and dangling references |
+| `ars-handoff-lint` | ARS output is labeled as proposal or review blocker, not evidence |
 | `public-safety-lint` | PDFs, full article text, local paths, private Drive paths |
 | `repair-plan` | human-readable fixes only |
 
@@ -53,4 +53,5 @@ Use this skill when the user says things like:
 - Do not auto-delete.
 - Do not auto-promote candidates to evidence.
 - Do not repair unsupported claims by inventing sources.
+- Do not treat ARS output as a reviewed source without an RKF evidence gate.
 - Public-safety failures block publication.

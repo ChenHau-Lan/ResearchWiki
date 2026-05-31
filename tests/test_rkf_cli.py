@@ -168,6 +168,114 @@ class RKFCliTests(unittest.TestCase):
         self.assertIn("aerosol cloud interaction: 1", hot)
         self.assertNotIn("do not record this one", hot)
 
+    def test_save_refuses_accidental_overwrite_unless_update_is_explicit(self) -> None:
+        self.run_rk("save", "concept", "Aerosol Note", "--body", "first body")
+        duplicate = self.run_rk("save", "concept", "Aerosol Note", "--body", "second body", check=False)
+        self.assertNotEqual(duplicate.returncode, 0)
+        self.assertIn("refusing to overwrite without --update", duplicate.stderr + duplicate.stdout)
+
+        self.run_rk("save", "concept", "Aerosol Note", "--body", "second body", "--update")
+        page = (self.root / "knowledge" / "concept" / "aerosol_note.md").read_text(encoding="utf-8")
+        self.assertIn("second body", page)
+
+    def test_graph_lint_finds_dangling_source_and_evidence_links(self) -> None:
+        page = self.root / "knowledge" / "concepts" / "dangling.md"
+        page.parent.mkdir(parents=True)
+        page.write_text(
+            "---\n"
+            "type: concept\n"
+            "status: draft\n"
+            "review_stage: ai-extracted\n"
+            "topics: []\n"
+            "created: 2026-05-25\n"
+            "updated: 2026-05-25\n"
+            "source_id: missing_source\n"
+            "evidence_ids:\n"
+            "  - missing_evidence\n"
+            "---\n\n"
+            "# Dangling\n",
+            encoding="utf-8",
+        )
+
+        result = self.run_rk("lint", "--mode", "graph-lint", check=False)
+        self.assertNotEqual(result.returncode, 0)
+        self.assertIn("missing source record missing_source", result.stdout)
+        self.assertIn("missing evidence artifact missing_evidence", result.stdout)
+
+    def test_ars_handoff_lint_keeps_ars_output_as_proposal(self) -> None:
+        page = self.root / "knowledge" / "synthesis" / "ars_promoted.md"
+        page.parent.mkdir(parents=True)
+        page.write_text(
+            "---\n"
+            "type: synthesis\n"
+            "status: draft\n"
+            "review_stage: ai-extracted\n"
+            "topics: []\n"
+            "evidence_boundary: wiki-page\n"
+            "created: 2026-05-25\n"
+            "updated: 2026-05-25\n"
+            "---\n\n"
+            "# ARS Promoted\n\n"
+            "source_from_ars: deep-research\n",
+            encoding="utf-8",
+        )
+
+        result = self.run_rk("lint", "--mode", "ars-handoff-lint", check=False)
+        self.assertNotEqual(result.returncode, 0)
+        self.assertIn("ARS-derived material must use ars-proposal or review-blocker boundary", result.stdout)
+
+    def test_propagate_writes_proposal_without_rewriting_pages(self) -> None:
+        concept = self.root / "knowledge" / "concepts" / "aerosol_seed.md"
+        synthesis = self.root / "knowledge" / "synthesis" / "aerosol_answer.md"
+        concept.parent.mkdir(parents=True)
+        synthesis.parent.mkdir(parents=True)
+        concept.write_text(
+            "---\n"
+            "type: concept\n"
+            "status: draft\n"
+            "review_stage: ai-extracted\n"
+            "topics:\n"
+            "  - aerosol-cloud\n"
+            "evidence_boundary: review-blocker\n"
+            "created: 2026-05-25\n"
+            "updated: 2026-05-25\n"
+            "---\n\n"
+            "# Aerosol Seed\n\n"
+            "Aerosol cloud mechanism note.\n",
+            encoding="utf-8",
+        )
+        synthesis.write_text(
+            "---\n"
+            "type: synthesis\n"
+            "status: draft\n"
+            "review_stage: ai-extracted\n"
+            "topics:\n"
+            "  - aerosol-cloud\n"
+            "evidence_boundary: review-blocker\n"
+            "created: 2026-05-25\n"
+            "updated: 2026-05-25\n"
+            "---\n\n"
+            "# Aerosol Answer\n\n"
+            "Aerosol cloud mechanism synthesis.\n",
+            encoding="utf-8",
+        )
+
+        result = self.run_rk("propagate", "knowledge/concepts/aerosol_seed.md", "--write").stdout
+        self.assertIn("affected pages: 1", result)
+        self.assertIn("knowledge/synthesis/aerosol_answer.md", result)
+        self.assertIn("review blockers:", result)
+        proposals = list((self.root / "state" / "gates" / "propagation").glob("*.md"))
+        self.assertEqual(len(proposals), 1)
+        self.assertIn("proposal-only", proposals[0].read_text(encoding="utf-8"))
+
+    def test_status_and_world_print_workspace_bootstrap(self) -> None:
+        self.run_rk("save", "question", "Aerosol Question", "--body", "What matters next?")
+        status = self.run_rk("status").stdout
+        world = self.run_rk("world", "--log-tail", "1").stdout
+        self.assertIn("RKF Workspace Status", status)
+        self.assertIn("Knowledge pages: 1", status)
+        self.assertIn("Recent Log", world)
+
     def test_hot_refresh_preserves_single_file_records(self) -> None:
         self.run_rk(
             "topic",

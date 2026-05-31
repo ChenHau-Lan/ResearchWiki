@@ -18,13 +18,17 @@ from .core import (
     export_graph,
     generate_wiki_index,
     infer_evidence_tier,
+    lint_ars_handoff,
+    lint_graph_links,
     lint_knowledge_pages,
     lint_public_safety,
     lint_topics,
     parse_frontmatter,
+    propose_propagation,
     read_json,
     record_hot_query,
     relative_workspace_path,
+    render_workspace_status,
     refresh_hot_markdown,
     slugify,
     today,
@@ -212,7 +216,17 @@ def cmd_save(args: argparse.Namespace) -> int:
     slug = slugify(args.slug or args.title)
     folder = args.object_type.replace("-", "_")
     path = ws.paths.knowledge / folder / f"{slug}.md"
+    update = bool(getattr(args, "update", False))
+    if path.exists() and not update:
+        raise SystemExit(
+            f"knowledge object already exists: {relative_workspace_path(ws, path)}; "
+            "refusing to overwrite without --update"
+        )
     body = args.body or "TBD"
+    created = today()
+    if path.exists():
+        existing_meta, _ = parse_frontmatter(path.read_text(encoding="utf-8", errors="replace"))
+        created = str(existing_meta.get("created", created))
     text = (
         "---\n"
         f"type: {args.object_type}\n"
@@ -221,7 +235,7 @@ def cmd_save(args: argparse.Namespace) -> int:
         "topics: []\n"
         "evidence_boundary: review-blocker\n"
         "evidence_tier: review-blocker\n"
-        f"created: {today()}\n"
+        f"created: {created}\n"
         f"updated: {today()}\n"
         "sources: []\n"
         "---\n\n"
@@ -229,8 +243,9 @@ def cmd_save(args: argparse.Namespace) -> int:
     )
     path.parent.mkdir(parents=True, exist_ok=True)
     path.write_text(text, encoding="utf-8")
-    append_log(ws, "save", f"{args.object_type} {relative_workspace_path(ws, path)}")
-    print(f"saved knowledge object: {relative_workspace_path(ws, path)}")
+    action = "update" if update else "save"
+    append_log(ws, action, f"{args.object_type} {relative_workspace_path(ws, path)}")
+    print(f"{action}d knowledge object: {relative_workspace_path(ws, path)}")
     return 0
 
 
@@ -259,6 +274,10 @@ def cmd_lint(args: argparse.Namespace) -> int:
         errors.extend(lint_knowledge_pages(ws))
     if args.mode in {"all", "structure-lint"}:
         errors.extend(lint_topics(ws))
+    if args.mode in {"all", "graph-lint"}:
+        errors.extend(lint_graph_links(ws))
+    if args.mode in {"all", "ars-handoff-lint"}:
+        errors.extend(lint_ars_handoff(ws))
     if args.mode == "public-safety-lint":
         errors.extend(lint_public_safety(ws))
     if errors:
@@ -273,12 +292,37 @@ def cmd_lint(args: argparse.Namespace) -> int:
     return 0
 
 
+def cmd_propagate(args: argparse.Namespace) -> int:
+    ws = Workspace()
+    proposal = propose_propagation(ws, args.target, write=args.write)
+    print(f"propagation target: {proposal['target']}")
+    print(f"affected pages: {len(proposal['affected_pages'])}")
+    for item in proposal["affected_pages"]:
+        print(f"- {item['path']}\treasons={'; '.join(item['reasons'])}")
+    blockers = proposal.get("blockers", [])
+    if blockers:
+        print("review blockers:")
+        for blocker in blockers:
+            print(f"- {blocker}")
+    if proposal.get("proposal_path"):
+        print(f"wrote: {proposal['proposal_path']}")
+    else:
+        print("rule: proposal-only; rerun with --write to create a review gate")
+    return 0
+
+
 def cmd_graph(args: argparse.Namespace) -> int:
     ws = Workspace()
     graph = export_graph(ws)
     print(f"graph nodes: {len(graph['nodes'])}")
     print(f"graph edges: {len(graph['edges'])}")
     print(f"wrote: {relative_workspace_path(ws, ws.paths.graph / 'research_graph.json')}")
+    return 0
+
+
+def cmd_status(args: argparse.Namespace) -> int:
+    ws = Workspace()
+    print(render_workspace_status(ws, log_tail=args.log_tail), end="")
     return 0
 
 
@@ -415,12 +459,14 @@ def build_parser() -> argparse.ArgumentParser:
     save.add_argument("title")
     save.add_argument("--slug")
     save.add_argument("--body")
+    save.add_argument("--update", action="store_true", help="Intentionally replace an existing object with the same slug")
     save.set_defaults(func=cmd_save)
 
     synthesize = sub.add_parser("synthesize", help="Create a draft synthesis object")
     synthesize.add_argument("title")
     synthesize.add_argument("--slug")
     synthesize.add_argument("--body")
+    synthesize.add_argument("--update", action="store_true", help="Intentionally replace an existing synthesis with the same slug")
     synthesize.set_defaults(func=cmd_synthesize)
 
     review = sub.add_parser("review", help="List pending gates and review items")
@@ -430,8 +476,21 @@ def build_parser() -> argparse.ArgumentParser:
     lint.add_argument("--mode", choices=sorted(LINT_MODES), default="all")
     lint.set_defaults(func=cmd_lint)
 
+    propagate = sub.add_parser("propagate", help="Generate proposal-first affected-page review")
+    propagate.add_argument("target", help="Source ID or knowledge page path to review for propagation")
+    propagate.add_argument("--write", action="store_true", help="Write a propagation gate under state/gates")
+    propagate.set_defaults(func=cmd_propagate)
+
     graph = sub.add_parser("graph", help="Export the research graph")
     graph.set_defaults(func=cmd_graph)
+
+    status = sub.add_parser("status", help="Print a compact RKF workspace status for session bootstrap")
+    status.add_argument("--log-tail", type=int, default=5)
+    status.set_defaults(func=cmd_status)
+
+    world = sub.add_parser("world", help="Alias for status")
+    world.add_argument("--log-tail", type=int, default=5)
+    world.set_defaults(func=cmd_status)
 
     index = sub.add_parser("index", help="Generate the compact LLM wiki index")
     index.set_defaults(func=cmd_index)

@@ -10,6 +10,10 @@
 - Add generated `index.md` and append-only `log.md` support for compact LLM
   retrieval and cross-session continuity.
 - Add evidence-tier metadata for saved objects and generated index entries.
+- Refuse accidental knowledge-object overwrites unless an update is explicit.
+- Add real graph-link and ARS-handoff lint checks.
+- Add proposal-first propagation review for affected knowledge pages.
+- Add compact workspace status/world output for session bootstrap.
 - Add public wiki safety linting for knowledge, governance, and graph layers.
 - Keep release history in this changelog instead of README or manual prose.
 

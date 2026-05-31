@@ -201,6 +201,17 @@ def first_summary_line(body: str) -> str:
     return ""
 
 
+def knowledge_page_records(ws: "Workspace") -> list[tuple[Path, dict[str, Any], str]]:
+    records: list[tuple[Path, dict[str, Any], str]] = []
+    if not ws.paths.knowledge.exists():
+        return records
+    for path in sorted(ws.paths.knowledge.rglob("*.md")):
+        meta, body = parse_frontmatter(read_text(path))
+        if meta:
+            records.append((path, meta, body))
+    return records
+
+
 def infer_evidence_tier(meta: dict[str, Any], body: str = "") -> str:
     explicit = str(meta.get("evidence_tier", "")).strip()
     if explicit:
@@ -993,6 +1004,30 @@ def generate_wiki_index(ws: Workspace) -> Path:
     return ws.paths.index
 
 
+def _source_records(ws: Workspace) -> dict[str, dict[str, Any]]:
+    records: dict[str, dict[str, Any]] = {}
+    if not ws.paths.sources.exists():
+        return records
+    for path in sorted(ws.paths.sources.glob("*.json")):
+        record = read_json(path)
+        source_id = str(record.get("source_id", ""))
+        if source_id:
+            records[source_id] = record
+    return records
+
+
+def _evidence_records(ws: Workspace) -> dict[str, dict[str, Any]]:
+    records: dict[str, dict[str, Any]] = {}
+    if not ws.paths.evidence_index.exists():
+        return records
+    for path in sorted(ws.paths.evidence_index.glob("*.json")):
+        record = read_json(path)
+        evidence_id = str(record.get("evidence_id", ""))
+        if evidence_id:
+            records[evidence_id] = record
+    return records
+
+
 def lint_topics(ws: Workspace) -> list[str]:
     errors: list[str] = []
     seen_ids: set[str] = set()
@@ -1014,6 +1049,64 @@ def lint_topics(ws: Workspace) -> list[str]:
                 errors.append(f"alias {alias!r} used by {seen_aliases[key]} and {topic_id}")
             if key:
                 seen_aliases[key] = topic_id
+    return errors
+
+
+def lint_graph_links(ws: Workspace) -> list[str]:
+    errors: list[str] = []
+    sources = _source_records(ws)
+    evidence = _evidence_records(ws)
+    topics = {str(topic.get("topic_id", "")) for topic in ws.load_topics() if str(topic.get("topic_id", "")).strip()}
+    check_topics = bool(topics)
+
+    for source_id, record in sources.items():
+        for evidence_id in record.get("evidence_ids", []):
+            if str(evidence_id) not in evidence:
+                errors.append(f"{source_id}: missing evidence artifact {evidence_id}")
+        if check_topics:
+            for topic_id in record.get("topic_ids", []):
+                if str(topic_id) not in topics:
+                    errors.append(f"{source_id}: unknown topic {topic_id}")
+
+    for evidence_id, artifact in evidence.items():
+        source_id = str(artifact.get("source_id", ""))
+        if source_id and source_id not in sources:
+            errors.append(f"{evidence_id}: missing source record {source_id}")
+
+    for path, meta, _ in knowledge_page_records(ws):
+        rel = relative_workspace_path(ws, path)
+        source_id = str(meta.get("source_id", ""))
+        if source_id and source_id not in sources:
+            errors.append(f"{rel}: missing source record {source_id}")
+        for evidence_id in meta.get("evidence_ids", []):
+            if str(evidence_id) not in evidence:
+                errors.append(f"{rel}: missing evidence artifact {evidence_id}")
+        if check_topics:
+            for topic_id in meta.get("topics", []):
+                if str(topic_id) not in topics:
+                    errors.append(f"{rel}: unknown topic {topic_id}")
+    return errors
+
+
+def lint_ars_handoff(ws: Workspace) -> list[str]:
+    errors: list[str] = []
+    proposal_boundaries = {"ars-proposal", "review-blocker"}
+    for path, meta, body in knowledge_page_records(ws):
+        rel = relative_workspace_path(ws, path)
+        page_type = str(meta.get("type", ""))
+        boundary = str(meta.get("evidence_boundary", ""))
+        status = str(meta.get("status", ""))
+        evidence_tier = str(meta.get("evidence_tier", ""))
+        has_ars_marker = "source_from_ars" in meta or "source_from_ars:" in body
+
+        if page_type == "paper" and boundary == "ars-proposal":
+            errors.append(f"{rel}: paper pages cannot use ARS output as evidence")
+        if has_ars_marker and boundary not in proposal_boundaries:
+            errors.append(f"{rel}: ARS-derived material must use ars-proposal or review-blocker boundary")
+        if boundary == "ars-proposal" and status == "reviewed":
+            errors.append(f"{rel}: ARS proposal cannot be reviewed without evidence promotion")
+        if boundary == "ars-proposal" and evidence_tier and evidence_tier != "review-blocker":
+            errors.append(f"{rel}: ARS proposal must not claim evidence tier {evidence_tier}")
     return errors
 
 
@@ -1045,6 +1138,192 @@ def lint_knowledge_pages(ws: Workspace) -> list[str]:
             if not meta.get("evidence_ids"):
                 errors.append(f"{rel}: paper page missing PDF evidence id")
     return errors
+
+
+def _resolve_knowledge_path(ws: Workspace, target: str) -> Path | None:
+    raw = Path(target).expanduser()
+    candidates: list[Path] = []
+    if raw.is_absolute():
+        candidates.append(raw)
+    else:
+        candidates.extend(
+            [
+                ws.paths.wiki_root / raw,
+                ws.root / raw,
+                ws.paths.knowledge / raw,
+            ]
+        )
+        if raw.suffix != ".md":
+            candidates.extend(
+                [
+                    ws.paths.wiki_root / f"{target}.md",
+                    ws.root / f"{target}.md",
+                    ws.paths.knowledge / f"{target}.md",
+                ]
+            )
+    for candidate in candidates:
+        if candidate.exists() and candidate.is_file():
+            return candidate.resolve()
+    return None
+
+
+def _target_words(title: str, body: str) -> set[str]:
+    words = set(re.findall(r"[a-z0-9][a-z0-9-]{3,}", f"{title} {first_summary_line(body)}".lower()))
+    return {word.strip("-") for word in words if len(word.strip("-")) >= 4}
+
+
+def propose_propagation(ws: Workspace, target: str, *, write: bool = False) -> dict[str, Any]:
+    ws.ensure_base()
+    sources = _source_records(ws)
+    evidence = _evidence_records(ws)
+    target_id = target
+    target_kind = "unknown"
+    target_title = target
+    target_topics: set[str] = set()
+    target_evidence: set[str] = set()
+    target_source = ""
+    target_terms: set[str] = set()
+    target_boundary = ""
+    target_tier = ""
+    target_path: Path | None = None
+
+    if target in sources:
+        record = sources[target]
+        target_kind = "source"
+        target_id = target
+        target_title = str(record.get("title") or record.get("value") or target)
+        target_topics = {str(item) for item in record.get("topic_ids", []) if str(item).strip()}
+        target_evidence = {str(item) for item in record.get("evidence_ids", []) if str(item).strip()}
+        target_source = target
+    else:
+        target_path = _resolve_knowledge_path(ws, target)
+        if target_path is None:
+            raise SystemExit(f"propagation target not found: {target}")
+        meta, body = parse_frontmatter(read_text(target_path))
+        if not meta:
+            raise SystemExit(f"propagation target has no frontmatter: {target}")
+        target_kind = str(meta.get("type", "knowledge"))
+        target_id = relative_workspace_path(ws, target_path)
+        target_title = first_heading(body, target_path.stem.replace("_", " ").replace("-", " ").title())
+        target_topics = {str(item) for item in meta.get("topics", []) if str(item).strip()}
+        target_evidence = {str(item) for item in meta.get("evidence_ids", []) if str(item).strip()}
+        target_source = str(meta.get("source_id", ""))
+        target_terms = _target_words(target_title, body)
+        target_boundary = str(meta.get("evidence_boundary", ""))
+        target_tier = infer_evidence_tier(meta, body)
+
+    impacts: list[dict[str, Any]] = []
+    for path, meta, body in knowledge_page_records(ws):
+        if target_path is not None and path.resolve() == target_path:
+            continue
+        reasons: list[str] = []
+        page_topics = {str(item) for item in meta.get("topics", []) if str(item).strip()}
+        shared_topics = sorted(target_topics & page_topics)
+        if shared_topics:
+            reasons.append("shared topics: " + ", ".join(shared_topics))
+        page_evidence = {str(item) for item in meta.get("evidence_ids", []) if str(item).strip()}
+        shared_evidence = sorted(target_evidence & page_evidence)
+        if shared_evidence:
+            reasons.append("shared evidence: " + ", ".join(shared_evidence))
+        page_source = str(meta.get("source_id", ""))
+        if target_source and page_source == target_source:
+            reasons.append(f"same source: {target_source}")
+        page_terms = _target_words(first_heading(body, path.stem), body)
+        shared_terms = sorted(target_terms & page_terms)
+        if len(shared_terms) >= 2:
+            reasons.append("term overlap: " + ", ".join(shared_terms[:5]))
+        if reasons:
+            impacts.append(
+                {
+                    "path": relative_workspace_path(ws, path),
+                    "type": meta.get("type", "knowledge"),
+                    "reasons": reasons,
+                    "recommendation": "review-before-update",
+                }
+            )
+
+    blockers: list[str] = []
+    if target_kind != "source" and target_boundary in {"ars-proposal", "review-blocker"}:
+        blockers.append(f"target boundary is {target_boundary}; do not promote without evidence review")
+    if target_kind != "source" and target_tier == "review-blocker":
+        blockers.append("target evidence tier is review-blocker")
+    if target_kind == "source" and target_source in sources and not sources[target_source].get("evidence_ids"):
+        blockers.append("source has no evidence artifacts yet")
+
+    proposal = {
+        "schema": "rkf-propagation-proposal-v1",
+        "created": today(),
+        "target": target_id,
+        "target_type": target_kind,
+        "affected_pages": impacts,
+        "blockers": blockers,
+        "rule": "proposal-only; do not rewrite knowledge pages automatically",
+    }
+    if write:
+        proposal_path = ws.paths.gates / "propagation" / f"{slugify(target_id, 48)}_{now_stamp()}.md"
+        lines = [
+            "# Propagation Review Proposal",
+            "",
+            f"- Target: {target_id}",
+            f"- Target type: {target_kind}",
+            f"- Created: {today()}",
+            "- Rule: proposal-only; do not rewrite knowledge pages automatically",
+            "",
+            "## Affected Pages",
+            "",
+        ]
+        if impacts:
+            for item in impacts:
+                lines.append(f"- {item['path']} ({item['type']}): {'; '.join(item['reasons'])}")
+        else:
+            lines.append("- No affected pages found.")
+        lines.extend(["", "## Review Blockers", ""])
+        if blockers:
+            lines.extend(f"- {item}" for item in blockers)
+        else:
+            lines.append("- No deterministic blockers found.")
+        write_text(proposal_path, "\n".join(lines) + "\n")
+        proposal["proposal_path"] = relative_workspace_path(ws, proposal_path)
+        append_log(ws, "propagate", f"{target_id} affected={len(impacts)} proposal={proposal['proposal_path']}")
+    return proposal
+
+
+def render_workspace_status(ws: Workspace, *, log_tail: int = 5) -> str:
+    sources = _source_records(ws)
+    evidence = _evidence_records(ws)
+    knowledge = knowledge_page_records(ws)
+    source_counts = Counter(str(record.get("status", "unknown")) for record in sources.values())
+    evidence_counts = Counter(str(record.get("status", "unknown")) for record in evidence.values())
+    knowledge_counts = Counter(str(meta.get("type", "unknown")) for _, meta, _ in knowledge)
+    gate_count = len(list(ws.paths.gates.rglob("*.md"))) if ws.paths.gates.exists() else 0
+    hot_events = recent_hot_events(ws) if ws.paths.hot_md.exists() else []
+
+    lines = [
+        "# RKF Workspace Status",
+        "",
+        f"- Wiki root: {relative_workspace_path(ws, ws.paths.wiki_root)}",
+        f"- Knowledge pages: {len(knowledge)}",
+        f"- Sources: {len(sources)}",
+        f"- Evidence artifacts: {len(evidence)}",
+        f"- Pending/review gate files: {gate_count}",
+        f"- Topics: {len(ws.load_topics())}",
+        f"- Hot-query events in window: {len(hot_events)}",
+        "",
+        "## Source Status",
+        "",
+    ]
+    lines.extend(_format_counter(source_counts, empty="No source records."))
+    lines.extend(["", "## Evidence Status", ""])
+    lines.extend(_format_counter(evidence_counts, empty="No evidence artifacts."))
+    lines.extend(["", "## Knowledge Types", ""])
+    lines.extend(_format_counter(knowledge_counts, empty="No knowledge pages."))
+    lines.extend(["", "## Recent Log", ""])
+    if ws.paths.log.exists():
+        log_lines = [line for line in read_text(ws.paths.log).splitlines() if line.startswith("- ")]
+        lines.extend(log_lines[-log_tail:] or ["- No log entries."])
+    else:
+        lines.append("- No wiki log found.")
+    return "\n".join(lines) + "\n"
 
 
 def lint_public_safety(ws: Workspace) -> list[str]:
@@ -1119,6 +1398,8 @@ def external_sandbox_capsule(ws: Workspace) -> Path:
         "synthesize",
         "hot record",
         "hot refresh",
+        "status",
+        "propagate",
         "lint",
         "graph",
     ]

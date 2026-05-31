@@ -11,6 +11,11 @@ Minimum acceptance tests:
 - QCed PDFs can be distilled into paper wiki pages.
 - Topic registry validation.
 - Graph export includes source, evidence, topic, and knowledge edges.
+- Graph lint detects dangling source and evidence references.
+- ARS handoff lint keeps ARS-derived material as a proposal or review blocker.
+- Save refuses accidental overwrites unless update is explicit.
+- Propagation review writes proposal gates without rewriting knowledge pages.
+- Workspace status/world prints a compact session bootstrap.
 - External sandbox capsule states PDF and ARS evidence boundaries.
 - Active docs do not reference deleted routers or article-text workflow.
 - Public safety scan rejects PDFs, article text dumps, local paths, and private

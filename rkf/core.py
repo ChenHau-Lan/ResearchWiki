@@ -1,9 +1,9 @@
 """Core runtime helpers for the Research Knowledge Framework.
 
-RKF keeps research memory governed: candidates become source records, reviewed
-reading artifacts can support paper pages, and durable knowledge stays in wiki
-objects with evidence boundaries. Temporary PDF or OCR extraction may help an
-agent read, but it is not a persisted knowledge layer.
+RKF keeps research memory active and governed: source records can become early
+paper drafts, reading maturity records show how well the user and agents
+understand a source, and evidence boundaries still control stable claims,
+trusted synthesis, citation, and publication.
 """
 
 from __future__ import annotations
@@ -32,6 +32,11 @@ SOURCE_STATUSES = {
     "new",
     "metadata_ok",
     "candidate_found",
+    "paper_draft",
+    "needs_user_pdf",
+    "fulltext_available",
+    "reading_in_progress",
+    "reading_mature",
     "pdf_checkpoint_required",
     "pdf_downloaded",
     "pdf_qc_needed",
@@ -55,7 +60,41 @@ KNOWLEDGE_TYPES = {
 }
 
 PDF_QC_DONE = {"codex_qc_done", "human_qc_done"}
-PAPER_READING_STATUSES = {"full-read", "first-pass-pdf-qc", "ocr-qc", "visual-qc"}
+PAPER_READING_STATUSES = {
+    "metadata-only",
+    "abstract-read",
+    "skimmed",
+    "partial-fulltext",
+    "fulltext-available",
+    "first-pass-pdf-qc",
+    "ocr-qc",
+    "visual-qc",
+    "fulltext-read",
+    "full-read",
+    "human-reviewed",
+    "synthesis-ready",
+    "reproduced",
+    "mixed",
+    "blocked",
+}
+FULLTEXT_STATUSES = {
+    "unknown",
+    "needs-user-pdf",
+    "user-pdf-provided",
+    "publisher-html",
+    "publisher-pdf",
+    "open-access-pdf",
+    "partial-only",
+    "fulltext-read",
+    "unavailable",
+    "blocked",
+    "not-applicable",
+}
+HUMAN_FEEDBACK_LEVELS = {"none", "skimmed", "discussed", "annotated", "trusted"}
+UNDERSTANDING_CONFIDENCES = {"low", "medium", "high", "mixed"}
+CLAIM_READINESS = {"not-ready", "locator-needed", "claim-ready", "synthesis-ready"}
+SYNTHESIS_MATURITY = {"draft", "single-source", "multi-source", "human-reviewed", "publication-ready"}
+SOURCE_COVERAGE = {"unknown", "partial", "representative", "systematic"}
 LOCAL_PATH_PATTERNS = [
     re.compile("/" + r"Users/(?!\[\^)[^/\s]+"),
     re.compile(r"C:\\Users\\", re.IGNORECASE),
@@ -219,17 +258,23 @@ def infer_evidence_tier(meta: dict[str, Any], body: str = "") -> str:
     page_type = str(meta.get("type", ""))
     boundary = str(meta.get("evidence_boundary", "")).lower()
     reading = str(meta.get("reading_status", "")).lower()
+    claim_readiness = str(meta.get("claim_readiness", "")).lower()
+    human_feedback = str(meta.get("human_feedback_level", "")).lower()
     text = body.lower()
     if "review-blocker" in boundary:
         return "review-blocker"
     if page_type == "paper":
-        if reading == "full-read" and meta.get("evidence_ids"):
+        if claim_readiness in {"claim-ready", "synthesis-ready"}:
+            return "claim-ready"
+        if human_feedback in {"annotated", "trusted"} and reading in {"fulltext-read", "full-read", "human-reviewed"}:
+            return "human-matured"
+        if reading in {"fulltext-read", "full-read", "human-reviewed"} and meta.get("evidence_ids"):
             return "locator-backed"
         if reading in {"first-pass-pdf-qc", "ocr-qc", "visual-qc"} and meta.get("evidence_ids"):
             return "pdf-qc-stub"
-        if "metadata" in text or "abstract" in text:
+        if reading in {"metadata-only", "abstract-read"} or "metadata" in text or "abstract" in text:
             return "metadata-only"
-        return "candidate"
+        return "reading-draft"
     if "metadata" in boundary or "abstract" in boundary:
         return "mixed"
     if "pdf-evidence" in boundary or meta.get("evidence_ids"):
@@ -237,6 +282,10 @@ def infer_evidence_tier(meta: dict[str, Any], body: str = "") -> str:
     if "candidate" in boundary:
         return "candidate"
     return "review-blocker"
+
+
+def set_frontmatter(path: Path, meta: dict[str, Any], body: str) -> None:
+    write_text(path, frontmatter(meta) + body)
 
 
 def relative_workspace_path(ws: "Workspace", path: Path) -> str:
@@ -290,6 +339,7 @@ class WorkspacePaths:
     sources: Path
     evidence_index: Path
     gates: Path
+    reading: Path
     search_runs: Path
     knowledge: Path
     governance: Path
@@ -338,6 +388,7 @@ class Workspace:
             sources=state / "sources",
             evidence_index=state / "evidence",
             gates=state / "gates",
+            reading=state / "reading",
             search_runs=state / "search_runs",
             knowledge=wiki_root / "knowledge",
             governance=wiki_root / "governance",
@@ -351,6 +402,7 @@ class Workspace:
             self.paths.sources,
             self.paths.evidence_index,
             self.paths.gates,
+            self.paths.reading,
             self.paths.search_runs,
             self.paths.knowledge,
             self.paths.governance,
@@ -364,6 +416,9 @@ class Workspace:
 
     def evidence_path(self, evidence_id: str) -> Path:
         return self.paths.evidence_index / f"{evidence_id}.json"
+
+    def reading_ledger_path(self, source_id: str) -> Path:
+        return self.paths.reading / f"{source_id}.json"
 
     def load_source(self, source_id: str) -> dict[str, Any]:
         path = self.source_path(source_id)
@@ -414,6 +469,8 @@ def create_source(ws: Workspace, *, kind: str, value: str, title: str = "", topi
             "normalized_doi": extract_doi(value),
             "title": title,
             "status": "new",
+            "reading_state": "metadata-only",
+            "fulltext_status": "needs-user-pdf",
             "topic_ids": [],
             "gates": [],
             "evidence_ids": [],
@@ -438,6 +495,139 @@ def set_source_status(ws: Workspace, record: dict[str, Any], status: str) -> dic
     record["status"] = status
     ws.save_source(record)
     return record
+
+
+def default_reading_ledger_ref(source_id: str) -> str:
+    return f"state/reading/{source_id}.json"
+
+
+def load_reading_ledger(ws: Workspace, source_id: str) -> dict[str, Any]:
+    path = ws.reading_ledger_path(source_id)
+    if not path.exists():
+        return {
+            "schema": "rkf-reading-ledger-v1",
+            "source_id": source_id,
+            "knowledge_path": "",
+            "events": [],
+            "created": today(),
+            "updated": today(),
+        }
+    return read_json(path)
+
+
+def append_reading_event(
+    ws: Workspace,
+    *,
+    source_id: str,
+    event_type: str,
+    summary: str,
+    actor: str = "codex",
+    knowledge_path: str = "",
+    public_safe: bool = True,
+    details: dict[str, Any] | None = None,
+) -> dict[str, Any]:
+    assert_public_safe_hot_value(summary, field="reading_event", max_chars=HOT_NOTES_MAX_CHARS)
+    ledger = load_reading_ledger(ws, source_id)
+    if knowledge_path:
+        ledger["knowledge_path"] = knowledge_path
+    ledger.setdefault("events", []).append(
+        {
+            "created": datetime.now().isoformat(timespec="seconds"),
+            "type": event_type,
+            "actor": actor,
+            "summary": summary.strip(),
+            "public_safe": public_safe,
+            "details": details or {},
+        }
+    )
+    ledger["updated"] = today()
+    write_json(ws.reading_ledger_path(source_id), ledger)
+    append_log(ws, "reading-event", f"{source_id} {event_type} {summary[:80]}")
+    return ledger
+
+
+def find_paper_page_for_source(ws: Workspace, source_id: str) -> Path | None:
+    for path, meta, _ in knowledge_page_records(ws):
+        if meta.get("type") == "paper" and meta.get("source_id") == source_id:
+            return path
+    return None
+
+
+def maturity_defaults_for_paper(record: dict[str, Any], artifact: dict[str, Any] | None) -> dict[str, str]:
+    if artifact and artifact.get("status") == "pdf_qc_done":
+        reading_state = "fulltext-read"
+        fulltext_status = "fulltext-read"
+        claim_readiness = "claim-ready" if artifact.get("locators") else "locator-needed"
+        understanding_confidence = "medium"
+    elif artifact:
+        reading_state = "partial-fulltext"
+        fulltext_status = "user-pdf-provided"
+        claim_readiness = "locator-needed"
+        understanding_confidence = "low"
+    else:
+        status = str(record.get("status", ""))
+        reading_state = "abstract-read" if status == "abstract_only" else "metadata-only"
+        fulltext_status = "needs-user-pdf"
+        claim_readiness = "not-ready"
+        understanding_confidence = "low"
+    return {
+        "reading_state": reading_state,
+        "fulltext_status": fulltext_status,
+        "human_feedback_level": "none",
+        "understanding_confidence": understanding_confidence,
+        "claim_readiness": claim_readiness,
+        "last_reading_interaction": today(),
+        "reading_ledger": default_reading_ledger_ref(str(record["source_id"])),
+    }
+
+
+def update_paper_maturity(
+    ws: Workspace,
+    source_id: str,
+    *,
+    reading_state: str = "",
+    fulltext_status: str = "",
+    human_feedback_level: str = "",
+    understanding_confidence: str = "",
+    claim_readiness: str = "",
+    note: str = "",
+    actor: str = "codex",
+) -> Path:
+    path = find_paper_page_for_source(ws, source_id)
+    if path is None:
+        raise SystemExit(f"paper page not found for source: {source_id}")
+    meta, body = parse_frontmatter(read_text(path))
+    if reading_state:
+        meta["reading_state"] = reading_state
+        meta["reading_status"] = reading_state
+    if fulltext_status:
+        meta["fulltext_status"] = fulltext_status
+    if human_feedback_level:
+        meta["human_feedback_level"] = human_feedback_level
+    if understanding_confidence:
+        meta["understanding_confidence"] = understanding_confidence
+    if claim_readiness:
+        meta["claim_readiness"] = claim_readiness
+    meta["last_reading_interaction"] = today()
+    meta["updated"] = today()
+    set_frontmatter(path, meta, body)
+    if note:
+        append_reading_event(
+            ws,
+            source_id=source_id,
+            event_type="human-feedback" if actor == "human" else "reading-update",
+            actor=actor,
+            summary=note,
+            knowledge_path=relative_workspace_path(ws, path),
+            details={
+                "reading_state": meta.get("reading_state", ""),
+                "fulltext_status": meta.get("fulltext_status", ""),
+                "human_feedback_level": meta.get("human_feedback_level", ""),
+                "understanding_confidence": meta.get("understanding_confidence", ""),
+                "claim_readiness": meta.get("claim_readiness", ""),
+            },
+        )
+    return path
 
 
 def write_acquisition_checkpoint(ws: Workspace, record: dict[str, Any], *, route: str, screenshot: str = "") -> Path:
@@ -494,7 +684,19 @@ def approved_pdf_acquisition(ws: Workspace, record: dict[str, Any], pdf_path: Pa
     ws.save_evidence(artifact)
     if evidence_id not in record.setdefault("evidence_ids", []):
         record["evidence_ids"].append(evidence_id)
+    record["fulltext_status"] = "user-pdf-provided"
+    record["reading_state"] = "partial-fulltext"
     set_source_status(ws, record, "pdf_downloaded")
+    paper_path = find_paper_page_for_source(ws, str(record["source_id"]))
+    if paper_path is not None:
+        update_paper_maturity(
+            ws,
+            str(record["source_id"]),
+            reading_state="partial-fulltext",
+            fulltext_status="user-pdf-provided",
+            claim_readiness="locator-needed",
+            note="User-provided PDF stored; reading maturity updated through the normal full-text path.",
+        )
     append_log(ws, "acquire", f"{record['source_id']} stored {evidence_id}")
     return artifact
 
@@ -512,7 +714,7 @@ def pdf_artifact(ws: Workspace, record: dict[str, Any]) -> dict[str, Any] | None
 
 def verify_pdf(ws: Workspace, record: dict[str, Any], *, locator: str = "", note: str = "", qc_status: str = "codex_qc_done") -> dict[str, Any]:
     if qc_status not in PDF_QC_DONE:
-        raise SystemExit(f"invalid PDF QC status: {qc_status}")
+        raise SystemExit(f"invalid PDF review status: {qc_status}")
     artifact = pdf_artifact(ws, record)
     if artifact is None:
         raise SystemExit("refusing PDF verification: no approved PDF evidence")
@@ -524,7 +726,20 @@ def verify_pdf(ws: Workspace, record: dict[str, Any], *, locator: str = "", note
     if note:
         artifact.setdefault("qc_notes", []).append({"date": today(), "note": note})
     ws.save_evidence(artifact)
+    record["fulltext_status"] = "fulltext-read"
+    record["reading_state"] = "fulltext-read"
     set_source_status(ws, record, "pdf_qc_done")
+    paper_path = find_paper_page_for_source(ws, str(record["source_id"]))
+    if paper_path is not None:
+        update_paper_maturity(
+            ws,
+            str(record["source_id"]),
+            reading_state="fulltext-read",
+            fulltext_status="fulltext-read",
+            claim_readiness="claim-ready" if locator else "locator-needed",
+            understanding_confidence="medium",
+            note=note or locator or "Full text identity and readability were checked.",
+        )
     append_log(ws, "verify-pdf", f"{record['source_id']} qc_status={qc_status}")
     return artifact
 
@@ -538,44 +753,77 @@ def qced_pdf_artifact(ws: Workspace, record: dict[str, Any]) -> dict[str, Any] |
 
 def create_paper_note(ws: Workspace, record: dict[str, Any], *, slug: str = "") -> Path:
     artifact = qced_pdf_artifact(ws, record)
-    if record.get("status") != "pdf_qc_done" or artifact is None:
-        raise SystemExit("refusing paper distill: source has no QCed PDF evidence")
+    if artifact is None:
+        artifact = pdf_artifact(ws, record)
     title = record.get("title") or record["source_id"].replace("_", " ").title()
     page_slug = slugify(slug or record["source_id"])
     dest = ws.paths.knowledge / "papers" / f"{page_slug}.md"
+    maturity = maturity_defaults_for_paper(record, artifact)
+    evidence_ids = [artifact["evidence_id"]] if artifact else []
+    boundary = "pdf-evidence" if artifact and artifact.get("status") == "pdf_qc_done" else "review-blocker"
+    evidence_tier = infer_evidence_tier(
+        {
+            "type": "paper",
+            "reading_status": maturity["reading_state"],
+            "claim_readiness": maturity["claim_readiness"],
+            "human_feedback_level": maturity["human_feedback_level"],
+            "evidence_ids": evidence_ids,
+            "evidence_boundary": boundary,
+        }
+    )
     meta = {
         "type": "paper",
         "status": "draft",
         "source_id": record["source_id"],
         "source_status": "peer-reviewed",
-        "reading_status": "full-read",
+        "reading_status": maturity["reading_state"],
+        "reading_state": maturity["reading_state"],
+        "fulltext_status": maturity["fulltext_status"],
+        "human_feedback_level": maturity["human_feedback_level"],
+        "understanding_confidence": maturity["understanding_confidence"],
+        "claim_readiness": maturity["claim_readiness"],
+        "last_reading_interaction": maturity["last_reading_interaction"],
+        "reading_ledger": maturity["reading_ledger"],
         "review_stage": "ai-extracted",
-        "evidence_boundary": "pdf-evidence",
-        "evidence_tier": "locator-backed" if artifact.get("locators") else "pdf-qc-stub",
-        "evidence_ids": [artifact["evidence_id"]],
+        "evidence_boundary": boundary,
+        "evidence_tier": evidence_tier,
+        "evidence_ids": evidence_ids,
         "topics": record.get("topic_ids", []),
         "created": today(),
         "updated": today(),
     }
-    locators = artifact.get("locators", [])
+    locators = artifact.get("locators", []) if artifact else []
     locator_lines = "\n".join(f"- {item}" for item in locators) if locators else "- TBD while reading PDF"
+    evidence_line = f"- PDF Evidence: {artifact['evidence_id']}" if artifact else "- PDF Evidence: not provided yet"
+    evidence_status = "Checked PDF" if artifact and artifact.get("status") == "pdf_qc_done" else "Reading draft; evidence boundary not promoted"
     body = (
         f"# {title}\n\n"
         "## Source Identity\n\n"
         f"- Source ID: {record['source_id']}\n"
         f"- DOI: {record.get('normalized_doi', '')}\n"
-        f"- PDF Evidence: {artifact['evidence_id']}\n"
-        "- Evidence status: QCed PDF\n\n"
-        "## PDF Locators\n\n"
+        f"{evidence_line}\n"
+        f"- Evidence status: {evidence_status}\n\n"
+        "## Reading Maturity\n\n"
+        f"- Reading state: {maturity['reading_state']}\n"
+        f"- Full text status: {maturity['fulltext_status']}\n"
+        f"- Human feedback level: {maturity['human_feedback_level']}\n"
+        f"- Understanding confidence: {maturity['understanding_confidence']}\n"
+        f"- Claim readiness: {maturity['claim_readiness']}\n"
+        f"- Reading ledger: {maturity['reading_ledger']}\n\n"
+        "## Locators\n\n"
         f"{locator_lines}\n\n"
         "## Reading Notes\n\n"
         "- Research question:\n"
         "- Method:\n"
         "- Key findings:\n"
         "- Limitations:\n\n"
+        "## Questions And Feedback\n\n"
+        "- User questions:\n"
+        "- Human feedback:\n"
+        "- Open blockers:\n\n"
         "## Claims To Promote\n\n"
         "- Claim:\n"
-        "  - PDF locator:\n"
+        "  - Locator or blocker:\n"
         "  - Caveat:\n\n"
         "## Graph Links\n\n"
         "- Topics:\n"
@@ -583,7 +831,14 @@ def create_paper_note(ws: Workspace, record: dict[str, Any], *, slug: str = "") 
         "- Questions:\n"
     )
     write_text(dest, frontmatter(meta) + body)
-    set_source_status(ws, record, "wiki_done")
+    set_source_status(ws, record, "wiki_done" if artifact and artifact.get("status") == "pdf_qc_done" else "paper_draft")
+    append_reading_event(
+        ws,
+        source_id=str(record["source_id"]),
+        event_type="paper-draft-created",
+        summary=f"Paper draft created with reading_state={maturity['reading_state']} and fulltext_status={maturity['fulltext_status']}.",
+        knowledge_path=relative_workspace_path(ws, dest),
+    )
     append_log(ws, "distill-paper", f"{record['source_id']} -> {relative_workspace_path(ws, dest)}")
     return dest
 
@@ -979,11 +1234,22 @@ def generate_wiki_index(ws: Workspace) -> Path:
             review_stage = meta.get("review_stage", "unknown") if meta else "unknown"
             boundary = meta.get("evidence_boundary", "") if meta else ""
             tier = infer_evidence_tier(meta, body) if meta else "review-blocker"
+            maturity_bits: list[str] = []
+            if page_type == "paper":
+                maturity_bits.append(f"reading={meta.get('reading_state', meta.get('reading_status', 'unknown'))}")
+                maturity_bits.append(f"fulltext={meta.get('fulltext_status', 'unknown')}")
+                maturity_bits.append(f"human={meta.get('human_feedback_level', 'unknown')}")
+                maturity_bits.append(f"claim={meta.get('claim_readiness', 'unknown')}")
+            if page_type == "synthesis":
+                maturity_bits.append(f"maturity={meta.get('synthesis_maturity', 'unknown')}")
+                maturity_bits.append(f"coverage={meta.get('source_coverage', 'unknown')}")
+                maturity_bits.append(f"claim={meta.get('claim_readiness', 'unknown')}")
+            maturity = f"; {'; '.join(maturity_bits)}" if maturity_bits else ""
             summary = first_summary_line(body)
             suffix = f" - {summary}" if summary else ""
             lines.append(
                 f"- [{title}]({rel}): type={page_type}; status={status}; review={review_stage}; "
-                f"evidence={boundary or 'unspecified'}; tier={tier}; topics={topics or 'none'}{suffix}"
+                f"evidence={boundary or 'unspecified'}; tier={tier}; topics={topics or 'none'}{maturity}{suffix}"
             )
             page_count += 1
     if page_count == 0:
@@ -1131,12 +1397,46 @@ def lint_knowledge_pages(ws: Workspace) -> list[str]:
             reading_status = str(meta.get("reading_status", ""))
             if reading_status not in PAPER_READING_STATUSES:
                 errors.append(f"{rel}: invalid paper reading_status {reading_status!r}")
-            if reading_status != "full-read" and meta.get("status") not in {"draft", "review"}:
+            if reading_status not in {"full-read", "fulltext-read", "human-reviewed"} and meta.get("status") not in {"draft", "review", "needs-verification"}:
                 errors.append(f"{rel}: non-full-read paper pages must stay draft or review")
-            if meta.get("evidence_boundary") != "pdf-evidence":
-                errors.append(f"{rel}: paper page must use pdf-evidence boundary")
-            if not meta.get("evidence_ids"):
-                errors.append(f"{rel}: paper page missing PDF evidence id")
+            maturity_keys = {
+                "reading_state",
+                "fulltext_status",
+                "human_feedback_level",
+                "understanding_confidence",
+                "claim_readiness",
+                "reading_ledger",
+            }
+            legacy_paper = not any(meta.get(key) for key in maturity_keys)
+            for key, allowed in (
+                ("reading_state", PAPER_READING_STATUSES),
+                ("fulltext_status", FULLTEXT_STATUSES),
+                ("human_feedback_level", HUMAN_FEEDBACK_LEVELS),
+                ("understanding_confidence", UNDERSTANDING_CONFIDENCES),
+                ("claim_readiness", CLAIM_READINESS),
+            ):
+                value = str(meta.get(key, ""))
+                if value and value not in allowed:
+                    errors.append(f"{rel}: invalid {key} {value!r}")
+                if not value and not legacy_paper:
+                    errors.append(f"{rel}: missing {key}")
+            if not meta.get("reading_ledger") and not legacy_paper:
+                errors.append(f"{rel}: paper page missing reading_ledger")
+            claim_readiness = str(meta.get("claim_readiness", ""))
+            if claim_readiness in {"claim-ready", "synthesis-ready"}:
+                has_support = bool(meta.get("evidence_ids")) or str(meta.get("human_feedback_level", "")) in {"annotated", "trusted"}
+                if not has_support:
+                    errors.append(f"{rel}: claim-ready paper needs evidence id or strong human feedback")
+        if page_type == "synthesis":
+            for key, allowed in (
+                ("synthesis_maturity", SYNTHESIS_MATURITY),
+                ("source_coverage", SOURCE_COVERAGE),
+                ("human_feedback_level", HUMAN_FEEDBACK_LEVELS),
+                ("claim_readiness", CLAIM_READINESS),
+            ):
+                value = str(meta.get(key, ""))
+                if value and value not in allowed:
+                    errors.append(f"{rel}: invalid {key} {value!r}")
     return errors
 
 
@@ -1288,6 +1588,110 @@ def propose_propagation(ws: Workspace, target: str, *, write: bool = False) -> d
     return proposal
 
 
+def _paper_page_index(ws: Workspace) -> dict[str, tuple[Path, dict[str, Any], str]]:
+    index: dict[str, tuple[Path, dict[str, Any], str]] = {}
+    for path, meta, body in knowledge_page_records(ws):
+        if meta.get("type") == "paper" and meta.get("source_id"):
+            index[str(meta["source_id"])] = (path, meta, body)
+    return index
+
+
+def paper_queue(ws: Workspace) -> list[dict[str, Any]]:
+    sources = _source_records(ws)
+    papers = _paper_page_index(ws)
+    hot_events = load_hot_events(ws) if ws.paths.hot_md.exists() else []
+    hot_leads = Counter()
+    for event in hot_events:
+        for lead in event.get("paper_leads", []):
+            lead_text = str(lead)
+            hot_leads[lead_text] += 1
+            doi = extract_doi(lead_text)
+            if doi:
+                hot_leads[source_id_from_value("doi", doi)] += 1
+
+    items: list[dict[str, Any]] = []
+    for source_id, record in sources.items():
+        path_meta_body = papers.get(source_id)
+        title = str(record.get("title") or record.get("value") or source_id)
+        if path_meta_body is None:
+            reasons = ["no paper draft"]
+            if str(record.get("fulltext_status", "")) in {"needs-user-pdf", ""}:
+                reasons.append("full text status unknown or needs user PDF")
+            priority = 10 + hot_leads[source_id]
+            items.append(
+                {
+                    "source_id": source_id,
+                    "title": title,
+                    "priority": priority,
+                    "action": "create-paper-draft",
+                    "reasons": reasons,
+                    "path": "",
+                }
+            )
+            continue
+        path, meta, _ = path_meta_body
+        reasons: list[str] = []
+        action = "review-reading"
+        fulltext_status = str(meta.get("fulltext_status", ""))
+        reading_state = str(meta.get("reading_state", meta.get("reading_status", "")))
+        human_feedback = str(meta.get("human_feedback_level", "none"))
+        claim_readiness = str(meta.get("claim_readiness", ""))
+        priority = hot_leads[source_id]
+        if fulltext_status == "needs-user-pdf":
+            reasons.append("needs user PDF for full text")
+            action = "request-user-pdf"
+            priority += 90
+        if reading_state in {"metadata-only", "abstract-read"}:
+            reasons.append(f"reading state is {reading_state}")
+            priority += 50
+        if human_feedback == "none":
+            reasons.append("no human feedback yet")
+            priority += 30
+        if claim_readiness == "locator-needed":
+            reasons.append("locator needed before stable claims")
+            priority += 20
+        if hot_leads[source_id]:
+            reasons.append(f"repeated paper/search demand: {hot_leads[source_id]}")
+            priority += 10 * hot_leads[source_id]
+        if not reasons and claim_readiness in {"claim-ready", "synthesis-ready"}:
+            reasons.append("ready for synthesis review")
+            action = "synthesis-review"
+            priority += 10
+        if reasons:
+            items.append(
+                {
+                    "source_id": source_id,
+                    "title": title,
+                    "priority": priority,
+                    "action": action,
+                    "reasons": reasons,
+                    "path": relative_workspace_path(ws, path),
+                }
+            )
+    items.sort(key=lambda item: (-int(item["priority"]), str(item["source_id"])))
+    return items
+
+
+def render_paper_nudge(ws: Workspace, *, limit: int = 10) -> str:
+    items = paper_queue(ws)[:limit]
+    lines = [
+        "# RKF Paper Reading Nudge",
+        "",
+        f"Generated: {today()}",
+        "",
+        "This is an active reading queue. It prioritizes understanding maturity and user feedback; it does not promote claims by itself.",
+        "",
+    ]
+    if not items:
+        lines.append("- No active paper nudges.")
+        return "\n".join(lines) + "\n"
+    for item in items:
+        path = f" path={item['path']}" if item.get("path") else ""
+        lines.append(f"- {item['source_id']} action={item['action']} priority={item['priority']}{path}")
+        lines.append(f"  reasons: {'; '.join(item['reasons'])}")
+    return "\n".join(lines) + "\n"
+
+
 def render_workspace_status(ws: Workspace, *, log_tail: int = 5) -> str:
     sources = _source_records(ws)
     evidence = _evidence_records(ws)
@@ -1295,6 +1699,12 @@ def render_workspace_status(ws: Workspace, *, log_tail: int = 5) -> str:
     source_counts = Counter(str(record.get("status", "unknown")) for record in sources.values())
     evidence_counts = Counter(str(record.get("status", "unknown")) for record in evidence.values())
     knowledge_counts = Counter(str(meta.get("type", "unknown")) for _, meta, _ in knowledge)
+    paper_reading_counts = Counter(
+        str(meta.get("reading_state", meta.get("reading_status", "unknown")))
+        for _, meta, _ in knowledge
+        if meta.get("type") == "paper"
+    )
+    paper_queue_count = len(paper_queue(ws))
     gate_count = len(list(ws.paths.gates.rglob("*.md"))) if ws.paths.gates.exists() else 0
     hot_events = recent_hot_events(ws) if ws.paths.hot_md.exists() else []
 
@@ -1308,6 +1718,7 @@ def render_workspace_status(ws: Workspace, *, log_tail: int = 5) -> str:
         f"- Pending/review gate files: {gate_count}",
         f"- Topics: {len(ws.load_topics())}",
         f"- Hot-query events in window: {len(hot_events)}",
+        f"- Active paper nudges: {paper_queue_count}",
         "",
         "## Source Status",
         "",
@@ -1317,6 +1728,8 @@ def render_workspace_status(ws: Workspace, *, log_tail: int = 5) -> str:
     lines.extend(_format_counter(evidence_counts, empty="No evidence artifacts."))
     lines.extend(["", "## Knowledge Types", ""])
     lines.extend(_format_counter(knowledge_counts, empty="No knowledge pages."))
+    lines.extend(["", "## Paper Reading State", ""])
+    lines.extend(_format_counter(paper_reading_counts, empty="No paper reading states."))
     lines.extend(["", "## Recent Log", ""])
     if ws.paths.log.exists():
         log_lines = [line for line in read_text(ws.paths.log).splitlines() if line.startswith("- ")]
@@ -1363,7 +1776,11 @@ def export_graph(ws: Workspace) -> dict[str, Any]:
     edges: list[dict[str, Any]] = []
     for path in sorted(ws.paths.sources.glob("*.json")) if ws.paths.sources.exists() else []:
         record = read_json(path)
-        nodes.append({"id": record["source_id"], "type": "source", "status": record.get("status", "")})
+        node = {"id": record["source_id"], "type": "source", "status": record.get("status", "")}
+        for key in ("reading_state", "fulltext_status"):
+            if record.get(key):
+                node[key] = record[key]
+        nodes.append(node)
         for evidence_id in record.get("evidence_ids", []):
             edges.append({"from": record["source_id"], "to": evidence_id, "type": "has-evidence"})
         for topic_id in record.get("topic_ids", []):
@@ -1374,7 +1791,18 @@ def export_graph(ws: Workspace) -> dict[str, Any]:
             if not meta:
                 continue
             node_id = path.relative_to(ws.paths.knowledge).with_suffix("").as_posix()
-            nodes.append({"id": node_id, "type": meta.get("type", "knowledge"), "status": meta.get("status", "")})
+            node = {"id": node_id, "type": meta.get("type", "knowledge"), "status": meta.get("status", "")}
+            for key in (
+                "reading_state",
+                "fulltext_status",
+                "human_feedback_level",
+                "claim_readiness",
+                "synthesis_maturity",
+                "source_coverage",
+            ):
+                if meta.get(key):
+                    node[key] = meta[key]
+            nodes.append(node)
             for evidence_id in meta.get("evidence_ids", []):
                 edges.append({"from": node_id, "to": evidence_id, "type": "supported-by"})
             if meta.get("source_id"):
@@ -1398,6 +1826,11 @@ def external_sandbox_capsule(ws: Workspace) -> Path:
         "synthesize",
         "hot record",
         "hot refresh",
+        "paper status",
+        "paper feedback",
+        "paper queue",
+        "paper next",
+        "paper nudge",
         "status",
         "propagate",
         "lint",
@@ -1410,8 +1843,10 @@ def external_sandbox_capsule(ws: Workspace) -> Path:
         f"- Repo path: {ws.root}\n"
         f"- Private evidence root: {ws.paths.private_evidence}\n"
         "- Public-safe boundary: do not paste PDFs, full article text, local secrets, or private Drive paths into public wiki pages.\n"
-        "- Evidence rule: metadata, search candidates, and ARS reports are not evidence; a QCed PDF artifact is required before paper distillation.\n"
-        "- Durable path: PDF evidence -> PDF QC -> wiki page.\n"
+        "- Reading rule: metadata, search candidates, and ARS reports may start paper drafts, but they are not stable claim evidence by themselves.\n"
+        "- Durable path: capture source -> create/read paper draft -> update full-text status -> request user PDF only when unavailable -> record feedback/locators -> promote claims only at the boundary.\n"
+        "- Claim boundary: stable claims and trusted synthesis need a locator, human feedback, existing governed source, or explicit blocker.\n"
+        "- Reading ledger rule: public-safe reading events live under state/reading/ and are operational memory, not claim evidence by themselves.\n"
         "- Hot-query rule: public-safe research questions may be recorded in hot.md with `python3 tools/rk.py hot record`; do not create separate hot-query files.\n"
         "- Target save layers: paper, question, concept, claim, synthesis, topic, meeting, seminar, review item.\n"
         "- Allowed modes: "
@@ -1421,9 +1856,12 @@ def external_sandbox_capsule(ws: Workspace) -> Path:
         "```yaml\n"
         "target_layer: paper | question | concept | claim | synthesis | topic | review\n"
         "title: short title\n"
-        "evidence_boundary: PDF locator, existing wiki page, or review blocker\n"
+        "reading_state: metadata-only | abstract-read | partial-fulltext | fulltext-read | human-reviewed | blocked\n"
+        "fulltext_status: unknown | needs-user-pdf | user-pdf-provided | publisher-html | publisher-pdf | open-access-pdf | partial-only | fulltext-read | unavailable | blocked\n"
+        "human_feedback_level: none | skimmed | discussed | annotated | trusted\n"
+        "evidence_boundary: metadata-only, locator, existing wiki page, human-reviewed, or review blocker\n"
         "confidence: low | medium | high | mixed\n"
-        "recommended_mode: save | review | synthesize | distill\n"
+        "recommended_mode: save | review | synthesize | distill | paper-feedback\n"
         "reason_to_save: one sentence\n"
         "```\n",
     )

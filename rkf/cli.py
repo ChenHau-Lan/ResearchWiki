@@ -24,14 +24,17 @@ from .core import (
     lint_public_safety,
     lint_topics,
     parse_frontmatter,
+    paper_queue,
     propose_propagation,
     read_json,
     record_hot_query,
+    render_paper_nudge,
     relative_workspace_path,
     render_workspace_status,
     refresh_hot_markdown,
     slugify,
     today,
+    update_paper_maturity,
     verify_pdf,
     write_acquisition_checkpoint,
     write_json,
@@ -103,15 +106,20 @@ def cmd_acquire(args: argparse.Namespace) -> int:
     ws = Workspace()
     record = _load_or_capture(ws, args.source)
     route = args.pdf or args.url or "candidate route not supplied"
-    if not args.approve:
+    if args.checkpoint:
         path = write_acquisition_checkpoint(ws, record, route=route, screenshot=args.screenshot or "")
-        print(f"checkpoint required: {relative_workspace_path(ws, path)}")
+        print(f"legacy checkpoint written: {relative_workspace_path(ws, path)}")
         print("status: pdf_checkpoint_required")
         return 0
     if not args.pdf:
-        raise SystemExit("approved acquisition currently requires --pdf")
+        record["fulltext_status"] = "needs-user-pdf"
+        record["reading_state"] = "metadata-only"
+        ws.save_source(record)
+        print(f"source needs user-provided full text: {record['source_id']}")
+        print("status: needs_user_pdf")
+        return 0
     artifact = approved_pdf_acquisition(ws, record, Path(args.pdf).expanduser().resolve())
-    print(f"stored PDF evidence artifact: {artifact['evidence_id']}")
+    print(f"stored user-provided PDF artifact: {artifact['evidence_id']}")
     print("status: pdf_downloaded")
     return 0
 
@@ -145,6 +153,65 @@ def cmd_distill(args: argparse.Namespace) -> int:
     record = ws.load_source(args.source_id)
     path = create_paper_note(ws, record, slug=args.slug or "")
     print(f"wrote knowledge page: {relative_workspace_path(ws, path)}")
+    return 0
+
+
+def cmd_paper_status(args: argparse.Namespace) -> int:
+    ws = Workspace()
+    items = paper_queue(ws)
+    if args.source_id:
+        items = [item for item in items if item["source_id"] == args.source_id]
+    if not items:
+        print("paper queue: empty")
+        return 0
+    for item in items:
+        print(f"{item['source_id']}\taction={item['action']}\tpriority={item['priority']}\tpath={item.get('path', '')}")
+        print(f"  reasons: {'; '.join(item['reasons'])}")
+    return 0
+
+
+def cmd_paper_feedback(args: argparse.Namespace) -> int:
+    ws = Workspace()
+    path = update_paper_maturity(
+        ws,
+        args.source_id,
+        reading_state=args.reading_state or "",
+        fulltext_status=args.fulltext_status or "",
+        human_feedback_level=args.level,
+        understanding_confidence=args.confidence or "",
+        claim_readiness=args.claim_readiness or "",
+        note=args.note,
+        actor="human",
+    )
+    print(f"updated paper maturity: {relative_workspace_path(ws, path)}")
+    return 0
+
+
+def cmd_paper_queue(args: argparse.Namespace) -> int:
+    ws = Workspace()
+    items = paper_queue(ws)[: args.limit]
+    print(f"paper queue: {len(items)}")
+    for item in items:
+        print(f"- {item['source_id']}\taction={item['action']}\tpriority={item['priority']}\tpath={item.get('path', '')}")
+        print(f"  reasons: {'; '.join(item['reasons'])}")
+    return 0
+
+
+def cmd_paper_next(args: argparse.Namespace) -> int:
+    ws = Workspace()
+    items = paper_queue(ws)
+    if not items:
+        print("paper queue: empty")
+        return 0
+    item = items[0]
+    print(f"{item['source_id']}\taction={item['action']}\tpriority={item['priority']}\tpath={item.get('path', '')}")
+    print(f"reasons: {'; '.join(item['reasons'])}")
+    return 0
+
+
+def cmd_paper_nudge(args: argparse.Namespace) -> int:
+    ws = Workspace()
+    print(render_paper_nudge(ws, limit=args.limit), end="")
     return 0
 
 
@@ -235,7 +302,16 @@ def cmd_save(args: argparse.Namespace) -> int:
         "topics: []\n"
         "evidence_boundary: review-blocker\n"
         "evidence_tier: review-blocker\n"
-        f"created: {created}\n"
+        + (
+            "synthesis_maturity: draft\n"
+            "source_coverage: unknown\n"
+            "human_feedback_level: none\n"
+            "claim_readiness: not-ready\n"
+            f"last_synthesis_interaction: {today()}\n"
+            if args.object_type == "synthesis"
+            else ""
+        )
+        + f"created: {created}\n"
         f"updated: {today()}\n"
         "sources: []\n"
         "---\n\n"
@@ -402,22 +478,23 @@ def build_parser() -> argparse.ArgumentParser:
     capture.add_argument("--note")
     capture.set_defaults(func=cmd_capture)
 
-    discover = sub.add_parser("discover", help="Stage a discovery run; candidates are not evidence")
+    discover = sub.add_parser("discover", help="Stage a discovery run; candidates need reading before they can support claims")
     discover.add_argument("query")
     discover.add_argument("--topic-id")
     discover.set_defaults(func=cmd_discover)
 
-    acquire = sub.add_parser("acquire", help="Stage or approve PDF evidence acquisition")
+    acquire = sub.add_parser("acquire", help="Record user-provided full text or legacy route review")
     acquire.add_argument("source")
     acquire.add_argument("--pdf")
     acquire.add_argument("--url")
     acquire.add_argument("--screenshot")
-    acquire.add_argument("--approve", action="store_true")
+    acquire.add_argument("--approve", action="store_true", help="Accepted for legacy compatibility; PDF storage no longer requires it")
+    acquire.add_argument("--checkpoint", action="store_true", help="Write a legacy route-review checkpoint instead of storing a PDF")
     acquire.set_defaults(func=cmd_acquire)
 
-    verify_pdf_parser = sub.add_parser("verify-pdf", help="Mark approved PDF evidence as QCed for wiki distillation")
+    verify_pdf_parser = sub.add_parser("verify-pdf", help="Mark a PDF as checked and update paper reading maturity")
     verify_pdf_parser.add_argument("source_id")
-    verify_pdf_parser.add_argument("--locator", help="Page/section/quote locator checked during PDF QC")
+    verify_pdf_parser.add_argument("--locator", help="Page/section/quote locator checked during PDF or visual review")
     verify_pdf_parser.add_argument("--note")
     verify_pdf_parser.add_argument("--qc-status", choices=["codex_qc_done", "human_qc_done"], default="codex_qc_done")
     verify_pdf_parser.set_defaults(func=cmd_verify_pdf)
@@ -426,11 +503,49 @@ def build_parser() -> argparse.ArgumentParser:
     read.add_argument("source_id")
     read.set_defaults(func=cmd_read)
 
-    distill = sub.add_parser("distill", help="Create a knowledge object from verified evidence")
+    distill = sub.add_parser("distill", help="Create or update a paper reading draft")
     distill.add_argument("distill_type", choices=["paper"])
     distill.add_argument("source_id")
     distill.add_argument("--slug")
     distill.set_defaults(func=cmd_distill)
+
+    paper = sub.add_parser("paper", help="Paper reading maturity and active queue")
+    paper_sub = paper.add_subparsers(dest="paper_command", required=True)
+    paper_status = paper_sub.add_parser("status", help="Show queued status for papers")
+    paper_status.add_argument("source_id", nargs="?")
+    paper_status.set_defaults(func=cmd_paper_status)
+    paper_feedback = paper_sub.add_parser("feedback", help="Record human feedback and update maturity")
+    paper_feedback.add_argument("source_id")
+    paper_feedback.add_argument("--level", choices=["none", "skimmed", "discussed", "annotated", "trusted"], default="discussed")
+    paper_feedback.add_argument("--note", required=True)
+    paper_feedback.add_argument("--reading-state", choices=["metadata-only", "abstract-read", "skimmed", "partial-fulltext", "fulltext-read", "full-read", "human-reviewed", "mixed"])
+    paper_feedback.add_argument(
+        "--fulltext-status",
+        choices=[
+            "unknown",
+            "needs-user-pdf",
+            "user-pdf-provided",
+            "publisher-html",
+            "publisher-pdf",
+            "open-access-pdf",
+            "partial-only",
+            "fulltext-read",
+            "unavailable",
+            "blocked",
+            "not-applicable",
+        ],
+    )
+    paper_feedback.add_argument("--confidence", choices=["low", "medium", "high", "mixed"])
+    paper_feedback.add_argument("--claim-readiness", choices=["not-ready", "locator-needed", "claim-ready", "synthesis-ready"])
+    paper_feedback.set_defaults(func=cmd_paper_feedback)
+    paper_queue_parser = paper_sub.add_parser("queue", help="List active paper reading nudges")
+    paper_queue_parser.add_argument("--limit", type=int, default=20)
+    paper_queue_parser.set_defaults(func=cmd_paper_queue)
+    paper_next = paper_sub.add_parser("next", help="Show the highest-priority paper nudge")
+    paper_next.set_defaults(func=cmd_paper_next)
+    paper_nudge = paper_sub.add_parser("nudge", help="Render scheduled paper nudge output")
+    paper_nudge.add_argument("--limit", type=int, default=10)
+    paper_nudge.set_defaults(func=cmd_paper_nudge)
 
     topic = sub.add_parser("topic", help="Topic governance")
     topic_sub = topic.add_subparsers(dest="topic_command", required=True)

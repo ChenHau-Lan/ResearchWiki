@@ -2,6 +2,16 @@
 
 ## Unreleased
 
+- Reframe RKF around active paper reading maturity: early paper drafts can begin
+  from metadata, abstracts, partial full text, or user-provided PDFs, while
+  stable claims and trusted synthesis stay gated by locators, human feedback,
+  existing governed sources, or explicit blockers.
+- Add reading maturity fields for paper and synthesis objects plus a
+  public-safe `state/reading/` ledger contract.
+- Add paper queue, feedback, next-item, and nudge CLI flows for registered
+  papers that need user PDF, human review, or synthesis review.
+- Soft-migrate acquisition: user-provided PDFs update full-text state directly,
+  while legacy checkpoint records remain compatible.
 - Add the hot-query layer: `hot.md` as a single public-safe retrieval file with
   CLI recording and refresh commands.
 - Route RKF runtime paths through configured `storage.wiki_root` so CLI query,

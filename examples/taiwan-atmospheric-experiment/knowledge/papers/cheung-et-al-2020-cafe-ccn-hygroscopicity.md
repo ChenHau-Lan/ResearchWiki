@@ -4,6 +4,13 @@ status: draft
 source_id: doi_10_5194_acp_20_5911_2020
 source_status: peer-reviewed
 reading_status: full-read
+reading_state: fulltext-read
+fulltext_status: fulltext-read
+human_feedback_level: discussed
+understanding_confidence: medium
+claim_readiness: claim-ready
+last_reading_interaction: 2026-05-24
+reading_ledger: examples/taiwan-atmospheric-experiment/state/reading/doi_10_5194_acp_20_5911_2020.json
 review_stage: ai-extracted
 evidence_boundary: pdf-evidence
 evidence_ids:
@@ -22,7 +29,7 @@ updated: 2026-05-24
 - Journal: Atmospheric Chemistry and Physics
 - Site: Cape Fuguei Research Station, northern Taiwan
 - Observation period: April 2017 to March 2018
-- Evidence status: QCed open-access publisher PDF
+- Evidence status: checked open-access publisher PDF
 
 ## PDF Locators
 

@@ -5,8 +5,8 @@
 > 我想整理在台灣的大氣實驗，如 TAMEX、SOMEX、TAHOPE。
 
 流程先用 `academic-research-skills` 做 ARS-style 文獻搜尋與 source verification，
-再用 RKF skills 做 source capture、合法 PDF checkpoint、evidence QC、paper wiki
-pages，以及最後針對 wiki 提問：「未來台灣要做氣象觀測實驗，有哪些建議？」
+再用 RKF skills 做 source capture、full-text route note、paper reading maturity、
+paper wiki draft，以及最後針對 wiki 提問：「未來台灣要做氣象觀測實驗，有哪些建議？」
 
 ## 這個範例包含什麼
 
@@ -17,17 +17,17 @@ pages，以及最後針對 wiki 提問：「未來台灣要做氣象觀測實驗
 | `skill_mode_walkthrough.md` | 什麼時候使用 ARS mode，什麼時候回到 RKF mode |
 | `state/sources/` | Public-safe source records |
 | `state/evidence/` | Public-safe evidence artifact pointers；實際 PDF 不在 repo |
-| `state/gates/pdf_acquisition/` | 人工 checkpoint / PDF QC 決策 |
-| `knowledge/papers/` | 從 QCed PDF 建立的 paper wiki pages |
+| `state/reading/` | Reading ledgers 與人工 full-text route notes |
+| `knowledge/papers/` | 含 reading maturity 的 paper wiki pages |
 | `knowledge/questions/` | 決策導向的 question page |
 | `knowledge/synthesis/` | 回答範例問題的 synthesis |
 | `graph/research_graph.json` | Public-safe graph export |
 
-## Evidence Boundary
+## Reading And Evidence Boundary
 
 實際 PDF 放在 private evidence root。這個 example 只保存
-`PRIVATE_EVIDENCE_ROOT/doi_pdf/...` 這類 public-safe pointer。Paper pages 是
-摘要式 evidence notes，並附 PDF locator；不保存全文。
+`PRIVATE_EVIDENCE_ROOT/doi_pdf/...` 這類 public-safe pointer。Paper pages 只保存
+目前理解、reading maturity 與 locator；不保存全文。
 
 ## Alias Note
 

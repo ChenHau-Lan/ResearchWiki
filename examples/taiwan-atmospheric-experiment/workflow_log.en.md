@@ -13,9 +13,10 @@ Skill routing:
   plausible DOI/PDF routes.
 - `academic-research-skills` / `deep-research:fact-check`: verify source
   identity and keep ARS output as proposal context.
-- `rkf-evidence-vault`: capture sources, stage legal PDF routes, and run PDF QC.
-- `rkf-knowledge-synthesis`: turn QCed PDFs into paper, concept, overview, and
-  synthesis pages.
+- `rkf-evidence-vault`: capture sources, track full-text routes, and run locator
+  checks.
+- `rkf-knowledge-synthesis`: create paper reading drafts, concepts, overview,
+  and synthesis pages.
 - `rkf-wiki-core`: answer a decision-oriented question from existing pages.
 - `rkf-lint`: check that no PDFs, article text, or private paths enter Git.
 
@@ -30,7 +31,8 @@ aerosol-cloud observations in Taiwan.
 ## 3. Literature Search
 
 The SCI candidate list is saved in `literature_candidates.md`. This example
-ingests representative PDFs after checkpoint/QC:
+creates reading drafts early, then raises maturity for representative papers
+after full-text route notes and locator checks:
 
 - Chen and Liang 1992 TAMEX midlevel vortex
 - You et al. 2020 SoWMEX IOP8 dual-polarimetric radar model validation
@@ -39,23 +41,24 @@ ingests representative PDFs after checkpoint/QC:
 - Chang et al. 2021 CCN and diurnal precipitation over Taiwan topography
 - Lin et al. 2026 Lulin aerosol-cloud mixing ratio
 
-Kuo and Chen 1990, Chang et al. 2015, and Yang et al. 2024 remain candidate
-items until legal PDF acquisition and QC are completed.
+Kuo and Chen 1990, Chang et al. 2015, and Yang et al. 2024 remain candidate or
+metadata-only items until user PDF/full text and locators are available.
 
-## 4. PDF QC
+## 4. Reading Maturity Update
 
-Each paper has a `state/gates/pdf_acquisition/*.md` record for:
+Each paper has a `state/reading/fulltext_routes/*.md` record for:
 
 - source identity
-- legal route
+- full-text route
 - readability
-- PDF locators
+- locators
 - no durable article-text layer
 
 ## 5. Wiki Ingest
 
-Each QCed PDF becomes one `knowledge/papers/*.md` page. The page summarizes
-evidence and records locators; it does not store PDFs or full article text.
+Each registered paper can become one `knowledge/papers/*.md` page. The page
+summarizes current understanding, records reading maturity, and preserves
+locators when available; it does not store PDFs or full article text.
 
 ## 6. Wiki Query
 
@@ -74,9 +77,12 @@ governance.
 
 ## 7. Next Steps
 
-- Add Kuo and Chen 1990 TAMEX overview after PDF QC.
-- Add Chang, Lee, and Liou 2015 SoWMEX/TiMREX microphysics after PDF QC.
-- Add Yang et al. 2024 TAHOPE/PRECIP IOP3 data-assimilation paper after PDF QC.
+- Add Kuo and Chen 1990 TAMEX overview as a draft, then request user PDF if full
+  text is unavailable.
+- Add Chang, Lee, and Liou 2015 SoWMEX/TiMREX microphysics after full-text route
+  or user PDF is available.
+- Add Yang et al. 2024 TAHOPE/PRECIP IOP3 data-assimilation paper as an active
+  queue item until full text and locators are available.
 - Add radar/disdrometer/profiler/aircraft deployment papers.
 - Add more Taiwan in-situ cloud-event papers.
 - Promote draft synthesis claims into locator-backed claim pages.

@@ -4,6 +4,13 @@ status: draft
 source_id: doi_10_5194_acp_21_16709_2021
 source_status: peer-reviewed
 reading_status: full-read
+reading_state: fulltext-read
+fulltext_status: fulltext-read
+human_feedback_level: discussed
+understanding_confidence: medium
+claim_readiness: claim-ready
+last_reading_interaction: 2026-05-24
+reading_ledger: examples/taiwan-atmospheric-experiment/state/reading/doi_10_5194_acp_21_16709_2021.json
 review_stage: ai-extracted
 evidence_boundary: pdf-evidence
 evidence_ids:
@@ -21,7 +28,7 @@ updated: 2026-05-24
 - DOI: `10.5194/acp-21-16709-2021`
 - Journal: Atmospheric Chemistry and Physics
 - Region: Taiwan complex topography
-- Evidence status: QCed open-access publisher PDF
+- Evidence status: checked open-access publisher PDF
 
 ## PDF Locators
 

@@ -1,22 +1,28 @@
 # RKF Purpose
 
-RKF exists to build a durable LLM Wiki from research PDFs. It helps future
-sessions answer what has been read, what claims are supported, which questions
-remain open, and which ARS outputs deserve to become wiki knowledge.
+RKF exists to build durable LLM Wiki memory for research reading. It helps
+future sessions answer what has been registered, how much of each paper has
+actually been read, where human feedback changed trust, what claims are
+supported, which questions remain open, and which ARS outputs deserve to become
+wiki knowledge.
 
 ## In Scope
 
-- DOI, URL, topic, idea, question, and PDF capture.
-- Legal PDF acquisition and PDF QC.
+- DOI, URL, topic, idea, question, abstract, and PDF capture.
+- Early paper drafts from metadata, abstracts, partial full text, and
+  user-provided PDFs.
+- Full-text status tracking, user-PDF requests, reading maturity, and public-safe
+  reading ledgers.
 - Paper, question, concept, claim, topic, synthesis, overview, meeting, and
   seminar pages.
 - ARS output handoff as proposals.
-- Graph export, sandbox context, and lint.
+- Graph export, sandbox context, active paper nudges, and lint.
 
 ## Out Of Scope
 
 - Unauthorized acquisition.
-- Metadata-only paper pages.
+- Presenting metadata-only or partially read drafts as stable claims.
 - Durable article-text storage.
-- Treating ARS output or chat output as evidence.
+- Treating ARS output, chat output, or reading-ledger entries as evidence by
+  themselves.
 - Hidden automatic synthesis without review.

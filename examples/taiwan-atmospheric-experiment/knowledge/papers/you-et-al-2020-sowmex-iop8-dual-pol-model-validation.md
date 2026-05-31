@@ -4,6 +4,13 @@ status: draft
 source_id: doi_10_3390_rs12183004
 source_status: peer-reviewed
 reading_status: full-read
+reading_state: fulltext-read
+fulltext_status: fulltext-read
+human_feedback_level: discussed
+understanding_confidence: medium
+claim_readiness: claim-ready
+last_reading_interaction: 2026-05-24
+reading_ledger: examples/taiwan-atmospheric-experiment/state/reading/doi_10_3390_rs12183004.json
 review_stage: ai-extracted
 evidence_boundary: pdf-evidence
 evidence_ids:
@@ -21,7 +28,7 @@ updated: 2026-05-24
 - DOI: `10.3390/rs12183004`
 - Journal: Remote Sensing
 - Experiment: Southwest Monsoon Experiment, IOP8, 14 June 2008
-- Evidence status: QCed PDF route after manual browser checkpoint
+- Evidence status: checked PDF route after manual browser route note
 
 ## PDF Locators
 

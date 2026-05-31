@@ -1,0 +1,20 @@
+{
+  "schema": "rkf-reading-ledger-v1",
+  "source_id": "doi_10_3390_rs12183004",
+  "knowledge_path": "examples/taiwan-atmospheric-experiment/knowledge/papers/you-et-al-2020-sowmex-iop8-dual-pol-model-validation.md",
+  "events": [
+    {
+      "created": "2026-05-24",
+      "type": "reading-update",
+      "actor": "codex",
+      "summary": "Example paper read from a checked open article route after manual browser access; locators recorded for SoWMEX IOP8 radar-model validation.",
+      "public_safe": true,
+      "details": {
+        "reading_state": "fulltext-read",
+        "claim_readiness": "claim-ready"
+      }
+    }
+  ],
+  "created": "2026-05-24",
+  "updated": "2026-05-24"
+}

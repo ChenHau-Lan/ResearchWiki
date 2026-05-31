@@ -1,0 +1,20 @@
+{
+  "schema": "rkf-reading-ledger-v1",
+  "source_id": "doi_10_2151_jmsj1965_70_1_25",
+  "knowledge_path": "examples/taiwan-atmospheric-experiment/knowledge/papers/chen-liang-1992-tamex-midlevel-vortex.md",
+  "events": [
+    {
+      "created": "2026-05-24",
+      "type": "reading-update",
+      "actor": "codex",
+      "summary": "Example paper read from a checked publisher full-text route; locators recorded for TAMEX observing systems and midlevel vortex interpretation.",
+      "public_safe": true,
+      "details": {
+        "reading_state": "fulltext-read",
+        "claim_readiness": "claim-ready"
+      }
+    }
+  ],
+  "created": "2026-05-24",
+  "updated": "2026-05-24"
+}

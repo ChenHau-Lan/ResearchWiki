@@ -1,0 +1,20 @@
+{
+  "schema": "rkf-reading-ledger-v1",
+  "source_id": "doi_10_5194_acp_20_5911_2020",
+  "knowledge_path": "examples/taiwan-atmospheric-experiment/knowledge/papers/cheung-et-al-2020-cafe-ccn-hygroscopicity.md",
+  "events": [
+    {
+      "created": "2026-05-24",
+      "type": "reading-update",
+      "actor": "codex",
+      "summary": "Example paper read from a checked open full-text route; locators recorded for Cape Fuguei aerosol and CCN context.",
+      "public_safe": true,
+      "details": {
+        "reading_state": "fulltext-read",
+        "claim_readiness": "claim-ready"
+      }
+    }
+  ],
+  "created": "2026-05-24",
+  "updated": "2026-05-24"
+}

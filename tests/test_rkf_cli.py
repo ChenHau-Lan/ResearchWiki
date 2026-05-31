@@ -42,7 +42,7 @@ class RKFCliTests(unittest.TestCase):
         self.assertEqual(normalize_doi("https://doi.org/10.1234/ABC.Def."), "10.1234/abc.def")
         self.assertEqual(source_id_from_value("doi", "doi:10.1234/ABC.Def"), "doi_10_1234_abc_def")
 
-    def test_acquisition_requires_checkpoint_before_private_pdf(self) -> None:
+    def test_user_pdf_acquisition_does_not_require_checkpoint(self) -> None:
         doi = "https://doi.org/10.1234/ABC.Def"
         source_id = "doi_10_1234_abc_def"
         sample_pdf = self.root / "sample.pdf"
@@ -51,11 +51,35 @@ class RKFCliTests(unittest.TestCase):
         self.run_rk("capture", "doi", doi)
         self.run_rk("acquire", source_id, "--pdf", str(sample_pdf))
 
+        self.assertFalse((self.root / "state" / "gates" / "pdf_acquisition" / f"{source_id}.md").exists())
+        self.assertTrue((self.root / ".rkf_private" / "evidence" / "doi_pdf" / f"{source_id}.pdf").exists())
+        source_text = (self.root / "state" / "sources" / f"{source_id}.json").read_text(encoding="utf-8")
+        self.assertIn('"fulltext_status": "user-pdf-provided"', source_text)
+        self.assertIn('"reading_state": "partial-fulltext"', source_text)
+
+    def test_missing_full_text_marks_needs_user_pdf(self) -> None:
+        doi = "https://doi.org/10.1234/Missing.Text"
+        source_id = "doi_10_1234_missing_text"
+
+        self.run_rk("capture", "doi", doi)
+        result = self.run_rk("acquire", source_id).stdout
+
+        self.assertIn("status: needs_user_pdf", result)
+        source_text = (self.root / "state" / "sources" / f"{source_id}.json").read_text(encoding="utf-8")
+        self.assertIn('"fulltext_status": "needs-user-pdf"', source_text)
+        self.assertIn('"reading_state": "metadata-only"', source_text)
+
+    def test_legacy_acquisition_checkpoint_is_still_available(self) -> None:
+        doi = "https://doi.org/10.1234/ABC.Def"
+        source_id = "doi_10_1234_abc_def"
+        sample_pdf = self.root / "sample.pdf"
+        sample_pdf.write_bytes(b"%PDF-1.4\n% tiny fixture\n")
+
+        self.run_rk("capture", "doi", doi)
+        self.run_rk("acquire", source_id, "--pdf", str(sample_pdf), "--checkpoint")
+
         self.assertTrue((self.root / "state" / "gates" / "pdf_acquisition" / f"{source_id}.md").exists())
         self.assertFalse((self.root / ".rkf_private" / "evidence" / "doi_pdf" / f"{source_id}.pdf").exists())
-
-        self.run_rk("acquire", source_id, "--pdf", str(sample_pdf), "--approve")
-        self.assertTrue((self.root / ".rkf_private" / "evidence" / "doi_pdf" / f"{source_id}.pdf").exists())
 
     def test_private_evidence_root_uses_workspace_config(self) -> None:
         private_root = self.root / "DriveRoot" / "evidence"
@@ -342,23 +366,71 @@ class RKFCliTests(unittest.TestCase):
         self.assertNotEqual(result.returncode, 0)
         self.assertIn("local/private path pattern", result.stdout)
 
-    def test_metadata_only_source_cannot_be_distilled(self) -> None:
+    def test_metadata_only_source_can_create_reading_draft(self) -> None:
         self.run_rk("capture", "doi", "10.1111/metadata.only")
-        result = self.run_rk("distill", "paper", "doi_10_1111_metadata_only", check=False)
-        self.assertNotEqual(result.returncode, 0)
-        self.assertIn("no QCed PDF evidence", result.stderr + result.stdout)
+        self.run_rk("distill", "paper", "doi_10_1111_metadata_only")
 
-    def test_unqced_pdf_cannot_be_distilled(self) -> None:
+        page = self.root / "knowledge" / "papers" / "doi_10_1111_metadata_only.md"
+        text = page.read_text(encoding="utf-8")
+        self.assertIn("reading_state: metadata-only", text)
+        self.assertIn("fulltext_status: needs-user-pdf", text)
+        self.assertIn("claim_readiness: not-ready", text)
+        self.assertTrue((self.root / "state" / "reading" / "doi_10_1111_metadata_only.json").exists())
+
+    def test_unqced_pdf_can_be_distilled_as_partial_fulltext_draft(self) -> None:
         source_id = "doi_10_2222_needs_qc"
         pdf = self.root / "paper.pdf"
         pdf.write_bytes(b"%PDF-1.4\n")
 
         self.run_rk("capture", "doi", "10.2222/needs.qc")
-        self.run_rk("acquire", source_id, "--pdf", str(pdf), "--approve")
-        result = self.run_rk("distill", "paper", source_id, check=False)
+        self.run_rk("acquire", source_id, "--pdf", str(pdf))
+        self.run_rk("distill", "paper", source_id)
 
-        self.assertNotEqual(result.returncode, 0)
-        self.assertIn("no QCed PDF evidence", result.stderr + result.stdout)
+        page = (self.root / "knowledge" / "papers" / f"{source_id}.md").read_text(encoding="utf-8")
+        self.assertIn("reading_state: partial-fulltext", page)
+        self.assertIn("fulltext_status: user-pdf-provided", page)
+        self.assertIn("claim_readiness: locator-needed", page)
+
+    def test_human_feedback_updates_maturity_and_ledger(self) -> None:
+        source_id = "doi_10_4444_feedback"
+        self.run_rk("capture", "doi", "10.4444/feedback")
+        self.run_rk("distill", "paper", source_id)
+        self.run_rk(
+            "paper",
+            "feedback",
+            source_id,
+            "--level",
+            "trusted",
+            "--note",
+            "Human confirmed the method summary after reading.",
+            "--reading-state",
+            "human-reviewed",
+            "--confidence",
+            "high",
+            "--claim-readiness",
+            "synthesis-ready",
+        )
+
+        page = (self.root / "knowledge" / "papers" / f"{source_id}.md").read_text(encoding="utf-8")
+        self.assertIn("human_feedback_level: trusted", page)
+        self.assertIn("understanding_confidence: high", page)
+        self.assertIn("claim_readiness: synthesis-ready", page)
+        ledger = (self.root / "state" / "reading" / f"{source_id}.json").read_text(encoding="utf-8")
+        self.assertIn("Human confirmed the method summary", ledger)
+
+    def test_paper_queue_prioritizes_needs_user_pdf_and_feedback(self) -> None:
+        source_id = "doi_10_5555_queue"
+        self.run_rk("capture", "doi", "10.5555/queue")
+        self.run_rk("distill", "paper", source_id)
+
+        queue = self.run_rk("paper", "queue").stdout
+        self.assertIn(source_id, queue)
+        self.assertIn("request-user-pdf", queue)
+        self.assertIn("needs user PDF", queue)
+
+        nudge = self.run_rk("paper", "nudge").stdout
+        self.assertIn("RKF Paper Reading Nudge", nudge)
+        self.assertIn(source_id, nudge)
 
     def test_qced_pdf_can_be_distilled_and_graphed(self) -> None:
         source_id = "doi_10_3333_pdf_read"
@@ -375,6 +447,9 @@ class RKFCliTests(unittest.TestCase):
         self.assertTrue(page.exists())
         text = page.read_text(encoding="utf-8")
         self.assertIn("evidence_boundary: pdf-evidence", text)
+        self.assertIn("reading_state: fulltext-read", text)
+        self.assertIn("fulltext_status: fulltext-read", text)
+        self.assertIn("claim_readiness: claim-ready", text)
         self.assertIn("pp. 1-4 methods and results", text)
         graph = (self.root / "graph" / "research_graph.json").read_text(encoding="utf-8")
         self.assertIn("supported-by", graph)
@@ -393,7 +468,8 @@ class RKFCliTests(unittest.TestCase):
         self.assertIn("topic lint passed", self.run_rk("topic", "lint").stdout)
         self.run_rk("prompt", "external-sandbox")
         capsule = (self.root / "prompts" / "external_sandbox_context.md").read_text(encoding="utf-8")
-        self.assertIn("metadata, search candidates, and ARS reports are not evidence", capsule)
+        self.assertIn("metadata, search candidates, and ARS reports may start paper drafts", capsule)
+        self.assertIn("Claim boundary", capsule)
 
     def test_active_repo_has_no_legacy_router_or_full_text_workflow(self) -> None:
         tracked = subprocess.check_output(["git", "ls-files"], cwd=REPO, text=True)
@@ -429,14 +505,18 @@ class RKFCliTests(unittest.TestCase):
         )
         self.assertFalse((REPO / "skills" / "rkf-ars-bridge" / "SKILL.md").exists())
 
-    def test_skills_and_manuals_are_not_cli_first(self) -> None:
-        docs = list((REPO / "skills").glob("rkf-*/SKILL.md"))
-        docs.extend((REPO / "docs" / "manuals").glob("rkf_manual.*.md"))
-        text = "\n".join(path.read_text(encoding="utf-8", errors="replace") for path in docs)
-        self.assertNotIn("## CLI", text)
-        self.assertNotIn("python3 tools/rk.py", text)
-        self.assertIn("Trigger Phrases", text)
-        self.assertIn("Skill Triggers", text)
+    def test_skills_are_plain_language_and_manuals_include_commands(self) -> None:
+        skill_text = "\n".join(
+            path.read_text(encoding="utf-8", errors="replace") for path in (REPO / "skills").glob("rkf-*/SKILL.md")
+        )
+        manual_text = "\n".join(
+            path.read_text(encoding="utf-8", errors="replace") for path in (REPO / "docs" / "manuals").glob("rkf_manual.*.md")
+        )
+        self.assertNotIn("## CLI", skill_text)
+        self.assertNotIn("python3 tools/rk.py", skill_text)
+        self.assertIn("Trigger Phrases", skill_text)
+        self.assertIn("Common Workflows", manual_text)
+        self.assertIn("python3 tools/rk.py paper queue", manual_text)
 
     def test_core_docs_use_knowledge_framework_positioning(self) -> None:
         core_paths = [
@@ -453,9 +533,9 @@ class RKFCliTests(unittest.TestCase):
         self.assertNotIn(old_pdf_primary, core_text)
         self.assertNotIn(old_pdf_heading, core_text)
         self.assertIn("LLM Wiki-based research knowledge framework", core_text)
-        self.assertIn("PDF is not the source", core_text)
-        self.assertIn("RKF retrieves governed wiki context", core_text)
-        self.assertIn("ARS reasons", core_text)
+        self.assertIn("reading maturity", core_text)
+        self.assertIn("retrieve governed wiki context", core_text)
+        self.assertIn("ARS reasoning", core_text)
         self.assertIn("rkf-connect", core_text)
         self.assertIn("topic-review", core_text)
         self.assertIn("Version Management", (REPO / "README.md").read_text(encoding="utf-8"))
@@ -465,17 +545,15 @@ class RKFCliTests(unittest.TestCase):
 
         manual_text = (REPO / "docs" / "manuals" / "rkf_manual.en.md").read_text(encoding="utf-8")
         manual_zh = (REPO / "docs" / "manuals" / "rkf_manual.zh-TW.md").read_text(encoding="utf-8")
-        self.assertIn("Start From A Codex Workspace", manual_text)
+        self.assertIn("Paper Maturity", manual_text)
         self.assertIn("academic-research-skills", manual_text)
-        self.assertIn("missing artifact checkpoint", manual_text)
+        self.assertIn("needs-user-pdf", manual_text)
         self.assertIn("OCR confidence", manual_text)
-        self.assertIn("Wiki Page Types And Template Functions", manual_text)
-        self.assertIn("Experimental: Shared Database Across Computers", manual_text)
-        self.assertIn("從 0 建立一個 Codex 研究知識庫", manual_zh)
-        self.assertIn("缺 PDF", manual_zh)
-        self.assertIn("維護為什麼重要", manual_zh)
-        self.assertIn("Wiki Page 類型與範本功能", manual_zh)
-        self.assertIn("建立共享資料庫在不同電腦", manual_zh)
+        self.assertIn("External Sandboxes", manual_text)
+        self.assertIn("Paper Maturity", manual_zh)
+        self.assertIn("needs-user-pdf", manual_zh)
+        self.assertIn("Paper Maturity", manual_zh)
+        self.assertIn("External Sandboxes", manual_zh)
         self.assertNotIn("manual " + "interprets", manual_text)
         self.assertNotIn("本手冊" + "把", manual_zh)
 

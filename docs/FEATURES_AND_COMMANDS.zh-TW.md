@@ -1,34 +1,40 @@
 # RKF Current Features And Commands
 
 這份文件是目前 Research Knowledge Framework 的功能盤點與指令速查。它描述目前
-repo 已有的能力、日常怎麼用、哪些檔案或目錄看起來只是本機狀態或清理候選。
+repo 已有的能力、日常怎麼用、以及哪些檔案或目錄看起來只是本機狀態或清理候選。
 
 ## 核心功能
 
 | 功能 | 用途 | 主要輸出 |
 |---|---|---|
 | Source capture | 攝取 DOI、URL、PDF pointer、topic seed、idea、question | `state/sources/*.json` |
-| Discovery staging | 建立候選文獻搜尋 run；候選不是 evidence | `state/search_runs/*/candidates.json`、`hot.md` |
-| Acquisition checkpoint | 在 PDF 或 publisher artifact 被當成 evidence 前要求合法取得確認 | `state/gates/pdf_acquisition/*.md` |
-| PDF QC | 記錄 artifact identity、QC status、locator notes | `state/evidence/*.json` |
-| Paper distillation | 只從 QCed PDF evidence 建立 paper wiki page | `knowledge/papers/*.md` |
+| Discovery staging | 建立候選文獻搜尋 run；候選可啟動 draft，但不是 claim evidence | `state/search_runs/*/candidates.json`、`hot.md` |
+| Paper reading draft | 從 metadata、abstract、partial full text 或 PDF 先建立 paper draft | `knowledge/papers/*.md` |
+| Full-text status | 標記 `needs-user-pdf`、`user-pdf-provided`、`fulltext-read` 等狀態 | source frontmatter/JSON、paper frontmatter |
+| Reading ledger | 記錄 public-safe reading event、問題、AI 回答、人為修正、trust 變化與 blocker | `state/reading/*.json` |
+| User PDF handling | 只有讀不到全文時要求 user 提供 PDF；可直接更新 full-text state | `state/evidence/*.json` |
+| Locator/readability check | 記錄 artifact identity、readability、locator notes，提升 claim readiness | `state/evidence/*.json`、paper maturity |
+| Paper queue/nudge | 推播 metadata-only、缺 PDF、缺人為 feedback、重複被問、可進 synthesis review 的 paper | terminal report / automation digest |
 | Non-paper save | 保存 question、concept、claim、synthesis、overview、meeting、seminar | `knowledge/*/*.md` |
 | Hot-query layer | 追蹤近期 public-safe 研究問題與 paper-search demand | `hot.md` |
 | Topic governance | 維護 topic id、scope、aliases、include/exclude、default search strings | `governance/topic_registry.json`、`knowledge/topics/*.md` |
-| Workspace status | 快速重建目前 wiki 狀態與近期 log | terminal report |
-| Propagation review | 新 evidence 或 synthesis 後列出可能受影響頁面 | terminal report 或 `state/gates/propagation/*.md` |
+| Workspace status | 快速重建目前 wiki 狀態、maturity 分布與近期 log | terminal report |
+| Propagation review | 新 evidence、reading maturity 或 synthesis 後列出可能受影響頁面 | terminal report 或 `state/gates/propagation/*.md` |
 | Graph export | 輸出 source/evidence/wiki/topic typed links | `graph/research_graph.json` |
-| Index generation | 產生 LLM retrieval 入口 | `index.md` |
+| Index generation | 產生 LLM retrieval 入口，包含 maturity hints | `index.md` |
 | External sandbox capsule | 產生外部 sandbox 使用的 RKF context | `prompts/external_sandbox_context.md` |
-| Lint and safety scan | 檢查 structure、evidence、graph、ARS handoff、public safety | terminal report |
+| Lint and safety scan | 檢查 structure、maturity、claim boundary、graph、ARS handoff、public safety | terminal report |
 
-## Evidence Rules
+## Reading And Evidence Rules
 
-- Search candidate 不是 evidence。
+- Search candidate 和 metadata 可以建立 paper draft，但不是 stable claim evidence。
 - ARS output 本身不是 evidence；進 RKF 前只能是 proposal 或 review blocker。
-- Paper page 需要 reviewed source artifact，通常是 QCed PDF。
+- Paper draft 要明確記錄 `reading_state`、`fulltext_status`、`human_feedback_level`、
+  `understanding_confidence`、`claim_readiness` 和 `reading_ledger`。
+- 讀不到全文時，標記 `fulltext_status: needs-user-pdf`，並請 user 提供 PDF。
+- Stable claim / trusted synthesis 需要 locator、人為 feedback、既有 wiki source，或明確
+  review blocker。
 - Durable full article text 不進 public knowledge layer。
-- Claim 需要 locator、既有 wiki source，或明確 review blocker。
 - `save` 和 `synthesize` 預設不覆寫既有 knowledge object；要更新必須明確使用
   `--update`。
 - Propagation review 只產生 proposal，不自動重寫穩定頁面。
@@ -41,7 +47,7 @@ repo 已有的能力、日常怎麼用、哪些檔案或目錄看起來只是本
 python3 tools/rk.py <command>
 ```
 
-### Source And Evidence
+### Source, Draft, And Reading
 
 Capture DOI or URL:
 
@@ -56,28 +62,48 @@ Stage a discovery run:
 python3 tools/rk.py discover "aerosol cloud interaction Taiwan" --topic-id "aerosol-cloud"
 ```
 
-Create an acquisition checkpoint before treating a PDF as evidence:
+Create a conservative paper draft even before full text is available:
+
+```bash
+python3 tools/rk.py distill paper doi_10_1234_example
+```
+
+Mark that full text is missing and user PDF is needed:
+
+```bash
+python3 tools/rk.py acquire doi_10_1234_example
+```
+
+Record a user-provided PDF and update full-text state:
 
 ```bash
 python3 tools/rk.py acquire doi_10_1234_example --pdf "/path/to/paper.pdf"
 ```
 
-Approve a legal PDF route and copy the artifact into the private evidence root:
-
-```bash
-python3 tools/rk.py acquire doi_10_1234_example --pdf "/path/to/paper.pdf" --approve
-```
-
-Verify a PDF with locator notes:
+Check locator/readability after a PDF is available:
 
 ```bash
 python3 tools/rk.py verify-pdf doi_10_1234_example --locator "pp. 3-5 methods" --note "identity checked"
 ```
 
-Distill a verified PDF into a paper page:
+Record human feedback or trust change:
 
 ```bash
-python3 tools/rk.py distill paper doi_10_1234_example
+python3 tools/rk.py paper feedback doi_10_1234_example --level discussed --note "User clarified the method interpretation."
+```
+
+Show active reading queue and scheduled nudge text:
+
+```bash
+python3 tools/rk.py paper queue
+python3 tools/rk.py paper next
+python3 tools/rk.py paper nudge --limit 5
+```
+
+Legacy compatibility remains available:
+
+```bash
+python3 tools/rk.py acquire doi_10_1234_example --pdf "/path/to/paper.pdf" --checkpoint
 ```
 
 ### Query, Save, And Hot Questions
@@ -133,7 +159,7 @@ python3 tools/rk.py topic lint
 
 ### Maintenance And Review
 
-Show pending gates:
+Show pending review notes:
 
 ```bash
 python3 tools/rk.py review
@@ -218,14 +244,3 @@ python3 tools/public_safety_scan.py
 | `.DS_Store` | ignored local macOS metadata | 可刪除，不應提交 |
 | `rkf/__pycache__/` | ignored Python cache | 可刪除，不應提交 |
 | `tests/__pycache__/` | ignored Python cache | 可刪除，不應提交 |
-| `tools/__pycache__/` | ignored Python cache | 可刪除，不應提交 |
-| `rkf.workspace.toml` | ignored local workspace config | 保留本機，不提交 |
-| `prompts/external_sandbox_context.md` | ignored generated runtime capsule | 可重新產生，不提交 |
-| `raw` | ignored local symlink to shared/private raw data | 保留本機，不提交 |
-| `wiki` | ignored local symlink to shared/private wiki data | 保留本機，不提交 |
-| `output/` | empty local output directory | 可刪除或繼續忽略 |
-| `skills/research-knowledge-framework/` | empty local directory | 可刪除或確認是否仍需保留 |
-| `maintenance/test_fixtures/` | empty local directory | 可刪除或補 fixture 後再追蹤 |
-
-目前沒有發現已追蹤且明顯應立即移除的檔案。若要清掉上表的 local cache 或空目錄，請先
-確認刪除範圍，再用明確路徑逐項刪除。

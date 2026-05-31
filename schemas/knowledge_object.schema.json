@@ -22,7 +22,67 @@
     "status": { "enum": ["draft", "reviewed", "needs-verification", "deprecated"] },
     "source_id": { "type": "string" },
     "source_status": { "type": "string" },
-    "reading_status": { "enum": ["metadata-only", "abstract-only", "skimmed", "full-read", "reproduced", "mixed"] },
+    "reading_status": {
+      "enum": [
+        "metadata-only",
+        "abstract-read",
+        "abstract-only",
+        "skimmed",
+        "partial-fulltext",
+        "fulltext-available",
+        "first-pass-pdf-qc",
+        "ocr-qc",
+        "visual-qc",
+        "fulltext-read",
+        "full-read",
+        "human-reviewed",
+        "synthesis-ready",
+        "reproduced",
+        "mixed",
+        "blocked"
+      ]
+    },
+    "reading_state": {
+      "enum": [
+        "metadata-only",
+        "abstract-read",
+        "skimmed",
+        "partial-fulltext",
+        "fulltext-available",
+        "first-pass-pdf-qc",
+        "ocr-qc",
+        "visual-qc",
+        "fulltext-read",
+        "full-read",
+        "human-reviewed",
+        "synthesis-ready",
+        "mixed",
+        "blocked"
+      ]
+    },
+    "fulltext_status": {
+      "enum": [
+        "unknown",
+        "needs-user-pdf",
+        "user-pdf-provided",
+        "publisher-html",
+        "publisher-pdf",
+        "open-access-pdf",
+        "partial-only",
+        "fulltext-read",
+        "unavailable",
+        "blocked",
+        "not-applicable"
+      ]
+    },
+    "human_feedback_level": { "enum": ["none", "skimmed", "discussed", "annotated", "trusted"] },
+    "understanding_confidence": { "enum": ["low", "medium", "high", "mixed"] },
+    "claim_readiness": { "enum": ["not-ready", "locator-needed", "claim-ready", "synthesis-ready"] },
+    "last_reading_interaction": { "type": "string" },
+    "reading_ledger": { "type": "string" },
+    "synthesis_maturity": { "enum": ["draft", "single-source", "multi-source", "human-reviewed", "publication-ready"] },
+    "source_coverage": { "enum": ["unknown", "partial", "representative", "systematic"] },
+    "last_synthesis_interaction": { "type": "string" },
     "review_stage": { "enum": ["ai-extracted", "human-checked", "discussed", "integrated", "cited"] },
     "evidence_boundary": { "enum": ["pdf-evidence", "wiki-page", "ars-proposal", "review-blocker", "not-applicable"] },
     "evidence_ids": { "type": "array", "items": { "type": "string" } },

@@ -1,0 +1,20 @@
+{
+  "schema": "rkf-reading-ledger-v1",
+  "source_id": "doi_10_5194_acp_26_2083_2026",
+  "knowledge_path": "examples/taiwan-atmospheric-experiment/knowledge/papers/lin-et-al-2026-lulin-aerosol-cloud-mixing-ratio.md",
+  "events": [
+    {
+      "created": "2026-05-24",
+      "type": "reading-update",
+      "actor": "codex",
+      "summary": "Example paper read from a checked open full-text route; locators recorded for Lulin aerosol-cloud mixing ratio and Twomey/semi-direct interpretation.",
+      "public_safe": true,
+      "details": {
+        "reading_state": "fulltext-read",
+        "claim_readiness": "claim-ready"
+      }
+    }
+  ],
+  "created": "2026-05-24",
+  "updated": "2026-05-24"
+}

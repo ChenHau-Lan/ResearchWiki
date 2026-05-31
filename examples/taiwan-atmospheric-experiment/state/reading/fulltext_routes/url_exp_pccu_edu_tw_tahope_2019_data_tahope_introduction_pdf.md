@@ -1,12 +1,12 @@
-# PDF Acquisition Gate
+# Full Text Reading Route
 
-- Gate ID: `pdf_acquisition_url_exp_pccu_edu_tw_tahope_2019_data_tahope_introduction_pdf`
+- Route ID: `fulltext_route_url_exp_pccu_edu_tw_tahope_2019_data_tahope_introduction_pdf`
 - Source ID: `url_exp_pccu_edu_tw_tahope_2019_data_tahope_introduction_pdf`
 - Candidate route: official TAHOPE project introduction PDF
-- Decision: approved for project overview context
+- Reading route: full text available for project overview context
 - Evidence boundary: project PDF context; not a peer-reviewed SCI paper
 
-## Checkpoints
+## Reading Checks
 
 - Source identity checked against official TAHOPE title and project context.
 - PDF rendered and text was readable enough for project objectives, facilities,

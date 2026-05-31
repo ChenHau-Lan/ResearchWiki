@@ -14,6 +14,7 @@
 - Add real graph-link and ARS-handoff lint checks.
 - Add proposal-first propagation review for affected knowledge pages.
 - Add compact workspace status/world output for session bootstrap.
+- Add a current feature and command inventory with local cleanup candidates.
 - Add public wiki safety linting for knowledge, governance, and graph layers.
 - Keep release history in this changelog instead of README or manual prose.
 

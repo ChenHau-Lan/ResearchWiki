@@ -1,6 +1,6 @@
 # Research Knowledge Framework
 
-[繁體中文](README.zh-TW.md) | [Architecture](docs/ARCHITECTURE.md) | [Mode Registry](MODE_REGISTRY.md) | [Manual](docs/manuals/rkf_manual.en.md)
+[繁體中文](README.zh-TW.md) | [Architecture](docs/ARCHITECTURE.md) | [Mode Registry](MODE_REGISTRY.md) | [Manual](docs/manuals/rkf_manual.en.md) | [Features And Commands](docs/FEATURES_AND_COMMANDS.zh-TW.md)
 
 Research Knowledge Framework, or RKF, is an LLM Wiki-based research knowledge
 framework. It turns research discussions, sources, topics, questions, claims,

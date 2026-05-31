@@ -1,158 +1,123 @@
 # Research Knowledge Framework
 
 RKF is an LLM Wiki-based research knowledge framework. Its job is to preserve
-durable, source-aware academic knowledge while staying compatible with Academic
+active, source-aware academic knowledge while staying compatible with Academic
 Research Skills (ARS) as an external research, reasoning, writing, and review
 engine.
 
-PDFs are major reading artifacts for papers, but RKF is not limited to PDFs.
-It governs source candidates, reviewed evidence artifacts, topics, questions,
-concepts, claims, synthesis, and query-to-save decisions.
+RKF is not only an evidence vault. Its normal paper path starts early: source
+capture creates a SourceRecord, paper drafts record what has been read so far,
+reading ledgers store public-safe user/agent interactions, and evidence
+boundaries control when claims or synthesis become stable.
 
 ## Skills Overview
 
 | Skill | Purpose | Natural-Language Triggers |
 |---|---|---|
-| `rkf-evidence-vault` | Source capture, candidate discovery, legal evidence routes, PDF/OCR/visual QC for paper reading | DOI, URL, PDF, literature discovery, source intake, 文獻搜尋, 找文章, 下載PDF, 證據庫 |
-| `rkf-knowledge-synthesis` | Reviewed-evidence paper pages, maintained knowledge objects, and topic review | paper note, synthesis, topic, topic review, claim, 整理成wiki, 論文筆記, 概念頁, 問題頁, topic整理, 綜整 |
-| `rkf-wiki-core` | LLM Wiki memory retrieval, ARS reasoning handoff, save, graph, sandbox context | LLM Wiki, query, save, graph, sandbox, 問知識庫, 回寫wiki, 保存討論, 知識圖譜 |
-| `rkf-lint` | Ongoing health checks and repair planning | lint, audit, repair plan, public safety, 檢查, 修復計畫, 證據邊界, 發布安全 |
-| `rkf-connect` | Experimental shared database, multi-computer Drive links, and external sandbox access boundaries | shared database, Google Drive, symlink, junction, sandbox access, 共享資料庫, 多台電腦, 外部sandbox, 連結wiki |
+| `rkf-evidence-vault` | Source capture, candidate discovery, full-text availability, user PDF routing, PDF/OCR/visual reading state | DOI, URL, PDF, literature discovery, source intake, 文獻搜尋, 找文章, 提供PDF, full text |
+| `rkf-knowledge-synthesis` | Paper drafts, maintained knowledge objects, topic review, and maturity-aware synthesis | paper note, synthesis, topic, claim, 整理成wiki, 論文筆記, 概念頁, topic整理 |
+| `rkf-wiki-core` | LLM Wiki retrieval, ARS reasoning handoff, save, graph, status, paper queue, sandbox context | LLM Wiki, query, save, graph, status, paper queue, 回寫wiki |
+| `rkf-lint` | Health checks and repair planning for structure, maturity, evidence boundary, graph, public safety | lint, audit, repair plan, 檢查, 修復計畫, 發布安全 |
+| `rkf-connect` | Experimental shared database, multi-computer Drive links, and external sandbox access boundaries | shared database, Google Drive, symlink, sandbox access, 共享資料庫 |
 
 `rkf-ars-bridge` is not an active skill. It is an implicit protocol for
-translating ARS outputs into RKF proposals.
+translating ARS outputs into RKF proposals or reading-feedback events.
 
 ## Routing Discipline
 
-1. If the user asks to capture DOI/URL/topic/PDF evidence or candidate papers,
+1. If the user asks to capture DOI/URL/topic/PDF leads or candidate papers,
    route to `rkf-evidence-vault`.
-2. If the user asks to write or update wiki knowledge, route to
+2. If the user asks to record how much a paper has been read, whether full text
+   is available, or what human feedback was given, route to `rkf-evidence-vault`
+   for reading-state updates or `rkf-wiki-core` for paper queue/status.
+3. If the user asks to write or update wiki knowledge, route to
    `rkf-knowledge-synthesis`.
-3. If the user asks to query the wiki, first retrieve governed RKF context with
+4. If the user asks to query the wiki, retrieve governed RKF context with
    `rkf-wiki-core`; when interpretation or recommendation is needed, let ARS
    reason over that context; save only through RKF proposal/synthesis rules.
-4. If the user asks to save discussion memory, export graph, or hand off to
-   another sandbox, route to `rkf-wiki-core`.
-5. If the user asks to track frequently asked research questions or hot paper
+5. If the user asks to save discussion memory, export graph, check status, or
+   hand off to another sandbox, route to `rkf-wiki-core`.
+6. If the user asks to track frequently asked research questions or hot paper
    search demand, route to `rkf-wiki-core` hot-query behavior.
-6. If the user asks to review, clean up, merge/split, refresh, or recommend
-   changes to topics, route to `rkf-knowledge-synthesis` `topic-review`; use
+7. If the user asks to review, clean up, merge/split, refresh, or recommend
+   changes to topics, route to `rkf-knowledge-synthesis` topic-review; use
    `rkf-lint` when the request is structural drift detection or repair planning.
-7. If the user asks to set up shared RAW/wiki folders, connect multiple
-   computers, manage Google Drive links, or grant an external sandbox access to
-   the wiki, route to `rkf-connect`.
-8. If the user asks to check, audit, diagnose, publish, schedule maintenance,
-   or repair the wiki, route to `rkf-lint`.
+8. If the user asks to set up shared RAW/wiki folders, connect multiple
+   computers, or grant external sandbox access, route to `rkf-connect`.
 9. If the user asks for deep research, paper writing, peer review, or a full
-   research-to-paper workflow, use ARS skills externally; return durable results
-   to RKF only through the bridge protocol.
-10. If a request mixes ARS work and RKF persistence, treat ARS output as a
-   proposal first. Do not save it as evidence.
+   research-to-paper workflow, use ARS externally; return durable results to
+   RKF only through the bridge protocol.
 
 ## Key Rules
 
-- Candidates are not evidence.
-- ARS reports are not evidence by themselves.
-- A paper wiki page requires a reviewed source artifact, usually an approved
-  and QCed PDF or a legal publisher artifact represented by an evidence record.
+- Paper drafts are allowed early. A draft may be based on metadata, abstract,
+  partial full text, publisher HTML, or a user-provided PDF.
+- Candidates are not stable claim evidence.
+- ARS reports are proposals or reading feedback by default.
+- User feedback matters: skimmed, discussed, annotated, and trusted feedback
+  should be recorded and used to raise understanding maturity.
+- Stable claims need a locator, existing supported wiki page, strong human
+  feedback, or an explicit review blocker.
+- Trusted synthesis needs source coverage and maturity, not merely a long answer.
 - Durable full article text is not an RKF knowledge layer.
 - Temporary PDF text, OCR text, or browser extraction may be used to read; it
-  must not be committed or saved as a public knowledge object.
-- Every stable claim needs a locator, an existing wiki source, or a review
-  blocker.
+  must not be committed as a public knowledge object.
 - A query answer is not a wiki page until deliberately saved as a question,
-  claim, concept, or synthesis.
-- `hot.md` is a public-safe operational demand retrieval file, not evidence or
-  stable knowledge.
-- Topics must be reviewed as living research controls: aliases, scope,
-  include/exclude rules, default search strings, candidate backlog, and
-  canonical synthesis links should be checked on a cadence.
-- Shared database setup is experimental. Drive may hold real RAW and wiki data,
-  but machine-specific links and private paths must not become the committed
-  source of truth.
-- External sandboxes get read access by default. Their useful outputs return as
-  RKF proposals unless the user explicitly approves a write path.
-- Lint is maintenance, not just pre-release cleanup. It may report and plan
-  repairs; it must not silently rewrite knowledge or delete files.
+  claim, concept, synthesis, or reading feedback.
+- `hot.md` is a public-safe operational demand retrieval file, not evidence.
+- `state/reading/` is operational memory. It can record questions, answers,
+  human corrections, annotations, trust changes, and blockers, but it does not
+  automatically promote claims.
+- Shared database setup is experimental. Machine-specific links and private
+  paths must not become the committed source of truth.
+- Lint may report and plan repairs; it must not silently rewrite knowledge or
+  delete files.
 
-## Evidence Gates
+## Reading Maturity Gates
 
 | Gate | Required Before |
 |---|---|
-| topic fit check | assigning a candidate to an existing or new topic |
-| source identity check | source promotion beyond candidate |
-| acquisition checkpoint | private evidence storage or paper ingest |
-| PDF/OCR/visual QC | paper wiki distillation |
-| claim support check | stable claim or synthesis |
+| source identity check | using a source beyond rough discovery |
+| full-text availability check | claiming a source has been read beyond metadata or abstract |
+| reading-state update | changing reading_state, fulltext_status, or human_feedback_level |
+| claim support check | stable claim or claim-ready paper state |
+| synthesis maturity check | trusted synthesis or research recommendation |
 | public-safety check | publication or push |
 
-## Paper Evidence Path
+## Paper Reading Path
 
 The canonical paper path is:
 
 ```text
 DOI/URL/topic/PDF lead
-  -> topic fit check
   -> SourceRecord
-  -> candidate backlog or acquisition checkpoint
-  -> reviewed evidence artifact
-  -> PDF/OCR/visual QC with locator notes
-  -> paper wiki page
+  -> early paper draft
+  -> fulltext_status: unknown | needs-user-pdf | user-pdf-provided | publisher-html | publisher-pdf | open-access-pdf | partial-only | fulltext-read | unavailable | blocked
+  -> reading_state: metadata-only | abstract-read | partial-fulltext | fulltext-read | human-reviewed
+  -> state/reading ledger with questions, feedback, and blockers
+  -> claim_readiness: not-ready | locator-needed | claim-ready | synthesis-ready
 ```
 
-For scanned or image-only papers, record visual locators, page images, OCR
-confidence, and human reading notes. If OCR is unreliable, do not claim
-full-read text evidence.
-
-## Connection Protocol
-
-Use `rkf-connect` only when the user wants portability or external access. The
-current experimental pattern is:
-
-```text
-shared Drive research folder
-  -> RAW and wiki as real shared folders
-  -> local RKF project links to those folders per computer
-  -> external sandbox receives read context and save/review proposal rules
-```
-
-Do not commit cross-platform symlinks, private Drive paths, or sandbox access
-tokens. If a sandbox produces a durable question, claim, or synthesis, route it
-back through RKF save/review gates.
+If full text cannot be read, ask the user to provide a PDF or authorized text.
+Do not bypass paywalls, CAPTCHA, robots, or access restrictions.
 
 ## ARS Integration
 
-ARS provides research, reasoning, writing, peer review, and pipeline
-orchestration. RKF provides durable memory and evidence governance.
-
-Use the bridge protocol when ARS output should affect RKF:
+Use this bridge protocol when ARS output should affect RKF:
 
 ```yaml
-target_layer: paper | question | concept | claim | synthesis | topic | review
+target_layer: paper | question | concept | claim | synthesis | topic | review | reading-ledger
 title: short title
 source_from_ars: deep-research | academic-paper | academic-paper-reviewer | academic-pipeline
-evidence_boundary: locator, existing RKF page, or review blocker
+evidence_boundary: locator, existing RKF page, human feedback, or review blocker
+reading_maturity: metadata-only | abstract-read | partial-fulltext | fulltext-read | human-reviewed | mixed
 confidence: low | medium | high | mixed
-recommended_rkf_mode: save | review | synthesize | distill
+recommended_rkf_mode: save | review | synthesize | distill | reading-feedback
 reason_to_save: one sentence
 ```
 
-ARS output may suggest what to save. It cannot by itself satisfy an evidence
-gate. RKF query retrieves governed context; ARS reasons over that context; RKF
-saves durable results only when they meet save/synthesis criteria.
-
-## Reference Sources
-
-- Karpathy LLM Wiki gist: persistent, compounding Markdown memory for LLM work.
-- `Imbad0202/academic-research-skills`: ARS-style skill routing, mode registry,
-  checkpoints, integrity gates, and cross-skill orchestration.
-- `LigphiDonk/Oh-my--paper`: literature discovery and survey-memory inspiration.
-- Public LLM Wiki repositories such as `lucasastorian/llmwiki`: LLM-readable
-  wiki organization patterns.
-
-Use these as conceptual references. Do not vendor large upstream text or
-license-restricted content into this repository without an explicit license
-review.
+ARS output may suggest what to save or how to update reading maturity. It cannot
+by itself satisfy a stable claim boundary.
 
 ## Safety
 
@@ -170,5 +135,6 @@ python3 -m py_compile tools/rk.py rkf/*.py tools/public_safety_scan.py
 python3 -m unittest discover -s tests
 python3 tools/rk.py topic lint
 python3 tools/rk.py lint
+python3 tools/rk.py paper queue
 python3 tools/public_safety_scan.py
 ```

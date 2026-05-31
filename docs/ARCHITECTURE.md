@@ -1,85 +1,76 @@
 # RKF Architecture
 
-RKF is an LLM Wiki-based research knowledge framework. It separates source
-candidates, evidence boundaries, verification gates, maintained wiki knowledge,
-topic review, graph export, ARS handoff proposals, and optional shared-database
-connections.
-
-PDFs remain the default strong artifact for peer-reviewed paper reading, but
-the framework also handles DOI/URL leads, official project documents, browser
-captures, OCR/visual reading notes, questions, concepts, claims, and synthesis.
+RKF is an LLM Wiki-based research knowledge framework for active reading. It
+separates source capture, reading maturity, operational reading ledgers,
+maintained wiki knowledge, claim/publication boundaries, topic review, graph
+export, ARS handoff proposals, and optional shared-database connections.
 
 ## Layer Model
 
 | Layer | Purpose | Public Git Policy |
 |---|---|---|
 | Intake | Capture DOI, URL, topic, idea, question, PDF, or discussion leads | public-safe source records only |
-| Topic Governance | Match leads to existing topic scope or propose a new topic | topic registry and topic pages are public-safe |
-| Evidence Vault | Store private PDFs, authorized text, screenshots, OCR outputs, and acquisition/QC metadata | private artifacts stay outside Git |
-| Verification Gates | Check source identity, legal route, PDF/OCR/visual QC, claim support | public-safe gate summaries only |
+| Paper Drafts | Create early paper pages even from metadata or abstract state | concise Markdown with maturity fields |
+| Reading Maturity | Track full-text availability, reading state, human feedback, and trust | frontmatter and summaries only |
+| Reading Ledger | Store public-safe reading events, questions, corrections, and blockers | `state/reading/` operational memory |
+| Claim Boundary | Decide when a reading result can support claims or synthesis | locators, supported pages, feedback, or blockers |
+| Topic Governance | Match leads to topic scope or propose a new topic | topic registry and topic pages are public-safe |
 | Knowledge Objects | Maintain paper, question, concept, claim, topic, synthesis, overview, meeting, seminar pages | concise Markdown only |
-| Research Graph | Export typed source/evidence/wiki/topic edges | generated public-safe graph |
+| Research Graph | Export typed source/evidence/wiki/topic edges and maturity metadata | generated public-safe graph |
 | Hot Query Layer | Track recent public-safe research questions and paper-search demand | single retrieval file: `hot.md` |
-| Propagation Review | Identify pages affected by new evidence or synthesis | proposal gates only; no automatic rewrites |
-| ARS Bridge | Convert ARS research/reasoning/writing/review output into RKF proposals | proposals only, not evidence |
+| Propagation Review | Identify pages affected by new reading, evidence, or synthesis | proposal gates only; no automatic rewrites |
+| ARS Bridge | Convert ARS research/reasoning/writing/review output into RKF proposals or reading feedback | proposals only |
 | Connect | Manage experimental shared RAW/wiki folders and external sandbox access boundaries | connection plans only; no private paths |
 
 ## Knowledge Flow
 
 ```mermaid
 flowchart TD
-    A["capture<br/>SourceRecord"] --> B["topic governance<br/>match or propose topic"]
-    B --> C["discover<br/>candidate routes and backlog"]
-    C --> D["acquire<br/>evidence checkpoint"]
-    D --> E["private evidence artifact"]
-    E --> F["verify<br/>identity + locator QC"]
-    F --> G["distill paper<br/>wiki page"]
-    G --> H["save / synthesize<br/>questions, concepts, claims"]
-    I["RKF query"] --> J["retrieve governed wiki context"]
-    I --> Q["hot-query event<br/>public-safe demand signal"]
-    J --> K["ARS reasoning"]
-    K --> L["RKF save or synthesis proposal"]
-    L --> H
-    H --> R["propagation review<br/>affected-page proposal"]
-    M["lint maintenance"] --> B
-    M --> F
-    M --> H
-    N["topic review"] --> B
-    O["rkf-connect"] --> P["shared RAW/wiki access plan"]
-    P --> I
+    A["capture<br/>SourceRecord"] --> B["paper draft<br/>metadata or abstract is enough"]
+    B --> C["fulltext status<br/>needs user PDF / PDF provided / HTML read / full text read"]
+    C --> D["reading ledger<br/>questions + human feedback + blockers"]
+    D --> E["claim readiness<br/>not-ready / locator-needed / claim-ready / synthesis-ready"]
+    E --> F["knowledge synthesis<br/>claims, concepts, synthesis"]
+    G["RKF query"] --> H["retrieve governed wiki context"]
+    G --> I["hot-query event<br/>public-safe demand signal"]
+    H --> J["ARS reasoning"]
+    J --> D
+    K["lint and topic review"] --> B
+    K --> E
+    L["propagation review"] --> F
 ```
 
 ## Core Objects
 
-- `SourceRecord`: candidate or resolved source identity. Metadata lives here,
-  but is not evidence.
-- `EvidenceArtifact`: public-safe pointer to private PDF, official document,
+- `SourceRecord`: source candidate or resolved identity plus reading-state hints.
+- `EvidenceArtifact`: public-safe pointer to a private PDF, official document,
   OCR/visual artifact, screenshot, or related reading artifact.
-- `KnowledgeObject`: Markdown page with type, status, review stage, topics, and
-  evidence boundary.
+- `ReadingLedger`: operational record of public-safe reading events, questions,
+  human corrections, trust changes, and blockers.
+- `KnowledgeObject`: Markdown page with type, status, review stage, topics,
+  maturity fields, and evidence boundary.
 - `Topic`: governed search scope with aliases, include/exclude rules, default
   search strings, canonical pages, and review cadence.
-- `GateDecision`: source identity, acquisition, PDF/OCR/visual QC,
-  claim-support, or synthesis-merge checkpoint.
+- `GateDecision`: legacy or exceptional route/review decision. Normal paper
+  drafts do not wait on this object.
 - `GraphEdge`: typed relation among sources, evidence, topics, and wiki pages.
 - `HotQueryEvent`: public-safe query/search demand signal summarized into
   `hot.md`; it is operational memory, not evidence.
 
-## Evidence Rules
+## Boundary Rules
 
-- Search candidates are not evidence.
-- ARS outputs are not evidence by themselves.
-- Paper pages require a reviewed source artifact, usually a QCed PDF.
-- Missing-PDF papers remain candidates, review queue items, or topic backlog.
-- Claims need a locator, existing RKF page, or review blocker.
+- Paper drafts are active reading objects and may be created early.
+- Search candidates are not stable claim evidence.
+- ARS outputs are not evidence by themselves; they may become reading feedback
+  or save/review proposals.
+- Full text availability is tracked explicitly; if it is unavailable, RKF asks
+  the user for a PDF or authorized text.
+- Claims need a locator, supported wiki source, strong human feedback, or a
+  review blocker.
 - Durable full article text is not an RKF public knowledge layer.
 - Public pages must not contain copied article text or private evidence paths.
 - Saving and propagation are conservative: existing knowledge pages are not
   overwritten or rewritten unless the update path is explicit and reviewable.
-- Topics should be reviewed regularly for drift, duplicate scopes, stale
-  candidates, missing canonical synthesis, and weak default search strings.
-- Hot-query events and `hot.md` must not contain raw transcripts, private paths,
-  PDFs, browser captures, or article text.
 
 ## Storage And Connection Strategy
 
@@ -88,23 +79,19 @@ RKF separates public memory from private or machine-specific artifacts:
 - Git root: framework code, schemas, templates, docs, public-safe knowledge
   pages, graph exports, examples, and tests.
 - Private evidence root: PDFs, authorized full text, screenshots, browser
-  captures, OCR outputs, attachments, and other non-public evidence artifacts.
+  captures, OCR outputs, attachments, and other non-public reading artifacts.
+- Reading state: `state/reading/` contains public-safe operational ledgers.
 - Hot-query state: `hot.md` is the source of truth and the readable 30-day
-  dashboard; do not split hot-query records into separate state files.
+  dashboard.
 
-The multi-computer version is an experimental `rkf-connect` concern. The
-current pattern is to keep real shared `RAW` and `wiki` folders in one Google
-Drive for desktop research folder, then link those folders into each local RKF
-project. Machine-specific links, local paths, and sandbox permissions stay out
-of the public repo.
+The multi-computer version is an experimental `rkf-connect` concern. The current
+pattern is to keep real shared `RAW` and `wiki` folders in one Google Drive for
+desktop research folder, then link those folders into each local RKF project.
 
 ## ARS Integration
 
 ARS skills can produce research reports, paper drafts, reviews, and pipeline
-outputs. RKF stores only durable wiki knowledge. The bridge protocol turns ARS
-outputs into structured proposals with a target layer, evidence boundary,
-confidence, and recommended RKF mode.
-
+outputs. RKF stores only durable wiki knowledge and public-safe reading state.
 For wiki questions, RKF retrieves governed context first. ARS may reason over
 that context and suggest analysis, but RKF decides whether the result should be
-saved as a question, claim, concept, synthesis, or review item.
+saved, logged as reading feedback, or treated as a blocker.

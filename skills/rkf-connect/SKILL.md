@@ -16,8 +16,8 @@ skill.
 | `shared-database-plan` | Plan a Google Drive-backed shared RAW/wiki layout | machine-neutral setup plan |
 | `link-workspace` | Link shared RAW/wiki folders into one local RKF project | per-machine link checklist |
 | `sandbox-grant` | Give an external sandbox safe read context and boundaries | access capsule |
-| `sandbox-bootstrap` | Start another sandbox with RKF path, CLI, and evidence-boundary rules | bootstrap prompt |
-| `sandbox-direct-write` | Let a trusted sandbox use RKF CLI directly while preserving gates | gated write workflow |
+| `sandbox-bootstrap` | Start another sandbox with RKF path, CLI, and reading-boundary rules | bootstrap prompt |
+| `sandbox-direct-write` | Let a trusted sandbox use RKF CLI directly while preserving maturity and claim boundaries | guarded write workflow |
 | `sandbox-save-proposal` | Convert sandbox discoveries into RKF proposals | save/review proposal |
 
 ## Trigger Phrases
@@ -47,12 +47,12 @@ Use this skill when the user says things like:
   machine-specific paths are not the public source of truth.
 - External sandboxes are read-only by default.
 - A trusted sandbox may write through RKF CLI only when the user grants the RKF
-  repo as a writable workspace and the workflow still passes RKF gates.
+  repo as a writable workspace and the workflow still preserves RKF boundaries.
 - A trusted sandbox may record public-safe hot-query signals through RKF, but
   those signals remain operational memory in `hot.md`, not evidence.
 - Sandbox outputs become RKF save/review proposals when write access is missing,
-  topic fit is unclear, evidence is incomplete, PDF QC is missing, or locators
-  are insufficient.
+  topic fit is unclear, full text is unavailable, reading maturity is low,
+  locators are insufficient, or human review is needed.
 - Never expose private tokens, account-specific paths, or unpublished evidence
   in public docs.
 
@@ -61,23 +61,26 @@ Use this skill when the user says things like:
 Use `sandbox-bootstrap` when the user wants another project or sandbox to start
 using RKF without switching back to the main RKF session. Provide a bootstrap
 prompt that tells the sandbox to read the generated context capsule, replace
-`<RKF_REPO_PATH>` with the local RKF repo path, and follow RKF evidence rules.
+`<RKF_REPO_PATH>` with the local RKF repo path, and follow RKF reading and claim
+rules.
 
 Use `sandbox-direct-write` only for trusted sandboxes with explicit workspace
-write access. The direct-write path is still gated:
+write access. The direct-write path is still guarded:
 
 ```text
 paper search
   -> source candidate
   -> capture DOI/URL/PDF pointer
-  -> legal acquisition checkpoint
-  -> PDF/OCR/visual QC with locators
-  -> paper distillation
+  -> paper reading draft
+  -> full-text status update; request user PDF only when unavailable
+  -> reading feedback or locator check
+  -> claim/synthesis readiness review
   -> lint and public-safety scan
 ```
 
-If any gate is missing, the sandbox must stop at `sandbox-save-proposal` instead
-of creating or editing a stable wiki page.
+If the sandbox cannot satisfy the boundary for a stable claim or trusted
+synthesis, it must stop at `sandbox-save-proposal` instead of editing a stable
+claim.
 
 Recommended bootstrap files:
 

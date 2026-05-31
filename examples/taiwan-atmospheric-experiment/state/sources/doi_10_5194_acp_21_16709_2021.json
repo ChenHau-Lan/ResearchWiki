@@ -6,15 +6,17 @@
   "normalized_doi": "10.5194/acp-21-16709-2021",
   "title": "Tracking the influence of cloud condensation nuclei on summer diurnal precipitating systems over complex topography in Taiwan",
   "status": "wiki_done",
+  "reading_state": "fulltext-read",
+  "fulltext_status": "fulltext-read",
   "topic_ids": [
     "taiwan-atmospheric-field-campaigns"
   ],
   "gates": [
     {
-      "gate_id": "pdf_acquisition_doi_10_5194_acp_21_16709_2021",
-      "type": "pdf_acquisition",
+      "gate_id": "fulltext_route_doi_10_5194_acp_21_16709_2021",
+      "type": "fulltext_route",
       "status": "approved",
-      "path": "examples/taiwan-atmospheric-experiment/state/gates/pdf_acquisition/doi_10_5194_acp_21_16709_2021.md"
+      "path": "examples/taiwan-atmospheric-experiment/state/reading/fulltext_routes/doi_10_5194_acp_21_16709_2021.md"
     }
   ],
   "evidence_ids": [

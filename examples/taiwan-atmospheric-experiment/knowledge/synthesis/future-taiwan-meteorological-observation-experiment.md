@@ -2,6 +2,11 @@
 type: synthesis
 status: draft
 review_stage: ai-extracted
+synthesis_maturity: multi-source
+source_coverage: representative
+human_feedback_level: discussed
+claim_readiness: synthesis-ready
+last_synthesis_interaction: 2026-05-24
 topics:
   - taiwan-atmospheric-field-campaigns
 created: 2026-05-24
@@ -32,7 +37,7 @@ SoWMEX/TiMREX added monsoon convection, radar microphysics, and model
 verification, while TAHOPE/PRECIP moves toward storm microphysics, intensive
 radar networks, and data assimilation for heavy-rainfall prediction.
 
-The strongest future design is multi-platform, regime-aware, PDF-evidence
+The strongest future design is multi-platform, regime-aware, reading-maturity
 tracked, and data-management-first.
 
 ## Evidence-Backed Recommendations
@@ -85,12 +90,12 @@ tracked, and data-management-first.
 
 ## Evidence Gaps
 
-- Kuo and Chen 1990 TAMEX overview should be acquired through an authorized PDF
-  route before it becomes an overview page.
+- Kuo and Chen 1990 TAMEX overview can start as a metadata draft, then should
+  request user PDF/full text before any stable claims are promoted.
 - Chang, Lee, and Liou 2015 SoWMEX/TiMREX microphysics paper is a high-value
-  candidate but still needs PDF acquisition and QC.
-- Yang et al. 2024 TAHOPE/PRECIP IOP3 data-assimilation paper should be
-  ingested after legal PDF acquisition.
+  queue item but still needs user PDF/full text and locators.
+- Yang et al. 2024 TAHOPE/PRECIP IOP3 data-assimilation paper should remain in
+  the active paper queue until full text and locators are available.
 - Operations plans, calibration documents, deployment maps, and data-policy
   documents are needed before making detailed instrument-placement decisions.
 - The aerosol-cloud part currently relies on Cape Fuguei, Lulin, and modeling
@@ -98,6 +103,7 @@ tracked, and data-management-first.
 
 ## Save Decision
 
-Keep this as a draft synthesis. It is strong enough to guide the next search
-round, but individual campaign-design claims should be promoted only after
-adding more QCed SoWMEX/TiMREX and TAHOPE/PRECIP sources with locators.
+Keep this as a multi-source draft synthesis. It is strong enough to guide the
+next search round, but individual campaign-design claims should be promoted only
+after adding more SoWMEX/TiMREX and TAHOPE/PRECIP sources with locators or
+human-reviewed blockers.

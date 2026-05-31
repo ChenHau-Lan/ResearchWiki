@@ -6,15 +6,17 @@
   "normalized_doi": "10.2151/jmsj1965.70.1_25",
   "title": "A Midlevel Vortex Observed in the Taiwan Area Mesoscale Experiment (TAMEX)",
   "status": "wiki_done",
+  "reading_state": "fulltext-read",
+  "fulltext_status": "fulltext-read",
   "topic_ids": [
     "taiwan-atmospheric-field-campaigns"
   ],
   "gates": [
     {
-      "gate_id": "pdf_acquisition_doi_10_2151_jmsj1965_70_1_25",
-      "type": "pdf_acquisition",
+      "gate_id": "fulltext_route_doi_10_2151_jmsj1965_70_1_25",
+      "type": "fulltext_route",
       "status": "approved",
-      "path": "examples/taiwan-atmospheric-experiment/state/gates/pdf_acquisition/doi_10_2151_jmsj1965_70_1_25.md"
+      "path": "examples/taiwan-atmospheric-experiment/state/reading/fulltext_routes/doi_10_2151_jmsj1965_70_1_25.md"
     }
   ],
   "evidence_ids": [

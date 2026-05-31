@@ -1533,6 +1533,17 @@ def lint_knowledge_pages(ws: Workspace) -> list[str]:
                 value = str(meta.get(key, ""))
                 if value and value not in allowed:
                     errors.append(f"{rel}: invalid {key} {value!r}")
+        stable_ai_integrated = bool(meta.get("ai_integrated")) and (
+            str(meta.get("status", "")) == "reviewed"
+            or str(meta.get("claim_readiness", "")) in {"claim-ready", "synthesis-ready"}
+            or str(meta.get("synthesis_maturity", "")) in {"human-reviewed", "publication-ready"}
+        )
+        if stable_ai_integrated:
+            if "## AI Integration Note" not in text:
+                errors.append(f"{rel}: AI-integrated stable content missing AI Integration Note")
+            for key in ("observed_at", "valid_from"):
+                if not meta.get(key):
+                    errors.append(f"{rel}: AI-integrated stable content missing {key}")
     return errors
 
 
@@ -1780,6 +1791,159 @@ def evolve_page(
         "ai_integrated": True,
         "blockers": risk_blockers,
         "wrote": write,
+    }
+
+
+STANCE_PATTERNS = {
+    "increase": re.compile(r"\b(increase|increases|increased|increasing|higher|strengthen|strengthens|enhance|enhances)\b", re.IGNORECASE),
+    "decrease": re.compile(r"\b(decrease|decreases|decreased|decreasing|lower|reduce|reduces|weaken|weakens|suppress|suppresses)\b", re.IGNORECASE),
+    "support": re.compile(r"\b(support|supports|supported|consistent with|confirms)\b", re.IGNORECASE),
+    "oppose": re.compile(r"\b(oppose|opposes|contradict|contradicts|conflict|conflicts|inconsistent with)\b", re.IGNORECASE),
+}
+
+
+def _stance_set(text: str) -> set[str]:
+    return {name for name, pattern in STANCE_PATTERNS.items() if pattern.search(text)}
+
+
+def _stances_conflict(left: set[str], right: set[str]) -> bool:
+    return bool(
+        ({"increase", "decrease"} <= (left | right) and left != right)
+        or ({"support", "oppose"} <= (left | right) and left != right)
+    )
+
+
+def _page_summary(path: Path, meta: dict[str, Any], body: str) -> dict[str, Any]:
+    return {
+        "path": path,
+        "rel": "",
+        "title": first_heading(body, path.stem.replace("_", " ").replace("-", " ").title()),
+        "type": str(meta.get("type", "knowledge")),
+        "topics": {str(item) for item in meta.get("topics", []) if str(item).strip()},
+        "stances": _stance_set(body),
+        "body": body,
+    }
+
+
+def contradiction_pairs(ws: Workspace, *, topic_id: str = "", limit: int = 20) -> list[dict[str, Any]]:
+    pages: list[dict[str, Any]] = []
+    for path, meta, body in knowledge_page_records(ws):
+        page_type = str(meta.get("type", ""))
+        if page_type not in {"claim", "synthesis", "concept", "paper", "topic"}:
+            continue
+        summary = _page_summary(path, meta, body)
+        summary["rel"] = relative_workspace_path(ws, path)
+        if topic_id and topic_id not in summary["topics"]:
+            continue
+        if summary["stances"] or "conflicts_with" in body or "contradiction" in body.lower():
+            pages.append(summary)
+
+    pairs: list[dict[str, Any]] = []
+    for index, left in enumerate(pages):
+        for right in pages[index + 1 :]:
+            shared_topics = sorted(left["topics"] & right["topics"])
+            explicit_conflict = right["rel"] in left["body"] or left["rel"] in right["body"]
+            if not shared_topics and not explicit_conflict:
+                continue
+            if not explicit_conflict and not _stances_conflict(left["stances"], right["stances"]):
+                continue
+            reason = "explicit conflicts_with marker" if explicit_conflict else "opposing stance keywords"
+            pairs.append(
+                {
+                    "left": left["rel"],
+                    "right": right["rel"],
+                    "topics": shared_topics,
+                    "reason": reason,
+                    "left_stances": sorted(left["stances"]),
+                    "right_stances": sorted(right["stances"]),
+                }
+            )
+            if len(pairs) >= limit:
+                return pairs
+    return pairs
+
+
+def reconcile_workspace(
+    ws: Workspace,
+    *,
+    topic_id: str = "",
+    write: bool = True,
+    limit: int = 10,
+) -> dict[str, Any]:
+    pairs = contradiction_pairs(ws, topic_id=topic_id, limit=limit)
+    updated: list[str] = []
+    if write:
+        for pair in pairs:
+            for target, other in ((pair["left"], pair["right"]), (pair["right"], pair["left"])):
+                result = evolve_page(
+                    ws,
+                    target,
+                    note=f"Reconcile detected contradiction with {other}.",
+                    input_source="rkf-reconcile",
+                    priority="high",
+                    blocker=f"Contradiction with {other}; requires human review before stable synthesis or claim promotion.",
+                    write=True,
+                )
+                updated.append(str(result["path"]))
+    return {
+        "pairs": pairs,
+        "updated_pages": sorted(set(updated)),
+        "wrote": write,
+    }
+
+
+def challenge_page(ws: Workspace, target: str, *, limit: int = 5) -> dict[str, Any]:
+    path = _resolve_knowledge_path(ws, target)
+    if path is None:
+        raise SystemExit(f"challenge target not found: {target}")
+    meta, body = parse_frontmatter(read_text(path))
+    if not meta:
+        raise SystemExit(f"challenge target has no frontmatter: {target}")
+    rel = relative_workspace_path(ws, path)
+    topics = {str(item) for item in meta.get("topics", []) if str(item).strip()}
+    target_stances = _stance_set(body)
+    counterpoints: list[dict[str, Any]] = []
+    for other_path, other_meta, other_body in knowledge_page_records(ws):
+        if other_path.resolve() == path.resolve():
+            continue
+        other_topics = {str(item) for item in other_meta.get("topics", []) if str(item).strip()}
+        shared_topics = sorted(topics & other_topics)
+        other_stances = _stance_set(other_body)
+        if shared_topics and _stances_conflict(target_stances, other_stances):
+            counterpoints.append(
+                {
+                    "path": relative_workspace_path(ws, other_path),
+                    "reason": "opposing stance keywords",
+                    "topics": shared_topics,
+                    "summary": first_summary_line(other_body) or first_heading(other_body, other_path.stem),
+                }
+            )
+        elif shared_topics and ("Counter Evidence" in other_body or "Caveats" in other_body):
+            counterpoints.append(
+                {
+                    "path": relative_workspace_path(ws, other_path),
+                    "reason": "same-topic counter/caveat section",
+                    "topics": shared_topics,
+                    "summary": first_summary_line(other_body) or first_heading(other_body, other_path.stem),
+                }
+            )
+        if len(counterpoints) >= limit:
+            break
+    missing: list[str] = []
+    if not meta.get("evidence_ids"):
+        missing.append("No evidence_ids in target frontmatter.")
+    if not meta.get("observed_at") or not meta.get("valid_from"):
+        missing.append("Temporal metadata is incomplete.")
+    if str(meta.get("claim_readiness", "")) in {"claim-ready", "synthesis-ready"} and not meta.get("evidence_ids"):
+        missing.append("Claim-ready state lacks locator/evidence id in this page.")
+    return {
+        "target": rel,
+        "counterpoints": counterpoints,
+        "missing_evidence": missing,
+        "maturity_suggestions": [
+            "Keep challenge output as critique, not a stable claim.",
+            "Downgrade to not-ready or locator-needed if counterpoints are unresolved.",
+        ],
     }
 
 
@@ -2031,6 +2195,12 @@ def lint_public_safety(ws: Workspace) -> list[str]:
         for pattern in LOCAL_PATH_PATTERNS:
             for match in pattern.findall(text):
                 errors.append(f"{rel}: local/private path pattern: {match}")
+        for line_number, line in enumerate(text.splitlines(), start=1):
+            stripped = line.strip()
+            if stripped.startswith("- fact_id="):
+                for key in ("observed_at=", "valid_from=", "confidence=", "source_or_blocker="):
+                    if key not in stripped:
+                        errors.append(f"{rel}:{line_number}: critical fact missing {key.rstrip('=')}")
     if ws.paths.hot_md.exists():
         rel = relative_workspace_path(ws, ws.paths.hot_md)
         text = ws.paths.hot_md.read_text(encoding="utf-8", errors="replace")
@@ -2106,6 +2276,8 @@ def external_sandbox_capsule(ws: Workspace) -> Path:
         "status",
         "world",
         "evolve",
+        "reconcile",
+        "challenge",
         "propagate",
         "lint",
         "graph",

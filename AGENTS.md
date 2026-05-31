@@ -16,8 +16,8 @@ boundaries control when claims or synthesis become stable.
 |---|---|---|
 | `rkf-evidence-vault` | Source capture, candidate discovery, full-text availability, user PDF routing, PDF/OCR/visual reading state | DOI, URL, PDF, literature discovery, source intake, 文獻搜尋, 找文章, 提供PDF, full text |
 | `rkf-knowledge-synthesis` | Paper drafts, maintained knowledge objects, topic review, and maturity-aware synthesis | paper note, synthesis, topic, claim, 整理成wiki, 論文筆記, 概念頁, topic整理 |
-| `rkf-wiki-core` | LLM Wiki retrieval, ARS reasoning handoff, save, graph, L0-L3 world context, evolve, paper queue, sandbox context | LLM Wiki, query, save, graph, world, evolve, status, paper queue, 回寫wiki |
-| `rkf-lint` | Health checks and repair planning for structure, maturity, evidence boundary, graph, public safety | lint, audit, repair plan, 檢查, 修復計畫, 發布安全 |
+| `rkf-wiki-core` | LLM Wiki retrieval, ARS reasoning handoff, save, graph, L0-L3 world context, evolve, challenge, paper queue, sandbox context | LLM Wiki, query, save, graph, world, evolve, challenge, status, paper queue, 回寫wiki |
+| `rkf-lint` | Health checks, reconcile detection, and repair planning for structure, maturity, evidence boundary, graph, public safety | lint, reconcile, audit, repair plan, 檢查, 修復計畫, 發布安全 |
 | `rkf-connect` | Experimental shared database, multi-computer Drive links, and external sandbox access boundaries | shared database, Google Drive, symlink, sandbox access, 共享資料庫 |
 
 `rkf-ars-bridge` is not an active skill. It is an implicit protocol for
@@ -44,6 +44,8 @@ translating ARS outputs into RKF proposals or reading-feedback events.
 7. If the user asks to review, clean up, merge/split, refresh, or recommend
    changes to topics, route to `rkf-knowledge-synthesis` topic-review; use
    `rkf-lint` when the request is structural drift detection or repair planning.
+   Use `reconcile` when the task is contradiction detection across existing
+   pages.
 8. If the user asks to set up shared RAW/wiki folders, connect multiple
    computers, or grant external sandbox access, route to `rkf-connect`.
 9. If the user asks for deep research, paper writing, peer review, or a full
@@ -79,6 +81,10 @@ translating ARS outputs into RKF proposals or reading-feedback events.
 - High-risk stable claim promotion, source identity conflicts,
   publication-ready synthesis, and delete/merge choices must remain blocked or
   maturity-downgraded until reviewed.
+- `challenge` is allowed to argue against a page using RKF knowledge, but its
+  output is critique only.
+- AI-integrated stable claim or synthesis content needs `observed_at`,
+  `valid_from`, and an `AI Integration Note`.
 - Shared database setup is experimental. Machine-specific links and private
   paths must not become the committed source of truth.
 - Lint may report and plan repairs; it must not silently rewrite knowledge or

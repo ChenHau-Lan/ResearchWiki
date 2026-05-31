@@ -7,7 +7,7 @@ metadata.
 Format:
 
 ```text
-- fact_id=short-id | observed_at=YYYY-MM-DD | valid_from=YYYY-MM-DD | confidence=low|medium|high|mixed | source_or_blocker=path-or-blocker | Fact sentence.
+- fact_id=short-id | observed_at=YYYY-MM-DD | valid_from=YYYY-MM-DD | valid_until=optional | supersedes=optional | confidence=low|medium|high|mixed | source_or_blocker=path-or-blocker | Fact sentence.
 ```
 
 ## Active Facts

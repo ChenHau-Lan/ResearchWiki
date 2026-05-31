@@ -83,6 +83,18 @@
     "synthesis_maturity": { "enum": ["draft", "single-source", "multi-source", "human-reviewed", "publication-ready"] },
     "source_coverage": { "enum": ["unknown", "partial", "representative", "systematic"] },
     "last_synthesis_interaction": { "type": "string" },
+    "observed_at": { "type": "string" },
+    "valid_from": { "type": "string" },
+    "valid_until": { "type": "string" },
+    "supersedes": {
+      "oneOf": [
+        { "type": "string" },
+        { "type": "array", "items": { "type": "string" } }
+      ]
+    },
+    "ai_integrated": { "type": "boolean" },
+    "ai_integration_priority": { "enum": ["low", "medium", "high"] },
+    "last_ai_integration": { "type": "string" },
     "review_stage": { "enum": ["ai-extracted", "human-checked", "discussed", "integrated", "cited"] },
     "evidence_boundary": { "enum": ["pdf-evidence", "wiki-page", "ars-proposal", "review-blocker", "not-applicable"] },
     "evidence_ids": { "type": "array", "items": { "type": "string" } },

@@ -28,6 +28,7 @@ ARS output == proposal or reading feedback until reviewed
 user feedback raises understanding maturity
 stable claim -> locator, supported wiki source, human feedback, or blocker
 low-risk rewrite -> AI Integration Note + maturity-aware page update
+reconcile/challenge -> AI-marked blockers and counterpoints, not silent trust
 hot.md == public-safe research demand dashboard, not evidence
 ```
 
@@ -41,6 +42,8 @@ Use RKF through natural-language research requests:
 - "Ask the wiki what we know, and use ARS to reason over the retrieved context."
 - "Show the L0-L3 world context before this research session."
 - "Use evolve to add a retrieval brief or reading-state note to this existing page."
+- "Reconcile contradictions in this topic and mark anything AI-integrated."
+- "Challenge this synthesis using only my existing RKF knowledge."
 - "Review this topic registry and suggest merges, splits, stale candidates, and better search strings."
 - "Run maintenance checks for reading maturity, evidence boundaries, graph links, and public safety."
 - "Record this paper-search question in hot.md so topic review sees repeated demand."
@@ -127,6 +130,23 @@ inline blockers or maturity downgrades instead of silent trust upgrades.
 
 `propagate` remains available as a manual preview/audit fallback when you want
 to inspect affected pages before deciding what to integrate.
+
+## Reconcile And Challenge
+
+`python3 tools/rk.py reconcile` scans same-topic pages for obvious tension such
+as opposing stance keywords or explicit conflict markers. When it writes, it
+uses high-priority `evolve` updates so the affected pages show an
+`AI Integration Note` and a blocker instead of pretending the conflict is
+human-resolved.
+
+`python3 tools/rk.py challenge <page>` uses existing RKF pages to list the
+strongest counterpoints, missing evidence, and maturity downgrade suggestions.
+Challenge output is critique, not stable claim evidence.
+
+Claim and synthesis pages can carry minimal bi-temporal metadata:
+`observed_at`, `valid_from`, optional `valid_until`, and optional `supersedes`.
+AI-integrated stable content must include an AI Integration Note plus
+`observed_at` and `valid_from`.
 
 ## Hot Research Questions
 

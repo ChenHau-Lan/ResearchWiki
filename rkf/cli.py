@@ -12,6 +12,7 @@ from .core import (
     add_topic,
     append_log,
     approved_pdf_acquisition,
+    challenge_page,
     create_paper_note,
     create_source,
     external_sandbox_capsule,
@@ -27,6 +28,7 @@ from .core import (
     parse_frontmatter,
     paper_queue,
     propose_propagation,
+    reconcile_workspace,
     read_json,
     record_hot_query,
     render_paper_nudge,
@@ -411,6 +413,40 @@ def cmd_evolve(args: argparse.Namespace) -> int:
     return 0
 
 
+def cmd_reconcile(args: argparse.Namespace) -> int:
+    ws = Workspace()
+    result = reconcile_workspace(ws, topic_id=args.topic_id or "", write=not args.dry_run, limit=args.limit)
+    print(f"contradictions: {len(result['pairs'])}")
+    for pair in result["pairs"]:
+        topics = ",".join(pair["topics"]) or "untriaged"
+        print(f"- {pair['left']} <> {pair['right']}\treason={pair['reason']}\ttopics={topics}")
+    print(f"ai_integrated_pages: {len(result['updated_pages'])}")
+    for path in result["updated_pages"]:
+        print(f"- {path}")
+    print(f"wrote: {str(result['wrote']).lower()}")
+    return 0
+
+
+def cmd_challenge(args: argparse.Namespace) -> int:
+    ws = Workspace()
+    result = challenge_page(ws, args.target, limit=args.limit)
+    print(f"challenge target: {result['target']}")
+    print(f"strongest counterpoints: {len(result['counterpoints'])}")
+    for item in result["counterpoints"]:
+        topics = ",".join(item["topics"]) or "untriaged"
+        print(f"- {item['path']}\treason={item['reason']}\ttopics={topics}\tsummary={item['summary']}")
+    print("missing evidence:")
+    if result["missing_evidence"]:
+        for item in result["missing_evidence"]:
+            print(f"- {item}")
+    else:
+        print("- No deterministic missing-evidence hints.")
+    print("maturity downgrade suggestions:")
+    for item in result["maturity_suggestions"]:
+        print(f"- {item}")
+    return 0
+
+
 def cmd_graph(args: argparse.Namespace) -> int:
     ws = Workspace()
     graph = export_graph(ws)
@@ -623,6 +659,17 @@ def build_parser() -> argparse.ArgumentParser:
     evolve.add_argument("--blocker", help="Explicit blocker to leave on the page")
     evolve.add_argument("--dry-run", action="store_true", help="Render decision without writing the page")
     evolve.set_defaults(func=cmd_evolve)
+
+    reconcile = sub.add_parser("reconcile", help="Find contradictions and write AI-marked blockers for review")
+    reconcile.add_argument("--topic-id", help="Limit reconciliation scan to a topic")
+    reconcile.add_argument("--limit", type=int, default=10)
+    reconcile.add_argument("--dry-run", action="store_true", help="Report contradictions without writing blockers")
+    reconcile.set_defaults(func=cmd_reconcile)
+
+    challenge = sub.add_parser("challenge", help="Use RKF knowledge to challenge a page without creating stable claims")
+    challenge.add_argument("target", help="Knowledge page path to challenge")
+    challenge.add_argument("--limit", type=int, default=5)
+    challenge.set_defaults(func=cmd_challenge)
 
     propagate = sub.add_parser("propagate", help="Generate affected-page propagation preview/audit review")
     propagate.add_argument("target", help="Source ID or knowledge page path to review for propagation")

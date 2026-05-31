@@ -362,6 +362,122 @@ class RKFCliTests(unittest.TestCase):
         self.assertIn("remaining_blocker:", text)
         self.assertIn("High-risk stable claim", text)
 
+    def test_reconcile_writes_ai_marked_contradiction_blockers(self) -> None:
+        folder = self.root / "knowledge" / "claims"
+        folder.mkdir(parents=True)
+        (folder / "increase.md").write_text(
+            "---\n"
+            "type: claim\n"
+            "status: draft\n"
+            "review_stage: ai-extracted\n"
+            "topics:\n"
+            "  - aerosol-cloud\n"
+            "evidence_boundary: review-blocker\n"
+            "created: 2026-05-25\n"
+            "updated: 2026-05-25\n"
+            "---\n\n"
+            "# Increase Claim\n\n"
+            "Aerosol perturbation increases cloud lifetime.\n",
+            encoding="utf-8",
+        )
+        (folder / "decrease.md").write_text(
+            "---\n"
+            "type: claim\n"
+            "status: draft\n"
+            "review_stage: ai-extracted\n"
+            "topics:\n"
+            "  - aerosol-cloud\n"
+            "evidence_boundary: review-blocker\n"
+            "created: 2026-05-25\n"
+            "updated: 2026-05-25\n"
+            "---\n\n"
+            "# Decrease Claim\n\n"
+            "Aerosol perturbation decreases cloud lifetime.\n",
+            encoding="utf-8",
+        )
+
+        result = self.run_rk("reconcile", "--topic-id", "aerosol-cloud").stdout
+
+        self.assertIn("contradictions: 1", result)
+        self.assertIn("ai_integrated_pages: 2", result)
+        for name in ("increase.md", "decrease.md"):
+            text = (folder / name).read_text(encoding="utf-8")
+            self.assertIn("AI Integration Note", text)
+            self.assertIn("Contradiction with", text)
+            self.assertIn("claim_readiness: not-ready", text)
+
+    def test_challenge_reports_counterpoints_without_saving_claim(self) -> None:
+        folder = self.root / "knowledge" / "claims"
+        folder.mkdir(parents=True)
+        target = folder / "increase.md"
+        target.write_text(
+            "---\n"
+            "type: claim\n"
+            "status: draft\n"
+            "review_stage: ai-extracted\n"
+            "topics:\n"
+            "  - aerosol-cloud\n"
+            "evidence_boundary: review-blocker\n"
+            "created: 2026-05-25\n"
+            "updated: 2026-05-25\n"
+            "---\n\n"
+            "# Increase Claim\n\n"
+            "Aerosol perturbation increases cloud lifetime.\n",
+            encoding="utf-8",
+        )
+        (folder / "decrease.md").write_text(
+            "---\n"
+            "type: claim\n"
+            "status: draft\n"
+            "review_stage: ai-extracted\n"
+            "topics:\n"
+            "  - aerosol-cloud\n"
+            "evidence_boundary: review-blocker\n"
+            "created: 2026-05-25\n"
+            "updated: 2026-05-25\n"
+            "---\n\n"
+            "# Decrease Claim\n\n"
+            "Aerosol perturbation decreases cloud lifetime.\n",
+            encoding="utf-8",
+        )
+
+        result = self.run_rk("challenge", "knowledge/claims/increase.md").stdout
+
+        self.assertIn("strongest counterpoints: 1", result)
+        self.assertIn("knowledge/claims/decrease.md", result)
+        self.assertIn("maturity downgrade suggestions:", result)
+        self.assertFalse((self.root / "state" / "gates" / "propagation").exists())
+
+    def test_lint_requires_temporal_metadata_for_ai_integrated_stable_content(self) -> None:
+        synthesis = self.root / "knowledge" / "synthesis" / "stable_ai.md"
+        synthesis.parent.mkdir(parents=True)
+        synthesis.write_text(
+            "---\n"
+            "type: synthesis\n"
+            "status: reviewed\n"
+            "review_stage: integrated\n"
+            "topics: []\n"
+            "evidence_boundary: wiki-page\n"
+            "synthesis_maturity: human-reviewed\n"
+            "source_coverage: representative\n"
+            "human_feedback_level: trusted\n"
+            "claim_readiness: synthesis-ready\n"
+            "ai_integrated: true\n"
+            "created: 2026-05-25\n"
+            "updated: 2026-05-25\n"
+            "---\n\n"
+            "# Stable AI Synthesis\n\n"
+            "Stable-looking content.\n",
+            encoding="utf-8",
+        )
+
+        result = self.run_rk("lint", check=False)
+
+        self.assertNotEqual(result.returncode, 0)
+        self.assertIn("missing AI Integration Note", result.stdout)
+        self.assertIn("missing observed_at", result.stdout)
+        self.assertIn("missing valid_from", result.stdout)
+
     def test_status_and_world_print_workspace_bootstrap(self) -> None:
         (self.root / "CRITICAL_FACTS.md").write_text(
             "- fact_id=rkf-purpose | observed_at=2026-05-31 | valid_from=2026-05-31 | confidence=high | source_or_blocker=README.md | RKF preserves active academic reading maturity.\n",
@@ -682,6 +798,8 @@ class RKFCliTests(unittest.TestCase):
             "review",
             "lint",
             "evolve <target>",
+            "reconcile",
+            "challenge <target>",
             "propagate <target>",
             "graph",
             "status",

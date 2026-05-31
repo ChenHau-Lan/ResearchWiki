@@ -21,6 +21,9 @@ export, ARS handoff proposals, and optional shared-database connections.
 | L0-L3 World Context | Rebuild session context from identity, critical facts, active reading, synthesis, graph links, and validation state | terminal capsule, public-safe |
 | Critical Facts | Store short public-safe facts with temporal metadata for future agents | `CRITICAL_FACTS.md` |
 | Priority Evolve | Rewrite low-risk existing pages with visible AI Integration Notes and maturity-aware blockers | governed page update |
+| Reconcile | Detect contradictions across same-topic pages and write AI-marked blockers when needed | page-local blockers |
+| Challenge | Use existing RKF pages to argue against a target answer or synthesis | terminal critique only |
+| Bi-Temporal Memory | Track when RKF observed a claim and when the described fact is valid | frontmatter and critical facts |
 | Propagation Review | Identify pages affected by new reading, evidence, or synthesis | manual preview/audit fallback |
 | ARS Bridge | Convert ARS research/reasoning/writing/review output into RKF proposals or reading feedback | proposals only |
 | Connect | Manage experimental shared RAW/wiki folders and external sandbox access boundaries | connection plans only; no private paths |
@@ -36,6 +39,8 @@ flowchart TD
     E --> F["knowledge synthesis<br/>claims, concepts, synthesis"]
     F --> M["world<br/>L0-L3 context capsule"]
     F --> N["evolve<br/>AI Integration Note"]
+    N --> O["reconcile<br/>AI-marked blocker"]
+    H --> P["challenge<br/>counterpoints only"]
     G["RKF query"] --> H["retrieve governed wiki context"]
     G --> I["hot-query event<br/>public-safe demand signal"]
     H --> J["ARS reasoning"]
@@ -81,6 +86,12 @@ flowchart TD
   blocked until a locator, human feedback, supported source, or explicit blocker
   is reviewed.
 - Propagation remains available as a manual preview/audit fallback.
+- `reconcile` may write AI-marked blockers for contradictions; it does not
+  silently resolve stable claims.
+- `challenge` is adversarial retrieval over RKF's own pages. It produces
+  counterpoints and downgrade suggestions, not new stable knowledge.
+- Claim, synthesis, and critical facts use minimal temporal metadata:
+  `observed_at`, `valid_from`, optional `valid_until`, and optional `supersedes`.
 
 ## Storage And Connection Strategy
 

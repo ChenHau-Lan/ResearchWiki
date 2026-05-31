@@ -1,6 +1,6 @@
 ---
 name: rkf-wiki-core
-description: Operate the RKF LLM Wiki memory: retrieve governed wiki context, coordinate ARS reasoning, save durable discussion results, evolve low-risk pages with AI Integration Notes, track paper reading queues, export graph, and create compact context capsules. Use when the task mentions LLM Wiki, knowledge base memory, query, save, evolve, graph, paper queue, nudge, reading feedback, wiki context capsule, 問知識庫, 回寫wiki, 保存討論結果, 查詢wiki, 知識圖譜, paper推播, or context capsule. Use rkf-connect for multi-computer shared folders or sandbox access permissions.
+description: Operate the RKF LLM Wiki memory: retrieve governed wiki context, coordinate ARS reasoning, save durable discussion results, evolve low-risk pages with AI Integration Notes, challenge answers using existing RKF knowledge, track paper reading queues, export graph, and create compact context capsules. Use when the task mentions LLM Wiki, knowledge base memory, query, save, evolve, challenge, graph, paper queue, nudge, reading feedback, wiki context capsule, 問知識庫, 回寫wiki, 保存討論結果, 查詢wiki, 知識圖譜, paper推播, or context capsule. Use rkf-connect for multi-computer shared folders or sandbox access permissions.
 ---
 
 # RKF Wiki Core
@@ -22,6 +22,7 @@ maturity and claim boundaries.
 | `world` | Reconstruct L0-L3 workspace context at the start of a session | critical facts, active reading, readiness, graph links |
 | `save` | Save durable non-paper knowledge with boundary | knowledge object |
 | `evolve` | Directly integrate low-risk existing-page updates | page rewrite with AI Integration Note |
+| `challenge` | Use existing RKF pages to argue against a target | counterpoints and maturity downgrade suggestions |
 | `propagate` | Identify pages affected by new evidence or synthesis | preview/audit review gate |
 | `graph` | Export typed source/evidence/wiki links | `graph/research_graph.json` |
 | `external-sandbox` | Generate compact wiki context prompt | context capsule |
@@ -39,6 +40,7 @@ Use this skill when the user says things like:
 - "Record my correction for this paper."
 - "Show me the current RKF status before we continue."
 - "Evolve this page with an AI Integration Note."
+- "Challenge this synthesis using my own wiki."
 - "Which pages might this new evidence affect? Do not rewrite them yet."
 - "Export the research graph."
 - "Make a context capsule for another sandbox."
@@ -77,6 +79,8 @@ change, human correction, or review blocker.
 - `evolve` may rewrite low-risk existing-page sections, but every rewrite must
   leave an AI Integration Note and conservative maturity state.
 - `propagate` is a manual preview/audit fallback for affected-page review.
+- `challenge` produces critique only; it must not be saved as stable knowledge
+  without a later evidence-boundary review.
 - A query answer is not a wiki page until saved.
 - Do not save unsupported chat claims as stable knowledge.
 - External sandbox results return as save/review/synthesis proposals.

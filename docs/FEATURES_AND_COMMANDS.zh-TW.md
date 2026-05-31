@@ -22,6 +22,9 @@ repo 已有的能力、日常怎麼用、以及哪些檔案或目錄看起來只
 | Critical facts | 保存短句、public-safe、可重用且有時間 metadata 的 facts | `CRITICAL_FACTS.md` |
 | Future Agent Retrieval Brief | 在 paper / synthesis / topic template 說明何時讀頁、可信度、缺口與下一步 | `templates/rkf/*.md`、knowledge pages |
 | Priority evolve | 低風險 rewrite existing page，並在頁內留下 `AI Integration Note`；高風險只留下 blocker / maturity downgrade | knowledge pages |
+| Reconcile | 自動找同 topic/page 間的 contradiction hints，並以 AI Integration Note 寫入 blocker | knowledge pages |
+| Challenge | 用 RKF 自己的知識反駁目前頁面或 synthesis，不建立 stable claim | terminal critique |
+| Bi-temporal memory | claim / synthesis / critical facts 可記錄 `observed_at`、`valid_from`、`valid_until`、`supersedes` | frontmatter / `CRITICAL_FACTS.md` |
 | Propagation review | 新 evidence、reading maturity 或 synthesis 後列出可能受影響頁面，作為 preview/audit fallback | terminal report 或 `state/gates/propagation/*.md` |
 | Graph export | 輸出 source/evidence/wiki/topic typed links | `graph/research_graph.json` |
 | Index generation | 產生 LLM retrieval 入口，包含 maturity hints | `index.md` |
@@ -76,6 +79,8 @@ python3 tools/rk.py <command>
 | `review` | none | 列出 pending gate/review items |
 | `lint` | `--mode all/structure-lint/evidence-lint/graph-lint/ars-handoff-lint/public-safety-lint/repair-plan` | 執行 RKF health checks |
 | `evolve <target>` | `--note`, `--source`, `--priority low/medium/high`, `--blocker`, `--dry-run` | maturity-aware 直接整合低風險頁面更新並留下 AI Integration Note |
+| `reconcile` | `--topic-id`, `--limit`, `--dry-run` | 找矛盾並把高風險矛盾寫成 AI-marked blocker |
+| `challenge <target>` | `--limit` | 用 RKF 既有頁面列出 counterpoints、missing evidence、maturity downgrade 建議 |
 | `propagate <target>` | `--write` | 產生 affected-page propagation preview/audit |
 | `graph` | none | 匯出 research graph |
 | `status` | `--log-tail` | 輸出 RKF L0-L3 context capsule |
@@ -229,6 +234,14 @@ Apply a maturity-aware low-risk rewrite with an AI Integration Note:
 ```bash
 python3 tools/rk.py evolve knowledge/concepts/example.md --note "Add retrieval brief after reading queue review." --source "daily-agent"
 python3 tools/rk.py evolve knowledge/claims/example.md --priority high --note "Potential stable claim conflict." --blocker "Needs locator or human review before promotion."
+```
+
+Find contradictions and challenge a page:
+
+```bash
+python3 tools/rk.py reconcile --topic-id aerosol-cloud
+python3 tools/rk.py reconcile --dry-run
+python3 tools/rk.py challenge knowledge/synthesis/example.md --limit 5
 ```
 
 Generate propagation preview/audit fallback:

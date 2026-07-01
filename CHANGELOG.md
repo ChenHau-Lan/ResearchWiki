@@ -5,11 +5,16 @@
 - Reframe RKF around active paper reading maturity: early paper drafts can begin
   from metadata, abstracts, partial full text, or user-provided PDFs, while
   stable claims and trusted synthesis stay gated by locators, human feedback,
-  existing governed sources, or explicit blockers.
+  or existing governed sources; explicit blockers keep unresolved claims from
+  promotion.
 - Add reading maturity fields for paper and synthesis objects plus a
   public-safe `state/reading/` ledger contract.
 - Add paper queue, feedback, next-item, and nudge CLI flows for registered
   papers that need user PDF, human review, or synthesis review.
+- Add RKF inbox capture for ChatGPT/web/project clips with guarded DOI injection
+  that creates or backlinks source/paper pages without promoting claims.
+- Add RKF auto-connect design and helper plan for cross-project
+  Active/Aggressive capture into RKF inbox and hot-query layers.
 - Soft-migrate acquisition: user-provided PDFs update full-text state directly,
   while legacy checkpoint records remain compatible.
 - Add the hot-query layer: `hot.md` as a single public-safe retrieval file with

@@ -39,7 +39,8 @@ work into governed LLM Wiki memory.
   external research expansion through ARS unless a future plan explicitly
   changes this boundary.
 - Do not promote stable claims or trusted synthesis without a locator, human
-  feedback, existing governed source, or explicit review blocker.
+  feedback, or existing governed source. Explicit review blockers preserve the
+  boundary and prevent promotion until reviewed.
 - Do not save durable article text as a knowledge layer.
 - Do not paste full article text into public pages.
 - Do not commit machine-specific Drive paths, cross-platform links, sandbox

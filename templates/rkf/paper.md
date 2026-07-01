@@ -25,30 +25,57 @@ sources: []
 
 ## Source Identity
 
+- Source ID:
 - DOI:
-- Full text status: needs-user-pdf
-- Evidence boundary: draft reading note, not claim-ready
+- PDF Evidence: not provided yet
+- Evidence status: Reading draft; evidence boundary not promoted
 
 ## Reading Maturity
 
 - Reading state:
+- Full text status:
 - Human feedback level:
 - Understanding confidence:
 - Claim readiness:
-- Last reading interaction:
 - Reading ledger:
 
-## Locators
-
-- Page/section:
-- Quote or figure/table pointer:
-
-## Reading Notes
+## Source-Grounded Summary
 
 - Research question:
-- Method:
+- Method/data:
 - Key findings:
 - Limitations:
+- Evidence boundary: review-blocker
+
+## Extracted Evidence And Locators
+
+- Locator: not recorded yet
+- What the source explicitly supports:
+- What it does not support:
+
+## Reader Notes
+
+- My interpretation:
+- Why this matters to my project:
+- Connections to other RKF pages:
+
+## AI/Agent Notes
+
+- Agent-generated summary:
+- Unverified inference:
+- Needs human check:
+
+## Questions And Feedback
+
+- User questions:
+- Human feedback:
+- Open blockers:
+
+## Claims To Promote
+
+- Claim:
+  - Required locator or blocker:
+  - Caveat:
 
 ## Future Agent Retrieval Brief
 
@@ -56,12 +83,6 @@ sources: []
 - Trust level:
 - Current gaps:
 - Next best action:
-
-## Claims To Promote
-
-- Claim:
-  - Locator or blocker:
-  - Caveat:
 
 ## Graph Links
 

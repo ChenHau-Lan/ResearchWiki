@@ -47,6 +47,7 @@ SOURCE_STATUSES = {
 }
 
 KNOWLEDGE_TYPES = {
+    "inbox",
     "paper",
     "question",
     "concept",
@@ -107,6 +108,10 @@ HOT_EVENT_SCHEMA = "rkf-hot-query-event-v1"
 HOT_QUERY_MAX_CHARS = 500
 HOT_NOTES_MAX_CHARS = 1000
 HOT_DEFAULT_WINDOW_DAYS = 30
+INBOX_TITLE_MAX_CHARS = 220
+INBOX_CLIP_MAX_CHARS = 5000
+INBOX_NOTE_MAX_CHARS = 2000
+CHATGPT_SHARE_RE = re.compile(r"^https://chatgpt\.com/share/[A-Za-z0-9_-]+/?$", re.IGNORECASE)
 HOT_RECORD_RE = re.compile(
     r"^-\s*(?P<date>\d{4}-\d{2}-\d{2})\s*\|\s*origin=(?P<origin>[^|]+)\|\s*topic=(?P<topic>[^|]+)\|\s*intent=(?P<intent>[^|]+)\|\s*query=\"(?P<query>[^\"]*)\"(?:\s*\|\s*leads=\"(?P<leads>[^\"]*)\")?(?:\s*\|\s*notes=\"(?P<notes>[^\"]*)\")?\s*$"
 )
@@ -795,7 +800,7 @@ def create_paper_note(ws: Workspace, record: dict[str, Any], *, slug: str = "") 
         "updated": today(),
     }
     locators = artifact.get("locators", []) if artifact else []
-    locator_lines = "\n".join(f"- {item}" for item in locators) if locators else "- TBD while reading PDF"
+    locator_lines = "\n".join(f"- Locator: {item}" for item in locators) if locators else "- Locator: not recorded yet"
     evidence_line = f"- PDF Evidence: {artifact['evidence_id']}" if artifact else "- PDF Evidence: not provided yet"
     evidence_status = "Checked PDF" if artifact and artifact.get("status") == "pdf_qc_done" else "Reading draft; evidence boundary not promoted"
     body = (
@@ -812,21 +817,37 @@ def create_paper_note(ws: Workspace, record: dict[str, Any], *, slug: str = "") 
         f"- Understanding confidence: {maturity['understanding_confidence']}\n"
         f"- Claim readiness: {maturity['claim_readiness']}\n"
         f"- Reading ledger: {maturity['reading_ledger']}\n\n"
-        "## Locators\n\n"
-        f"{locator_lines}\n\n"
-        "## Reading Notes\n\n"
+        "## Source-Grounded Summary\n\n"
         "- Research question:\n"
-        "- Method:\n"
+        "- Method/data:\n"
         "- Key findings:\n"
-        "- Limitations:\n\n"
+        "- Limitations:\n"
+        f"- Evidence boundary: {boundary}\n\n"
+        "## Extracted Evidence And Locators\n\n"
+        f"{locator_lines}\n"
+        "- What the source explicitly supports:\n"
+        "- What it does not support:\n\n"
+        "## Reader Notes\n\n"
+        "- My interpretation:\n"
+        "- Why this matters to my project:\n"
+        "- Connections to other RKF pages:\n\n"
+        "## AI/Agent Notes\n\n"
+        "- Agent-generated summary:\n"
+        "- Unverified inference:\n"
+        "- Needs human check:\n\n"
         "## Questions And Feedback\n\n"
         "- User questions:\n"
         "- Human feedback:\n"
         "- Open blockers:\n\n"
         "## Claims To Promote\n\n"
         "- Claim:\n"
-        "  - Locator or blocker:\n"
+        "  - Required locator or blocker:\n"
         "  - Caveat:\n\n"
+        "## Future Agent Retrieval Brief\n\n"
+        "- Read this page when:\n"
+        "- Trust level:\n"
+        "- Current gaps:\n"
+        "- Next best action:\n\n"
         "## Graph Links\n\n"
         "- Topics:\n"
         "- Concepts:\n"
@@ -914,6 +935,242 @@ def assert_public_safe_hot_value(value: str, *, field: str, max_chars: int) -> N
     for pattern in LOCAL_PATH_PATTERNS:
         if pattern.search(value):
             raise SystemExit(f"hot query {field} contains a local/private path")
+
+
+def assert_public_safe_inbox_value(value: str, *, field: str, max_chars: int) -> None:
+    if len(value) > max_chars:
+        raise SystemExit(f"inbox {field} is too long; store a short excerpt or summary instead")
+    for pattern in LOCAL_PATH_PATTERNS:
+        if pattern.search(value):
+            raise SystemExit(f"inbox {field} contains a local/private path")
+
+
+def markdown_quote(value: str, *, empty: str) -> str:
+    value = value.strip()
+    if not value:
+        return empty
+    return "\n".join(f"> {line}" if line else ">" for line in value.splitlines())
+
+
+def append_under_heading(body: str, heading: str, bullet: str) -> str:
+    if bullet in body:
+        return body
+    lines = body.rstrip("\n").splitlines()
+    try:
+        heading_index = next(index for index, line in enumerate(lines) if line.strip() == heading)
+    except StopIteration:
+        return body.rstrip() + f"\n\n{heading}\n\n{bullet}\n"
+    insert_at = len(lines)
+    for index in range(heading_index + 1, len(lines)):
+        if lines[index].startswith("## "):
+            insert_at = index
+            break
+    if insert_at > 0 and lines[insert_at - 1].strip():
+        lines.insert(insert_at, "")
+        insert_at += 1
+    lines.insert(insert_at, bullet)
+    lines.insert(insert_at + 1, "")
+    return "\n".join(lines).rstrip() + "\n"
+
+
+def render_inbox_body(
+    *,
+    title: str,
+    origin: str,
+    source_url: str,
+    doi: str,
+    source_id: str,
+    clip: str,
+    reader_note: str,
+    agent_note: str,
+    injection_status: str,
+    paper_path: str,
+) -> str:
+    chatgpt_warning = ""
+    if origin == "chatgpt-web":
+        chatgpt_warning = (
+            "- ChatGPT shared-link note: store only non-sensitive excerpts here; shared links are accessible to anyone with the URL.\n"
+        )
+    return (
+        f"# {title}\n\n"
+        "## Capture Metadata\n\n"
+        f"- Origin: {origin}\n"
+        f"- Source URL: {source_url or 'not recorded'}\n"
+        f"- DOI: {doi or 'not recorded'}\n"
+        f"- SourceRecord: {source_id or 'not created'}\n"
+        f"- Captured: {today()}\n"
+        f"- DOI injection: {injection_status}\n"
+        f"- Paper path: {paper_path or 'not linked'}\n"
+        "- Evidence boundary: inbox-only; this item is not stable claim evidence.\n"
+        f"{chatgpt_warning}\n"
+        "## Raw Clip Or Excerpt\n\n"
+        f"{markdown_quote(clip, empty='- No raw clip stored. Add only short, public-safe excerpts or a source-grounded summary.')}\n\n"
+        "## Source-Grounded Notes\n\n"
+        "- What the source explicitly says:\n"
+        "- What is uncertain or unverified:\n"
+        "- Citation or locator needed:\n\n"
+        "## Reader Notes\n\n"
+        f"{reader_note.strip() or '- My idea / project relation:'}\n\n"
+        "## AI/Agent Notes\n\n"
+        f"{agent_note.strip() or '- Needs human check:'}\n\n"
+        "## Promotion Targets\n\n"
+        "- Suggested target: paper / question / concept / claim / synthesis / none\n"
+        "- DOI injection: source identity and backlink only; no claim promotion.\n"
+        "- Claim promotion: blocked until locator-backed evidence, supported RKF page, or annotated/trusted feedback exists.\n\n"
+        "## Future Agent Retrieval Brief\n\n"
+        "- Read this page when: reviewing captured conversations, web clips, or DOI leads before promotion.\n"
+        "- Trust level: inbox-only; use as a source-aware prompt, not evidence.\n"
+        "- Current gaps: verify source identity, locator, and relevance before promotion.\n"
+        "- Next best action: classify into paper/question/concept/claim/synthesis or leave in inbox.\n"
+    )
+
+
+def guarded_inject_inbox_item(ws: Workspace, *, record: dict[str, Any], inbox_path: Path) -> dict[str, Any]:
+    paper_path = find_paper_page_for_source(ws, str(record["source_id"]))
+    created = False
+    if paper_path is None:
+        paper_path = create_paper_note(ws, record)
+        created = True
+    rel_inbox = relative_workspace_path(ws, inbox_path)
+    rel_paper = relative_workspace_path(ws, paper_path)
+    meta, body = parse_frontmatter(read_text(paper_path))
+    if meta:
+        inbox_items = meta.get("inbox_items", [])
+        if not isinstance(inbox_items, list):
+            inbox_items = [str(inbox_items)]
+        if rel_inbox not in inbox_items:
+            inbox_items.append(rel_inbox)
+        meta["inbox_items"] = inbox_items
+        meta["updated"] = today()
+        bullet = f"- Inbox backlink: {rel_inbox} captured {today()}; source identity only, not claim evidence."
+        body = append_under_heading(body, "## Questions And Feedback", bullet)
+        set_frontmatter(paper_path, meta, body)
+    append_reading_event(
+        ws,
+        source_id=str(record["source_id"]),
+        event_type="inbox-injection",
+        summary=f"Inbox item linked to paper page as source identity/backlink only: {rel_inbox}.",
+        knowledge_path=rel_paper,
+        details={"inbox_path": rel_inbox, "created_paper": created},
+    )
+    append_log(ws, "inbox-inject", f"{record['source_id']} {rel_inbox} -> {rel_paper}")
+    return {"paper_path": rel_paper, "created_paper": created}
+
+
+def create_inbox_item(
+    ws: Workspace,
+    *,
+    title: str,
+    origin: str,
+    source_url: str = "",
+    doi: str = "",
+    clip: str = "",
+    reader_note: str = "",
+    agent_note: str = "",
+    topic_id: str = "",
+    inject: bool = True,
+) -> dict[str, Any]:
+    ws.ensure_base()
+    title = title.strip()
+    if not title:
+        raise SystemExit("inbox title cannot be empty")
+    for field, value, max_chars in (
+        ("title", title, INBOX_TITLE_MAX_CHARS),
+        ("source_url", source_url, INBOX_NOTE_MAX_CHARS),
+        ("clip", clip, INBOX_CLIP_MAX_CHARS),
+        ("reader_note", reader_note, INBOX_NOTE_MAX_CHARS),
+        ("agent_note", agent_note, INBOX_NOTE_MAX_CHARS),
+    ):
+        assert_public_safe_inbox_value(value, field=field, max_chars=max_chars)
+    if origin == "chatgpt-web" and source_url and not CHATGPT_SHARE_RE.match(source_url.strip()):
+        raise SystemExit("chatgpt-web source_url must be a https://chatgpt.com/share/... link or omitted")
+
+    explicit_doi = doi.strip()
+    if explicit_doi:
+        normalized_doi = extract_doi(explicit_doi)
+        if not normalized_doi:
+            raise SystemExit("inbox doi must look like a DOI, e.g. 10.1234/example")
+    else:
+        normalized_doi = extract_doi("\n".join([source_url, title, clip]))
+    record: dict[str, Any] | None = None
+    if normalized_doi:
+        record = create_source(
+            ws,
+            kind="doi",
+            value=normalized_doi,
+            title=title,
+            topic_id=topic_id,
+            note="Captured via RKF inbox; inbox notes remain candidates until reviewed.",
+        )
+    elif source_url.strip():
+        record = create_source(
+            ws,
+            kind="url",
+            value=source_url.strip(),
+            title=title,
+            topic_id=topic_id,
+            note="Captured via RKF inbox; web clip remains a candidate until reviewed.",
+        )
+
+    base_slug = f"{today()}_{slugify(title, 60)}"
+    dest = ws.paths.knowledge / "inbox" / f"{base_slug}.md"
+    if dest.exists():
+        dest = ws.paths.knowledge / "inbox" / f"{base_slug}_{now_stamp()}.md"
+    source_id = str(record["source_id"]) if record else ""
+    source_url = source_url.strip()
+    injection_status = "skipped"
+    paper_path = ""
+
+    def write_item() -> None:
+        meta = {
+            "type": "inbox",
+            "status": "captured",
+            "capture_origin": origin,
+            "source_url": source_url,
+            "doi": normalized_doi,
+            "source_id": source_id,
+            "paper_path": paper_path,
+            "review_stage": "inbox-review",
+            "evidence_boundary": "inbox-only",
+            "evidence_tier": "candidate",
+            "claim_readiness": "not-ready",
+            "topics": [topic_id] if topic_id else [],
+            "created": today(),
+            "updated": today(),
+        }
+        body = render_inbox_body(
+            title=title,
+            origin=origin,
+            source_url=source_url,
+            doi=normalized_doi,
+            source_id=source_id,
+            clip=clip,
+            reader_note=reader_note,
+            agent_note=agent_note,
+            injection_status=injection_status,
+            paper_path=paper_path,
+        )
+        write_text(dest, frontmatter(meta) + body)
+
+    write_item()
+    if inject and record and normalized_doi:
+        injection = guarded_inject_inbox_item(ws, record=record, inbox_path=dest)
+        paper_path = str(injection["paper_path"])
+        injection_status = "paper-created" if injection["created_paper"] else "paper-backlinked"
+        write_item()
+    elif record and normalized_doi:
+        injection_status = "disabled"
+        write_item()
+
+    rel_dest = relative_workspace_path(ws, dest)
+    append_log(ws, "inbox-capture", f"{rel_dest} origin={origin} source_id={source_id or 'none'} injection={injection_status}")
+    return {
+        "path": rel_dest,
+        "source_id": source_id,
+        "doi": normalized_doi,
+        "injection_status": injection_status,
+        "paper_path": paper_path,
+    }
 
 
 def hot_event_id(*, created: str, origin: str, intent: str, normalized_query: str, topic_ids: list[str]) -> str:
@@ -2427,12 +2684,12 @@ def external_sandbox_capsule(ws: Workspace) -> Path:
     write_text(
         path,
         "# Research Knowledge Framework Context Capsule\n\n"
-        f"- Repo path: {ws.root}\n"
-        f"- Private evidence root: {ws.paths.private_evidence}\n"
+        "- Repo path: active ResearchWiki checkout supplied by the host environment.\n"
+        "- Private evidence root: resolve from `rkf.workspace.toml` when authorized; do not copy machine-specific paths into durable docs.\n"
         "- Public-safe boundary: do not paste PDFs, full article text, local secrets, or private Drive paths into public wiki pages.\n"
         "- Reading rule: metadata, search candidates, and ARS reports may start paper drafts, but they are not stable claim evidence by themselves.\n"
         "- Durable path: capture source -> create/read paper draft -> update full-text status -> request user PDF only when unavailable -> record feedback/locators -> promote claims only at the boundary.\n"
-        "- Claim boundary: stable claims and trusted synthesis need a locator, human feedback, existing governed source, or explicit blocker.\n"
+        "- Claim boundary: stable claims and trusted synthesis need a locator, human feedback, or existing governed source; explicit blockers prevent promotion until reviewed.\n"
         "- Reading ledger rule: public-safe reading events live under state/reading/ and are operational memory, not claim evidence by themselves.\n"
         "- Hot-query rule: public-safe research questions may be recorded in hot.md with `python3 tools/rk.py hot record`; do not create separate hot-query files.\n"
         "- Target save layers: paper, question, concept, claim, synthesis, topic, meeting, seminar, review item.\n"
@@ -2446,7 +2703,7 @@ def external_sandbox_capsule(ws: Workspace) -> Path:
         "reading_state: metadata-only | abstract-read | partial-fulltext | fulltext-read | human-reviewed | blocked\n"
         "fulltext_status: unknown | needs-user-pdf | user-pdf-provided | publisher-html | publisher-pdf | open-access-pdf | partial-only | fulltext-read | unavailable | blocked\n"
         "human_feedback_level: none | skimmed | discussed | annotated | trusted\n"
-        "evidence_boundary: metadata-only, locator, existing wiki page, human-reviewed, or review blocker\n"
+        "evidence_boundary: metadata-only, locator, existing wiki page, human-reviewed, or review-blocker (blocks promotion)\n"
         "confidence: low | medium | high | mixed\n"
         "recommended_mode: save | review | synthesize | distill | paper-feedback\n"
         "reason_to_save: one sentence\n"

@@ -3,13 +3,22 @@
 這份文件是目前 Research Knowledge Framework 的功能盤點與指令速查。它描述目前
 repo 已有的能力、日常怎麼用、以及哪些檔案或目錄看起來只是本機狀態或清理候選。
 
+## 使用入口原則
+
+RKF v0 採用 Markdown-first workflow：`knowledge/` 下的 Markdown pages 是主要使用者介面，
+agent 可以用自然語言協助建立、整理與更新頁面。CLI 保留為薄後端，用於可重現的
+source capture、paper draft 產生、queue、lint、index、graph 與 automation；使用者
+不需要手動執行 CLI 才能完成日常文獻整理。
+
 ## 核心功能
 
 | 功能 | 用途 | 主要輸出 |
 |---|---|---|
 | Source capture | 攝取 DOI、URL、PDF pointer、topic seed、idea、question | `state/sources/*.json` |
+| Inbox capture | 把 ChatGPT 對話片段、網頁 clip、DOI、URL 與想法先放進低風險 inbox；DOI 只做保守 source/paper backlink injection | `knowledge/inbox/*.md`、可選 `state/sources/*.json`、`knowledge/papers/*.md` backlink |
+| Auto-connect helper | 跨專案偵測研究相關搜尋、DOI/URL、web clip 與有價值研究討論，並自動回饋到 RKF inbox/hot.md | global `rkf-auto-connect` skill、`tools/rkf_auto_connect.py` |
 | Discovery staging | 建立候選文獻搜尋 run；候選可啟動 draft，但不是 claim evidence | `state/search_runs/*/candidates.json`、`hot.md` |
-| Paper reading draft | 從 metadata、abstract、partial full text 或 PDF 先建立 paper draft | `knowledge/papers/*.md` |
+| Paper reading draft | 從 metadata、abstract、partial full text 或 PDF 先建立 paper draft；頁面分開 source-grounded summary、locator/evidence、reader notes、AI/Agent notes 與 claim candidates | `knowledge/papers/*.md` |
 | Full-text status | 標記 `needs-user-pdf`、`user-pdf-provided`、`fulltext-read` 等狀態 | source frontmatter/JSON、paper frontmatter |
 | Reading ledger | 記錄 public-safe reading event、問題、AI 回答、人為修正、trust 變化與 blocker | `state/reading/*.json` |
 | User PDF handling | 只有讀不到全文時要求 user 提供 PDF；可直接更新 full-text state | `state/evidence/*.json` |
@@ -32,16 +41,24 @@ repo 已有的能力、日常怎麼用、以及哪些檔案或目錄看起來只
 | Index generation | 產生 LLM retrieval 入口，包含 maturity hints | `index.md` |
 | External sandbox capsule | 產生外部 sandbox 使用的 RKF context | `prompts/external_sandbox_context.md` |
 | Lint and safety scan | 檢查 structure、maturity、claim boundary、graph、ARS handoff、public safety | terminal report |
+| Open-source template scan | 記錄可借鏡的 PKM/wiki/digital-garden 模式與目前不採用的 runtime | `docs/references/open-source-template-scan.zh-TW.md` |
 
 ## Reading And Evidence Rules
 
 - Search candidate 和 metadata 可以建立 paper draft，但不是 stable claim evidence。
+- Inbox item 是低風險 capture object；可保留 short clip、來源、DOI、reader note 與
+  AI/Agent note，但不能單獨作為 stable claim evidence。
 - ARS output 本身不是 evidence；進 RKF 前只能是 proposal 或 review blocker。
 - Paper draft 要明確記錄 `reading_state`、`fulltext_status`、`human_feedback_level`、
   `understanding_confidence`、`claim_readiness` 和 `reading_ledger`。
+- Paper draft body 要分開 `Source-Grounded Summary`、`Extracted Evidence And Locators`、
+  `Reader Notes`、`AI/Agent Notes`、`Questions And Feedback` 與
+  `Claims To Promote`。
+- `Reader Notes` 可以保存使用者主觀判斷；`AI/Agent Notes` 可以保存 AI 推論；
+  兩者都不能單獨作為 stable claim evidence。
 - 讀不到全文時，標記 `fulltext_status: needs-user-pdf`，並請 user 提供 PDF。
-- Stable claim / trusted synthesis 需要 locator、人為 feedback、既有 wiki source，或明確
-  review blocker。
+- Stable claim / trusted synthesis 需要 locator、人為 feedback、或既有 wiki source。
+  明確 review blocker 只能保留候選/blocked 狀態，不能作為 synthesis support。
 - Durable full article text 不進 public knowledge layer。
 - `save` 和 `synthesize` 預設不覆寫既有 knowledge object；要更新必須明確使用
   `--update`。
@@ -62,11 +79,12 @@ python3 tools/rk.py <command>
 | Command | Major Options | Purpose |
 |---|---|---|
 | `capture <kind> <value>` | `kind=doi/url/pdf/topic/idea/question`, `--title`, `--topic-id`, `--note` | 建立 SourceRecord 或 public-safe lead |
+| `inbox capture <title>` | `--origin`, `--source-url`, `--doi`, `--clip`, `--reader-note`, `--agent-note`, `--topic-id`, `--no-inject` | 建立 inbox item；有 DOI 時預設建立/連回 SourceRecord 與 paper backlink |
 | `discover <query>` | `--topic-id` | 建立 discovery run 與 candidate backlog |
 | `acquire <source>` | `--pdf`, `--url`, `--screenshot`, `--approve`, `--checkpoint` | 記錄 full-text route、user PDF 或 legacy checkpoint |
 | `verify-pdf <source_id>` | `--locator`, `--note`, `--qc-status codex_qc_done/human_qc_done` | 記錄 locator/readability check 並提升 reading maturity |
 | `read <source_id>` | none | 顯示 source record |
-| `distill paper <source_id>` | `--slug` | 建立或更新 paper reading draft |
+| `distill paper <source_id>` | `--slug` | 建立或更新分層 paper reading draft；通常由 agent/automation 在背後呼叫 |
 | `paper status [source_id]` | optional `source_id` | 顯示 paper queue/status |
 | `paper feedback <source_id>` | `--level`, `--note`, `--reading-state`, `--fulltext-status`, `--confidence`, `--claim-readiness` | 記錄 human/AI reading feedback 並追加 ledger |
 | `paper queue` | `--limit` | 列出 active paper nudges |
@@ -104,6 +122,29 @@ Capture DOI or URL:
 ```bash
 python3 tools/rk.py capture doi "10.1234/example" --title "Example Paper" --topic-id "topic-id"
 python3 tools/rk.py capture url "https://example.org/report.pdf" --title "Official Report"
+```
+
+Capture a ChatGPT or web clip into the inbox:
+
+```bash
+python3 tools/rk.py inbox capture "ChatGPT note on aerosol paper" \
+  --origin chatgpt-web \
+  --source-url "https://chatgpt.com/share/CONVERSATION_ID" \
+  --doi "10.1234/example" \
+  --clip "Short public-safe excerpt or source-grounded summary." \
+  --reader-note "My idea or project relation."
+```
+
+Keep a DOI lead in the inbox without paper backlink injection:
+
+```bash
+python3 tools/rk.py inbox capture "Untriaged DOI lead" --doi "10.1234/example" --no-inject
+```
+
+Classify whether a cross-project discussion should be captured:
+
+```bash
+python3 tools/rkf_auto_connect.py classify "Find DOI 10.1234/example papers for aerosol-cloud parameterization" --project-name ResearchProject
 ```
 
 Stage a discovery run:

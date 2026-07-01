@@ -13,7 +13,8 @@ Minimum acceptance tests:
 - Paper queue and nudge output prioritize user action, low feedback, repeated
   questions, and synthesis-review readiness.
 - Stable claims and trusted synthesis still require a locator, human feedback,
-  existing governed source, or explicit blocker.
+  or existing governed source. Explicit blockers prevent promotion until
+  reviewed.
 - Experimental workspace config path resolution for shared RAW/wiki and private
   artifact roots.
 - Topic registry validation.

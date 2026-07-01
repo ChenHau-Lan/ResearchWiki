@@ -71,8 +71,8 @@ include/exclude rules, canonical pages, and candidate backlog cleanup.
 - Auto-synthesis does not require candidate records, but it also does not
   promote stable claims.
 - Query answers are not wiki pages until deliberately saved.
-- Every promoted claim needs a locator, human feedback, existing wiki source, or
-  explicit review blocker.
+- Every promoted claim needs a locator, human feedback, or existing wiki source.
+  Explicit review blockers keep claims unpromoted until reviewed.
 - Trusted synthesis must record source coverage, human feedback level, and
   claim readiness.
 - Topic changes should preserve stable IDs when possible; propose redirects or

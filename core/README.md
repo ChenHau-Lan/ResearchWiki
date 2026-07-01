@@ -21,4 +21,5 @@ abstracts, partial text, or user-provided PDFs; their frontmatter and ledger
 must say exactly how much has actually been read and how much human feedback
 exists. Evidence governance moves to the trust boundary: stable claims,
 trusted synthesis, citation confidence, and publication require a locator,
-human feedback, an existing governed source, or an explicit blocker.
+human feedback, or an existing governed source. Explicit blockers prevent
+promotion until reviewed.

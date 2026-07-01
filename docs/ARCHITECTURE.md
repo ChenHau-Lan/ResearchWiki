@@ -1,16 +1,18 @@
 # RKF Architecture
 
 RKF is an LLM Wiki-based research knowledge framework for active reading. It
-separates source capture, reading maturity, operational reading ledgers,
-maintained wiki knowledge, claim/publication boundaries, topic review, graph
-export, ARS handoff proposals, and optional shared-database connections.
+separates inbox capture, source capture, reading maturity, operational reading
+ledgers, maintained wiki knowledge, claim/publication boundaries, topic review,
+graph export, ARS handoff proposals, and optional shared-database connections.
 
 ## Layer Model
 
 | Layer | Purpose | Public Git Policy |
 |---|---|---|
+| Inbox Capture | Capture ChatGPT snippets, web clips, cross-project notes, DOI/URL leads, and reader ideas before classification | short public-safe Markdown only |
 | Intake | Capture DOI, URL, topic, idea, question, PDF, or discussion leads | public-safe source records only |
 | Paper Drafts | Create early paper pages even from metadata or abstract state | concise Markdown with maturity fields |
+| Paper Section Boundaries | Separate source-grounded summary, extracted locators, reader notes, AI/agent notes, feedback, and claim-promotion candidates | concise Markdown sections only |
 | Reading Maturity | Track full-text availability, reading state, human feedback, and trust | frontmatter and summaries only |
 | Reading Ledger | Store public-safe reading events, questions, corrections, and blockers | `state/reading/` operational memory |
 | Claim Boundary | Decide when a reading result can support claims or synthesis | locators, supported pages, feedback, or blockers |
@@ -34,7 +36,9 @@ export, ARS handoff proposals, and optional shared-database connections.
 
 ```mermaid
 flowchart TD
-    A["capture<br/>SourceRecord"] --> B["paper draft<br/>metadata or abstract is enough"]
+    Z["inbox capture<br/>ChatGPT / web / project note"] --> A["capture<br/>SourceRecord"]
+    Z --> R["reader idea<br/>kept separate"]
+    A --> B["paper draft<br/>metadata or abstract is enough"]
     B --> C["fulltext status<br/>needs user PDF / PDF provided / HTML read / full text read"]
     C --> D["reading ledger<br/>questions + human feedback + blockers"]
     D --> E["claim readiness<br/>not-ready / locator-needed / claim-ready / synthesis-ready"]
@@ -56,6 +60,9 @@ flowchart TD
 ## Core Objects
 
 - `SourceRecord`: source candidate or resolved identity plus reading-state hints.
+- `InboxItem`: captured ChatGPT/web/project snippet with provenance, short
+  excerpt, reader notes, AI/agent notes, and promotion targets. It can link to a
+  source or paper page, but is not evidence.
 - `EvidenceArtifact`: public-safe pointer to a private PDF, official document,
   OCR/visual artifact, screenshot, or related reading artifact.
 - `ReadingLedger`: operational record of public-safe reading events, questions,
@@ -73,13 +80,21 @@ flowchart TD
 ## Boundary Rules
 
 - Paper drafts are active reading objects and may be created early.
+- Inbox items are the safest default for mixed source/idea capture. DOI
+  injection may create a `SourceRecord` and paper backlink, but must not promote
+  claims or overwrite reader notes.
+- Paper pages separate source-grounded summaries from reader interpretation and
+  AI/agent notes. Only locator-backed or otherwise supported source-grounded
+  material can support claim promotion.
+- The CLI is a thin backend for repeatable agent and automation operations; the
+  user-facing paper intake workflow remains Markdown-first.
 - Search candidates are not stable claim evidence.
 - ARS outputs are not evidence by themselves; they may become reading feedback
   or save/review proposals.
 - Full text availability is tracked explicitly; if it is unavailable, RKF asks
   the user for a PDF or authorized text.
-- Claims need a locator, supported wiki source, strong human feedback, or a
-  review blocker.
+- Claims need a locator, supported wiki source, or strong human feedback. Review
+  blockers preserve the boundary and prevent promotion until reviewed.
 - Durable full article text is not an RKF public knowledge layer.
 - Public pages must not contain copied article text or private evidence paths.
 - `world` is the default session bootstrap: it summarizes L0 critical facts, L1

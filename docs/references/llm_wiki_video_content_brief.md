@@ -53,5 +53,5 @@ Save a discussion result when it meets at least one condition:
 - It explains how to operate the framework or avoid a repeated mistake.
 
 Do not save unsupported chat claims as formal knowledge. Stage uncertain items
-as reading drafts or review work until locators, human feedback, existing RKF
-sources, or explicit blockers clarify the claim boundary.
+as reading drafts or review work until locators, human feedback, or existing RKF
+sources support promotion; explicit blockers clarify why promotion is paused.

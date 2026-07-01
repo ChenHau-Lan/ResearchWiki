@@ -17,7 +17,7 @@ fulltext_status: unknown | needs-user-pdf | user-pdf-provided | publisher-html |
 human_feedback_level: none | skimmed | discussed | annotated | trusted
 synthesis_maturity: draft | single-source | multi-source | human-reviewed | publication-ready
 source_coverage: unknown | partial | representative | systematic
-evidence_boundary: locator, existing RKF page, human-reviewed, or review blocker
+evidence_boundary: locator, existing RKF page, human-reviewed, or review-blocker (blocks promotion)
 confidence: low | medium | high | mixed
 recommended_rkf_mode: save | review | synthesize | distill | paper-feedback
 reason_to_save: one sentence
@@ -29,7 +29,7 @@ reason_to_save: one sentence
 - ARS output may suggest a paper draft or maturity update, but cannot by itself
   satisfy a stable claim boundary.
 - Save ARS-derived claims only when they point to a locator, existing RKF page,
-  human feedback, or review blocker.
+  or human feedback. Save review blockers as blockers, not claim support.
 - If the ARS output changes a topic boundary, synthesis, paper understanding,
   or research question, save it as a proposal first unless the user explicitly
   approves the RKF update path.

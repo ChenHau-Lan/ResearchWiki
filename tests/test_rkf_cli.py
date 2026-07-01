@@ -38,6 +38,25 @@ class RKFCliTests(unittest.TestCase):
             self.fail(f"rk.py failed: {result.args}\nSTDOUT:\n{result.stdout}\nSTDERR:\n{result.stderr}")
         return result
 
+    def assert_paper_boundary_sections(self, text: str) -> None:
+        expected_sections = [
+            "## Source Identity",
+            "## Reading Maturity",
+            "## Source-Grounded Summary",
+            "## Extracted Evidence And Locators",
+            "## Reader Notes",
+            "## AI/Agent Notes",
+            "## Questions And Feedback",
+            "## Claims To Promote",
+            "## Future Agent Retrieval Brief",
+            "## Graph Links",
+        ]
+        headings = [line.strip() for line in text.splitlines() if line.strip().startswith("## ")]
+        for section in expected_sections:
+            self.assertIn(section, headings)
+        self.assertNotIn("## Locators", headings)
+        self.assertNotIn("## Reading Notes", headings)
+
     def test_doi_normalization_and_source_id(self) -> None:
         self.assertEqual(normalize_doi("https://doi.org/10.1234/ABC.Def."), "10.1234/abc.def")
         self.assertEqual(source_id_from_value("doi", "doi:10.1234/ABC.Def"), "doi_10_1234_abc_def")
@@ -120,6 +139,78 @@ class RKFCliTests(unittest.TestCase):
         log = self.run_rk("log", "--tail", "10").stdout
         self.assertIn("`save`", log)
         self.assertIn("`index`", log)
+
+    def test_inbox_capture_from_chatgpt_shared_link_creates_guarded_doi_injection(self) -> None:
+        result = self.run_rk(
+            "inbox",
+            "capture",
+            "ChatGPT DOI lead",
+            "--origin",
+            "chatgpt-web",
+            "--source-url",
+            "https://chatgpt.com/share/abc123",
+            "--doi",
+            "10.1234/ChatGPT.Lead",
+            "--clip",
+            "Conversation noted DOI 10.1234/ChatGPT.Lead as a paper to verify; no claim support yet.",
+            "--reader-note",
+            "Check whether this belongs in the RKF inbox-to-paper workflow.",
+        ).stdout
+
+        source_id = "doi_10_1234_chatgpt_lead"
+        self.assertIn("doi_injection: paper-created", result)
+        self.assertIn(f"source_id: {source_id}", result)
+        inbox_pages = list((self.root / "knowledge" / "inbox").glob("*.md"))
+        self.assertEqual(len(inbox_pages), 1)
+        inbox_text = inbox_pages[0].read_text(encoding="utf-8")
+        self.assertIn("type: inbox", inbox_text)
+        self.assertIn("evidence_boundary: inbox-only", inbox_text)
+        self.assertIn("## Raw Clip Or Excerpt", inbox_text)
+        self.assertIn("ChatGPT shared-link note", inbox_text)
+        self.assertIn("Claim promotion: blocked until locator-backed evidence", inbox_text)
+
+        source_text = (self.root / "state" / "sources" / f"{source_id}.json").read_text(encoding="utf-8")
+        self.assertIn('"normalized_doi": "10.1234/chatgpt.lead"', source_text)
+        paper = self.root / "knowledge" / "papers" / f"{source_id}.md"
+        self.assertTrue(paper.exists())
+        paper_text = paper.read_text(encoding="utf-8")
+        self.assertIn("claim_readiness: not-ready", paper_text)
+        self.assertIn("Inbox backlink: knowledge/inbox/", paper_text)
+        self.assertIn("source identity only, not claim evidence", paper_text)
+
+    def test_inbox_capture_backlinks_existing_paper_without_overwriting_reader_notes(self) -> None:
+        doi = "10.4321/Existing.Paper"
+        source_id = "doi_10_4321_existing_paper"
+        self.run_rk("capture", "doi", doi, "--title", "Existing Paper")
+        self.run_rk("distill", "paper", source_id)
+        paper = self.root / "knowledge" / "papers" / f"{source_id}.md"
+        original = paper.read_text(encoding="utf-8")
+        paper.write_text(original.replace("- My interpretation:", "- My interpretation: keep this human note"), encoding="utf-8")
+
+        result = self.run_rk(
+            "inbox",
+            "capture",
+            "Existing Paper ChatGPT note",
+            "--origin",
+            "codex",
+            "--doi",
+            doi,
+            "--clip",
+            "Short note that should link back without rewriting the paper page.",
+        ).stdout
+
+        self.assertIn("doi_injection: paper-backlinked", result)
+        updated = paper.read_text(encoding="utf-8")
+        self.assertIn("- My interpretation: keep this human note", updated)
+        self.assertIn("inbox_items:", updated)
+        self.assertIn("Inbox backlink: knowledge/inbox/", updated)
+
+    def test_inbox_capture_rejects_invalid_explicit_doi(self) -> None:
+        result = self.run_rk("inbox", "capture", "Bad DOI", "--doi", "not-a-doi", check=False)
+
+        self.assertNotEqual(result.returncode, 0)
+        self.assertIn("inbox doi must look like a DOI", result.stderr)
+        self.assertFalse((self.root / "knowledge" / "inbox").exists())
 
     def test_hot_event_helpers_are_stable(self) -> None:
         self.assertEqual(normalize_hot_query("  Aerosol   Cloud\nQuestion  "), "aerosol cloud question")
@@ -603,6 +694,9 @@ class RKFCliTests(unittest.TestCase):
         self.assertIn("reading_state: metadata-only", text)
         self.assertIn("fulltext_status: needs-user-pdf", text)
         self.assertIn("claim_readiness: not-ready", text)
+        self.assert_paper_boundary_sections(text)
+        self.assertIn("- Evidence boundary: review-blocker", text)
+        self.assertIn("- Locator: not recorded yet", text)
         self.assertTrue((self.root / "state" / "reading" / "doi_10_1111_metadata_only.json").exists())
 
     def test_unqced_pdf_can_be_distilled_as_partial_fulltext_draft(self) -> None:
@@ -618,6 +712,9 @@ class RKFCliTests(unittest.TestCase):
         self.assertIn("reading_state: partial-fulltext", page)
         self.assertIn("fulltext_status: user-pdf-provided", page)
         self.assertIn("claim_readiness: locator-needed", page)
+        self.assert_paper_boundary_sections(page)
+        self.assertIn("- Evidence boundary: review-blocker", page)
+        self.assertIn("- Locator: not recorded yet", page)
 
     def test_human_feedback_updates_maturity_and_ledger(self) -> None:
         source_id = "doi_10_4444_feedback"
@@ -679,6 +776,9 @@ class RKFCliTests(unittest.TestCase):
         self.assertIn("fulltext_status: fulltext-read", text)
         self.assertIn("claim_readiness: claim-ready", text)
         self.assertIn("pp. 1-4 methods and results", text)
+        self.assert_paper_boundary_sections(text)
+        self.assertIn("## Extracted Evidence And Locators", text)
+        self.assertIn("- Locator: pp. 1-4 methods and results", text)
         graph = (self.root / "graph" / "research_graph.json").read_text(encoding="utf-8")
         self.assertIn("supported-by", graph)
 
@@ -698,6 +798,9 @@ class RKFCliTests(unittest.TestCase):
         capsule = (self.root / "prompts" / "external_sandbox_context.md").read_text(encoding="utf-8")
         self.assertIn("metadata, search candidates, and ARS reports may start paper drafts", capsule)
         self.assertIn("Claim boundary", capsule)
+        self.assertIn("active ResearchWiki checkout supplied by the host environment", capsule)
+        self.assertIn("resolve from `rkf.workspace.toml` when authorized", capsule)
+        self.assertNotIn(str(self.root), capsule)
 
     def test_active_repo_has_no_legacy_router_or_full_text_workflow(self) -> None:
         tracked = subprocess.check_output(["git", "ls-files"], cwd=REPO, text=True)
@@ -825,6 +928,7 @@ class RKFCliTests(unittest.TestCase):
         expected = {
             "claim.md",
             "concept.md",
+            "inbox.md",
             "meeting.md",
             "overview.md",
             "paper.md",
@@ -847,6 +951,7 @@ class RKFCliTests(unittest.TestCase):
         inventory = (REPO / "docs" / "FEATURES_AND_COMMANDS.zh-TW.md").read_text(encoding="utf-8")
         required = [
             "capture <kind> <value>",
+            "inbox capture <title>",
             "discover <query>",
             "acquire <source>",
             "verify-pdf <source_id>",

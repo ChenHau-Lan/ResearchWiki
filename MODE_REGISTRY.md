@@ -8,6 +8,7 @@ tool commands are an implementation detail.
 
 | Mode | English / 中文 Trigger | Output | Oversight | Write Boundary |
 |---|---|---|---|---|
+| `inbox-capture` | ChatGPT conversation, web clip, URL/DOI lead, cross-project note; 存到 inbox, 網頁剪藏, 對話保存 | inbox item plus optional SourceRecord/paper backlink | Medium | `knowledge/inbox/`, optional `state/sources/` and paper backlink |
 | `capture` | DOI, URL, PDF pointer, topic seed, idea, question; 來源攝取, 加入 DOI/URL/PDF | `SourceRecord` with conservative reading fields | Medium | `state/sources/` |
 | `discover` | literature discovery, search plan, candidates, missing full text; 文獻搜尋, 找 SCI paper, 缺全文 | candidate list, backlog, queue hints | Medium | `state/search_runs/`, review queue |
 | `acquire` | user-provided PDF/full text, legal route note, legacy checkpoint; 取得PDF, 使用者提供PDF, 全文狀態 | full-text status update, artifact pointer, or legacy route note | High | `state/sources/`, `state/evidence/`, optional `state/gates/` |

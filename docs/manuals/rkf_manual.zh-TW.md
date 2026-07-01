@@ -62,6 +62,20 @@ Synthesis 可以先保持 draft-quality，用來累積問題與 source gap。當
 
 ## Common Workflows
 
+### 保存 ChatGPT 或網頁片段到 inbox
+
+```bash
+python3 tools/rk.py inbox capture "ChatGPT note on aerosol paper" \
+  --origin chatgpt-web \
+  --source-url "https://chatgpt.com/share/CONVERSATION_ID" \
+  --doi "10.1234/example" \
+  --clip "Short public-safe excerpt or summary." \
+  --reader-note "My idea or project relation."
+```
+
+Inbox item 是低風險 capture object。DOI 只會建立或連回 `SourceRecord` 和 paper
+backlink，不會自動升級成 stable claim。
+
 ### 登錄 paper 並建立早期 draft
 
 ```bash

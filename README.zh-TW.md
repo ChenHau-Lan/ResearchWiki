@@ -27,11 +27,13 @@ low-risk rewrite -> AI Integration Note + maturity-aware page update
 reconcile/challenge -> AI-marked blocker 與 counterpoints，不是 silent trust
 emerge -> 從既有 RKF 訊號產生 low-maturity pattern synthesis
 hot.md == public-safe 研究需求 dashboard，不是 evidence
+inbox item == ChatGPT/web/source lead capture，不是 claim evidence
 ```
 
 ## 快速開始
 
 - 「先 capture 這個 DOI，就算只有 metadata 也建立 paper draft。」
+- 「把這段 ChatGPT/web clip 存到 RKF inbox，並把我的想法和來源內容分開。」
 - 「列出哪些已登錄 paper 需要我提供 PDF 或 human feedback。」
 - 「我讀完這篇了，把我的反饋記錄進 reading ledger，並提高 trust level。」
 - 「問知識庫目前知道什麼，並用 ARS 對取回 context 推理。」
@@ -61,7 +63,9 @@ save/review/synthesis proposal 或 reading feedback。
 
 ```mermaid
 flowchart LR
-    A["研究想法 / DOI / URL / paper lead"] --> B["SourceRecord"]
+    Z["ChatGPT / web clip / project note"] --> A["Inbox item"]
+    A --> B["SourceRecord<br/>有 DOI/URL 才連結"]
+    A --> N["Reader notes / ideas<br/>和來源分開"]
     B --> C["Early paper draft"]
     C --> D["Reading maturity<br/>metadata / abstract / partial / fulltext / human-reviewed"]
     D --> E["Reading ledger<br/>問題、反饋、blocker"]

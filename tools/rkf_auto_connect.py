@@ -1,0 +1,323 @@
+"""Cross-project RKF auto-connect helper.
+
+This helper is intentionally small: it resolves the local RKF checkout,
+classifies whether a task should be captured, and builds existing RKF CLI
+commands. It does not own RKF schemas or promote claims.
+"""
+
+from __future__ import annotations
+
+import argparse
+import json
+import os
+import re
+import sys
+from dataclasses import asdict, dataclass
+from pathlib import Path
+from typing import Any
+
+try:
+    import tomllib
+except ModuleNotFoundError:  # pragma: no cover
+    tomllib = None
+
+
+DEFAULT_CONFIG = Path(os.environ.get("RKF_CONNECTOR_CONFIG", "~/.codex/rkf_connector.toml")).expanduser()
+PRIVATE_PATH_RE = re.compile(r"/" + r"Users/[^/\s]+|C:" + r"\\Users\\", re.IGNORECASE)
+DOI_RE = re.compile(r"10\.\d{4,9}/[-._;()/:A-Z0-9]+", re.IGNORECASE)
+ARXIV_RE = re.compile(r"\barxiv:\s*\d{4}\.\d{4,5}(?:v\d+)?|\barxiv\.org/abs/\d{4}\.\d{4,5}", re.IGNORECASE)
+PUBMED_RE = re.compile(r"\bPMID:\s*\d+\b|\bpubmed\b", re.IGNORECASE)
+URL_RE = re.compile(r"https?://[^\s)>\"]+")
+LONG_CAPTURE_LIMIT = 12000
+
+ACTIVE_TERMS = {
+    "paper",
+    "papers",
+    "doi",
+    "citation",
+    "reference",
+    "journal",
+    "conference",
+    "literature",
+    "source",
+    "web clip",
+    "dataset",
+    "arxiv",
+    "pubmed",
+}
+
+AGGRESSIVE_TERMS = {
+    "synthesis",
+    "literature review",
+    "method",
+    "experiment design",
+    "manuscript",
+    "proposal",
+    "hypothesis",
+    "claim",
+    "evidence",
+    "diagnostic",
+    "parameterization",
+    "calibration",
+    "interpretation",
+    "研究",
+    "文獻",
+    "方法",
+    "實驗",
+    "論文",
+    "投稿",
+    "假說",
+    "證據",
+    "綜整",
+}
+
+CODING_ONLY_TERMS = {
+    "css",
+    "button",
+    "padding",
+    "typescript",
+    "react component",
+    "build error",
+    "lint error",
+}
+
+
+@dataclass(frozen=True)
+class ConnectorConfig:
+    researchwiki_root: Path
+    mode: str
+    config_path: Path
+
+
+@dataclass(frozen=True)
+class CaptureDecision:
+    level: str
+    targets: list[str]
+    reasons: list[str]
+    summary: str
+
+
+def _load_toml(path: Path) -> dict[str, Any]:
+    if not path.exists():
+        raise SystemExit(f"RKF connector config not found: {path}")
+    if tomllib is not None:
+        with path.open("rb") as handle:
+            return tomllib.load(handle)
+    data: dict[str, Any] = {}
+    current: dict[str, Any] | None = None
+    for raw in path.read_text(encoding="utf-8").splitlines():
+        line = raw.split("#", 1)[0].strip()
+        if not line:
+            continue
+        if line.startswith("[") and line.endswith("]"):
+            current = data.setdefault(line.strip("[]"), {})
+            continue
+        if current is not None and "=" in line:
+            key, value = line.split("=", 1)
+            current[key.strip()] = value.strip().strip('"')
+    return data
+
+
+def _expand_path(value: str) -> Path:
+    return Path(os.path.expandvars(os.path.expanduser(value))).resolve()
+
+
+def load_connector_config(path: Path | None = None) -> ConnectorConfig:
+    config_path = path or Path(os.environ.get("RKF_CONNECTOR_CONFIG", str(DEFAULT_CONFIG))).expanduser()
+    data = _load_toml(config_path)
+    researchwiki = data.get("researchwiki", {}) if isinstance(data, dict) else {}
+    policy = data.get("policy", {}) if isinstance(data, dict) else {}
+    root_value = researchwiki.get("root") if isinstance(researchwiki, dict) else None
+    if not isinstance(root_value, str) or not root_value.strip():
+        raise SystemExit("RKF connector config missing [researchwiki].root")
+    root = _expand_path(root_value)
+    if not (root / "tools" / "rk.py").exists():
+        raise SystemExit(f"RKF CLI not found under configured root: {root}")
+    mode = policy.get("mode", "active-aggressive") if isinstance(policy, dict) else "active-aggressive"
+    return ConnectorConfig(researchwiki_root=root, mode=str(mode), config_path=config_path)
+
+
+def _contains_any(text: str, terms: set[str]) -> bool:
+    lowered = text.lower()
+    return any(term in lowered for term in terms)
+
+
+def _summary(text: str) -> str:
+    compact = re.sub(r"\s+", " ", text).strip()
+    return compact[:220]
+
+
+def classify_capture(*, text: str, source_url: str = "", project_name: str = "") -> CaptureDecision:
+    haystack = f"{text}\n{source_url}\n{project_name}".strip()
+    reasons: list[str] = []
+    targets: list[str] = []
+    if PRIVATE_PATH_RE.search(haystack):
+        return CaptureDecision(level="blocked", targets=[], reasons=["private-path"], summary=_summary(text))
+    if len(haystack) > LONG_CAPTURE_LIMIT:
+        return CaptureDecision(level="blocked", targets=[], reasons=["too-long"], summary=_summary(text))
+    if not haystack:
+        return CaptureDecision(level="none", targets=[], reasons=[], summary="")
+
+    if DOI_RE.search(haystack):
+        reasons.append("doi")
+    if ARXIV_RE.search(haystack):
+        reasons.append("arxiv")
+    if PUBMED_RE.search(haystack):
+        reasons.append("pubmed")
+    if URL_RE.search(source_url) or URL_RE.search(text):
+        reasons.append("url")
+    if _contains_any(haystack, ACTIVE_TERMS):
+        reasons.append("source-like")
+    if _contains_any(haystack, AGGRESSIVE_TERMS):
+        reasons.append("research-discussion")
+
+    if "research-discussion" in reasons:
+        targets.append("inbox")
+        if any(reason in reasons for reason in ("doi", "arxiv", "pubmed", "source-like")):
+            targets.append("hot")
+        return CaptureDecision(level="aggressive", targets=sorted(set(targets)), reasons=sorted(set(reasons)), summary=_summary(text))
+
+    if reasons:
+        targets.append("inbox")
+        if any(reason in reasons for reason in ("doi", "arxiv", "pubmed", "source-like")):
+            targets.append("hot")
+        return CaptureDecision(level="active", targets=sorted(set(targets)), reasons=sorted(set(reasons)), summary=_summary(text))
+
+    if _contains_any(haystack, CODING_ONLY_TERMS):
+        return CaptureDecision(level="none", targets=[], reasons=["ordinary-coding"], summary=_summary(text))
+    return CaptureDecision(level="none", targets=[], reasons=[], summary=_summary(text))
+
+
+def _rk_command(config: ConnectorConfig, *args: str) -> list[str]:
+    return ["python3", str(config.researchwiki_root / "tools" / "rk.py"), *args]
+
+
+def build_inbox_command(
+    *,
+    config: ConnectorConfig,
+    title: str,
+    origin: str,
+    clip: str,
+    reader_note: str = "",
+    agent_note: str = "",
+    doi: str = "",
+    source_url: str = "",
+    topic_id: str = "",
+    no_inject: bool = False,
+) -> list[str]:
+    command = _rk_command(config, "inbox", "capture", title, "--origin", origin, "--clip", clip)
+    if reader_note:
+        command.extend(["--reader-note", reader_note])
+    if agent_note:
+        command.extend(["--agent-note", agent_note])
+    if doi:
+        command.extend(["--doi", doi])
+    if source_url:
+        command.extend(["--source-url", source_url])
+    if topic_id:
+        command.extend(["--topic-id", topic_id])
+    if no_inject:
+        command.append("--no-inject")
+    return command
+
+
+def build_hot_command(*, config: ConnectorConfig, query: str, origin: str, intent: str = "research-discussion") -> list[str]:
+    return _rk_command(config, "hot", "record", query, "--origin", origin, "--intent", intent)
+
+
+def write_project_marker(project_root: Path, *, mode: str = "active-aggressive") -> Path:
+    project_root.mkdir(parents=True, exist_ok=True)
+    marker = project_root / ".rkf-connect.toml"
+    marker.write_text(
+        "[rkf_auto_connect]\n"
+        "enabled = true\n"
+        f"mode = \"{mode}\"\n"
+        "config = \"global\"\n",
+        encoding="utf-8",
+    )
+    return marker
+
+
+def read_project_marker(project_root: Path) -> dict[str, Any]:
+    marker = project_root / ".rkf-connect.toml"
+    if not marker.exists():
+        return {"enabled": False, "mode": ""}
+    data = _load_toml(marker)
+    section = data.get("rkf_auto_connect", {}) if isinstance(data, dict) else {}
+    return section if isinstance(section, dict) else {"enabled": False, "mode": ""}
+
+
+def main(argv: list[str] | None = None) -> int:
+    parser = argparse.ArgumentParser(prog="rkf-auto-connect", description="Classify and route cross-project RKF captures")
+    sub = parser.add_subparsers(dest="command", required=True)
+
+    resolve = sub.add_parser("resolve")
+    resolve.add_argument("--config")
+
+    classify = sub.add_parser("classify")
+    classify.add_argument("text")
+    classify.add_argument("--source-url", default="")
+    classify.add_argument("--project-name", default="")
+
+    marker = sub.add_parser("mark-project")
+    marker.add_argument("project_root")
+    marker.add_argument("--mode", default="active-aggressive")
+
+    inbox = sub.add_parser("inbox-command")
+    inbox.add_argument("title")
+    inbox.add_argument("--origin", required=True)
+    inbox.add_argument("--clip", required=True)
+    inbox.add_argument("--reader-note", default="")
+    inbox.add_argument("--agent-note", default="")
+    inbox.add_argument("--doi", default="")
+    inbox.add_argument("--source-url", default="")
+    inbox.add_argument("--topic-id", default="")
+    inbox.add_argument("--no-inject", action="store_true")
+
+    hot = sub.add_parser("hot-command")
+    hot.add_argument("query")
+    hot.add_argument("--origin", required=True)
+    hot.add_argument("--intent", default="research-discussion")
+
+    args = parser.parse_args(argv)
+    if args.command == "resolve":
+        config = load_connector_config(Path(args.config).expanduser() if args.config else None)
+        print(json.dumps({"researchwiki_root": str(config.researchwiki_root), "mode": config.mode}, ensure_ascii=False, indent=2))
+        return 0
+    if args.command == "classify":
+        decision = classify_capture(text=args.text, source_url=args.source_url, project_name=args.project_name)
+        print(json.dumps(asdict(decision), ensure_ascii=False, indent=2))
+        return 0
+    if args.command == "mark-project":
+        path = write_project_marker(Path(args.project_root).expanduser().resolve(), mode=args.mode)
+        print(path)
+        return 0
+
+    config = load_connector_config()
+    if args.command == "inbox-command":
+        print(
+            json.dumps(
+                build_inbox_command(
+                    config=config,
+                    title=args.title,
+                    origin=args.origin,
+                    clip=args.clip,
+                    reader_note=args.reader_note,
+                    agent_note=args.agent_note,
+                    doi=args.doi,
+                    source_url=args.source_url,
+                    topic_id=args.topic_id,
+                    no_inject=args.no_inject,
+                ),
+                ensure_ascii=False,
+            )
+        )
+        return 0
+    if args.command == "hot-command":
+        print(json.dumps(build_hot_command(config=config, query=args.query, origin=args.origin, intent=args.intent), ensure_ascii=False))
+        return 0
+    raise SystemExit(f"unsupported command: {args.command}")
+
+
+if __name__ == "__main__":
+    raise SystemExit(main(sys.argv[1:]))

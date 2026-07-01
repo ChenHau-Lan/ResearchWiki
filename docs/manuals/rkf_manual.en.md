@@ -64,6 +64,20 @@ It becomes trusted only when coverage, feedback, and claim readiness are clear.
 
 ## Common Workflows
 
+### Save a ChatGPT or web clip to the inbox
+
+```bash
+python3 tools/rk.py inbox capture "ChatGPT note on aerosol paper" \
+  --origin chatgpt-web \
+  --source-url "https://chatgpt.com/share/CONVERSATION_ID" \
+  --doi "10.1234/example" \
+  --clip "Short public-safe excerpt or summary." \
+  --reader-note "My idea or project relation."
+```
+
+An inbox item is a low-risk capture object. DOI injection only creates or links
+the `SourceRecord` and paper backlink; it does not promote stable claims.
+
 ### Register a paper and create an early draft
 
 ```bash
@@ -193,8 +207,8 @@ It does not require candidate records and starts as low maturity.
 - Every AI rewrite needs an AI Integration Note.
 - Stable AI-integrated claim/synthesis content needs `observed_at` and
   `valid_from`.
-- Stable claims require locator support, human feedback, an existing RKF source,
-  or an explicit blocker.
+- Stable claims require locator support, human feedback, or an existing RKF
+  source. Explicit blockers prevent promotion until reviewed.
 - Durable article text, PDFs, browser captures, private Drive paths, and local
   secrets must not be committed.
 

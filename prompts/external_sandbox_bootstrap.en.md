@@ -62,7 +62,8 @@ synthesis drafts from existing RKF state.
 - When full text is unavailable, mark `fulltext_status: needs-user-pdf` and ask
   the user for the PDF.
 - Do not promote stable claims or trusted synthesis without a locator, human
-  feedback, existing governed source, or explicit review blocker.
+  feedback, or existing governed source. Explicit review blockers preserve the
+  boundary and prevent promotion until reviewed.
 - Do not save PDFs, full article text, browser captures, private Drive paths,
   tokens, or local secrets.
 - Do not put raw chat transcripts, private paths, PDFs, browser captures, or

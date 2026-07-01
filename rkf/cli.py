@@ -13,6 +13,7 @@ from .core import (
     append_log,
     approved_pdf_acquisition,
     challenge_page,
+    create_inbox_item,
     create_paper_note,
     create_source,
     emerge_patterns,
@@ -96,6 +97,29 @@ def cmd_discover(args: argparse.Namespace) -> int:
     refresh_hot_markdown(ws)
     print(f"wrote discovery run: {relative_workspace_path(ws, run_dir)}")
     print("candidates: 0")
+    return 0
+
+
+def cmd_inbox_capture(args: argparse.Namespace) -> int:
+    ws = Workspace()
+    result = create_inbox_item(
+        ws,
+        title=args.title,
+        origin=args.origin,
+        source_url=args.source_url or "",
+        doi=args.doi or "",
+        clip=args.clip or "",
+        reader_note=args.reader_note or "",
+        agent_note=args.agent_note or "",
+        topic_id=args.topic_id or "",
+        inject=not args.no_inject,
+    )
+    print(f"wrote inbox item: {result['path']}")
+    if result["source_id"]:
+        print(f"source_id: {result['source_id']}")
+    print(f"doi_injection: {result['injection_status']}")
+    if result["paper_path"]:
+        print(f"paper_path: {result['paper_path']}")
     return 0
 
 
@@ -571,6 +595,24 @@ def build_parser() -> argparse.ArgumentParser:
     discover.add_argument("query")
     discover.add_argument("--topic-id")
     discover.set_defaults(func=cmd_discover)
+
+    inbox = sub.add_parser("inbox", help="Capture conversations, web clips, DOI leads, and ideas into the RKF inbox")
+    inbox_sub = inbox.add_subparsers(dest="inbox_command", required=True)
+    inbox_capture = inbox_sub.add_parser("capture", help="Write a source-aware inbox item and optionally inject DOI metadata")
+    inbox_capture.add_argument("title")
+    inbox_capture.add_argument(
+        "--origin",
+        choices=["chatgpt-web", "chatgpt-export", "web-clipper", "browser", "doi", "local", "codex", "other"],
+        default="codex",
+    )
+    inbox_capture.add_argument("--source-url", help="Original URL or ChatGPT shared link")
+    inbox_capture.add_argument("--doi", help="DOI to link or inject into SourceRecord/paper page")
+    inbox_capture.add_argument("--clip", help="Short public-safe excerpt or conversation snippet")
+    inbox_capture.add_argument("--reader-note", help="User interpretation, idea, or project relation")
+    inbox_capture.add_argument("--agent-note", help="AI/agent note that still needs human review")
+    inbox_capture.add_argument("--topic-id")
+    inbox_capture.add_argument("--no-inject", action="store_true", help="Do not create/link DOI SourceRecord and paper draft backlink")
+    inbox_capture.set_defaults(func=cmd_inbox_capture)
 
     acquire = sub.add_parser("acquire", help="Record user-provided full text or legacy route review")
     acquire.add_argument("source")

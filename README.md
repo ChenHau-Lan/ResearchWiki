@@ -31,6 +31,7 @@ low-risk rewrite -> AI Integration Note + maturity-aware page update
 reconcile/challenge -> AI-marked blockers and counterpoints, not silent trust
 emerge -> low-maturity pattern synthesis from existing RKF signals
 hot.md == public-safe research demand dashboard, not evidence
+inbox item == captured conversation/web/source lead, not claim evidence
 ```
 
 ## Quick Start
@@ -38,6 +39,7 @@ hot.md == public-safe research demand dashboard, not evidence
 Use RKF through natural-language research requests:
 
 - "Capture this DOI and create a paper draft even if we only have metadata."
+- "Save this ChatGPT/web clip to the RKF inbox; keep my idea separate from the source."
 - "Show which registered papers need my PDF or human feedback."
 - "I read this paper; record my feedback and raise its trust level."
 - "Ask the wiki what we know, and use ARS to reason over the retrieved context."
@@ -67,7 +69,9 @@ RKF save/review/synthesis proposals or reading feedback.
 
 ```mermaid
 flowchart LR
-    A["Research idea / DOI / URL / paper lead"] --> B["SourceRecord"]
+    Z["ChatGPT / web clip / project note"] --> A["Inbox item"]
+    A --> B["SourceRecord<br/>when DOI/URL is present"]
+    A --> N["Reader notes / ideas<br/>kept separate"]
     B --> C["Early paper draft"]
     C --> D["Reading maturity<br/>metadata / abstract / partial / fulltext / human-reviewed"]
     D --> E["Reading ledger<br/>questions, feedback, blockers"]

@@ -21,21 +21,18 @@ RKF inbox，再用保守規則連回 `SourceRecord`、paper page 或其他 wiki 
 2. 只複製需要保存的片段、DOI、URL 或自己的想法，不複製整段私人 transcript。
 3. 如果內容不敏感，可以用 ChatGPT 的 share button 產生
    `https://chatgpt.com/share/...` 連結，作為 `source_url`。
-4. 用自然語言請 agent 保存，或使用 CLI：
+4. 在 Codex app 用自然語言請 agent 保存，例如：
 
-```bash
-python3 tools/rk.py inbox capture "ChatGPT note on aerosol paper" \
-  --origin chatgpt-web \
-  --source-url "https://chatgpt.com/share/CONVERSATION_ID" \
-  --doi "10.1234/example" \
-  --clip "Short public-safe excerpt or summary." \
-  --reader-note "My idea or project relation."
+```text
+把這段 ChatGPT note 存到 RKF inbox。來源是 chatgpt-web，source_url 是
+https://chatgpt.com/share/CONVERSATION_ID，DOI 是 10.1234/example。請只保存
+public-safe 摘要，並把我的 project relation 放進 Reader Notes。
 ```
 
-如果不想讓 DOI 連回 paper page，加上：
+如果不想讓 DOI 連回 paper page，明確說：
 
-```bash
---no-inject
+```text
+這次只進 inbox，不做 DOI injection 或 paper backlink。
 ```
 
 ## DOI Injection 規則
@@ -54,7 +51,7 @@ synthesis。Claim promotion 仍需要 locator-backed evidence、既有 supported
 ## 之後可擴充的入口
 
 - ChatGPT data export ZIP importer：適合批次匯入舊對話，但必須先進 inbox review。
-- Browser/extension clipper：適合從網頁選取段落後直接呼叫 `rk inbox capture`。
+- Browser/extension clipper：適合從網頁選取段落後交給 Codex app 的 inbox capture flow。
 - 跨專案 agent handoff：其他專案只需把 short clip、URL、DOI 與 reader note 傳回 RKF
   inbox，不需要知道 RKF 內部 page routing。
 

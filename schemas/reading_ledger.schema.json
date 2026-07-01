@@ -27,7 +27,7 @@
               "blocker"
             ]
           },
-          "actor": { "enum": ["codex", "human", "external-sandbox", "automation"] },
+          "actor": { "enum": ["codex", "human", "codex-handoff", "automation"] },
           "summary": { "type": "string", "maxLength": 1000 },
           "public_safe": { "type": "boolean" },
           "details": { "type": "object" }

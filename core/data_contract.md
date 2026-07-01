@@ -114,7 +114,7 @@ Fields:
 - `schema`: `rkf-hot-query-event-v1`
 - `event_id`
 - `created`
-- `origin`: local session or external sandbox
+- `origin`: local session or Codex handoff
 - `intent`: query, discover, paper-search, or proposal
 - `query`
 - `normalized_query`

@@ -1,8 +1,8 @@
 """Cross-project RKF auto-connect helper.
 
 This helper is intentionally small: it resolves the local RKF checkout,
-classifies whether a task should be captured, and builds existing RKF CLI
-commands. It does not own RKF schemas or promote claims.
+classifies whether a task should be captured, and builds structured RKF action
+requests for Codex app workflows. It does not own RKF schemas or promote claims.
 """
 
 from __future__ import annotations
@@ -15,6 +15,13 @@ import sys
 from dataclasses import asdict, dataclass
 from pathlib import Path
 from typing import Any
+
+REPO_ROOT = Path(__file__).resolve().parents[1]
+if str(REPO_ROOT) not in sys.path:
+    sys.path.insert(0, str(REPO_ROOT))
+
+from rkf.actions import ActionRequest, ActionResult, execute_action_request as execute_rkf_action_request
+from rkf.core import Workspace
 
 try:
     import tomllib
@@ -138,8 +145,10 @@ def load_connector_config(path: Path | None = None) -> ConnectorConfig:
     if not isinstance(root_value, str) or not root_value.strip():
         raise SystemExit("RKF connector config missing [researchwiki].root")
     root = _expand_path(root_value)
-    if not (root / "tools" / "rk.py").exists():
-        raise SystemExit(f"RKF CLI not found under configured root: {root}")
+    if not root.exists():
+        raise SystemExit(f"RKF checkout not found under configured root: {root}")
+    if not ((root / "rkf.workspace.toml").exists() or (root / "workspace.toml").exists()):
+        raise SystemExit(f"RKF workspace config not found under configured root: {root}")
     mode = policy.get("mode", "active-aggressive") if isinstance(policy, dict) else "active-aggressive"
     return ConnectorConfig(researchwiki_root=root, mode=str(mode), config_path=config_path)
 
@@ -195,11 +204,7 @@ def classify_capture(*, text: str, source_url: str = "", project_name: str = "")
     return CaptureDecision(level="none", targets=[], reasons=[], summary=_summary(text))
 
 
-def _rk_command(config: ConnectorConfig, *args: str) -> list[str]:
-    return ["python3", str(config.researchwiki_root / "tools" / "rk.py"), *args]
-
-
-def build_inbox_command(
+def build_inbox_request(
     *,
     config: ConnectorConfig,
     title: str,
@@ -211,25 +216,48 @@ def build_inbox_command(
     source_url: str = "",
     topic_id: str = "",
     no_inject: bool = False,
-) -> list[str]:
-    command = _rk_command(config, "inbox", "capture", title, "--origin", origin, "--clip", clip)
-    if reader_note:
-        command.extend(["--reader-note", reader_note])
-    if agent_note:
-        command.extend(["--agent-note", agent_note])
-    if doi:
-        command.extend(["--doi", doi])
-    if source_url:
-        command.extend(["--source-url", source_url])
-    if topic_id:
-        command.extend(["--topic-id", topic_id])
-    if no_inject:
-        command.append("--no-inject")
-    return command
+) -> ActionRequest:
+    _ = config
+    return ActionRequest(
+        action="inbox.capture",
+        params={
+            "title": title,
+            "origin": origin,
+            "clip": clip,
+            "reader_note": reader_note,
+            "agent_note": agent_note,
+            "doi": doi,
+            "source_url": source_url,
+            "topic_id": topic_id,
+            "inject": not no_inject,
+        },
+    )
 
 
-def build_hot_command(*, config: ConnectorConfig, query: str, origin: str, intent: str = "research-discussion") -> list[str]:
-    return _rk_command(config, "hot", "record", query, "--origin", origin, "--intent", intent)
+def build_hot_request(
+    *,
+    config: ConnectorConfig,
+    query: str,
+    origin: str,
+    intent: str = "research-discussion",
+    topic_id: str = "",
+    notes: str = "",
+) -> ActionRequest:
+    _ = config
+    return ActionRequest(
+        action="hot.record",
+        params={
+            "query": query,
+            "origin": origin,
+            "intent": intent,
+            "topic_id": topic_id,
+            "notes": notes,
+        },
+    )
+
+
+def execute_action_request(*, config: ConnectorConfig, request: ActionRequest) -> ActionResult:
+    return execute_rkf_action_request(request, workspace=Workspace(config.researchwiki_root))
 
 
 def write_project_marker(project_root: Path, *, mode: str = "active-aggressive") -> Path:
@@ -406,21 +434,41 @@ def main(argv: list[str] | None = None) -> int:
     bridge.add_argument("--mode", default="active-aggressive")
     bridge.add_argument("--project-name", default="")
 
-    inbox = sub.add_parser("inbox-command")
-    inbox.add_argument("title")
-    inbox.add_argument("--origin", required=True)
-    inbox.add_argument("--clip", required=True)
-    inbox.add_argument("--reader-note", default="")
-    inbox.add_argument("--agent-note", default="")
-    inbox.add_argument("--doi", default="")
-    inbox.add_argument("--source-url", default="")
-    inbox.add_argument("--topic-id", default="")
-    inbox.add_argument("--no-inject", action="store_true")
+    inbox_request = sub.add_parser("inbox-request")
+    inbox_request.add_argument("title")
+    inbox_request.add_argument("--origin", required=True)
+    inbox_request.add_argument("--clip", required=True)
+    inbox_request.add_argument("--reader-note", default="")
+    inbox_request.add_argument("--agent-note", default="")
+    inbox_request.add_argument("--doi", default="")
+    inbox_request.add_argument("--source-url", default="")
+    inbox_request.add_argument("--topic-id", default="")
+    inbox_request.add_argument("--no-inject", action="store_true")
 
-    hot = sub.add_parser("hot-command")
-    hot.add_argument("query")
-    hot.add_argument("--origin", required=True)
-    hot.add_argument("--intent", default="research-discussion")
+    hot_request = sub.add_parser("hot-request")
+    hot_request.add_argument("query")
+    hot_request.add_argument("--origin", required=True)
+    hot_request.add_argument("--intent", default="research-discussion")
+    hot_request.add_argument("--topic-id", default="")
+    hot_request.add_argument("--notes", default="")
+
+    inbox_execute = sub.add_parser("inbox-execute")
+    inbox_execute.add_argument("title")
+    inbox_execute.add_argument("--origin", required=True)
+    inbox_execute.add_argument("--clip", required=True)
+    inbox_execute.add_argument("--reader-note", default="")
+    inbox_execute.add_argument("--agent-note", default="")
+    inbox_execute.add_argument("--doi", default="")
+    inbox_execute.add_argument("--source-url", default="")
+    inbox_execute.add_argument("--topic-id", default="")
+    inbox_execute.add_argument("--no-inject", action="store_true")
+
+    hot_execute = sub.add_parser("hot-execute")
+    hot_execute.add_argument("query")
+    hot_execute.add_argument("--origin", required=True)
+    hot_execute.add_argument("--intent", default="research-discussion")
+    hot_execute.add_argument("--topic-id", default="")
+    hot_execute.add_argument("--notes", default="")
 
     args = parser.parse_args(argv)
     if args.command == "resolve":
@@ -450,27 +498,41 @@ def main(argv: list[str] | None = None) -> int:
         return 0
 
     config = load_connector_config()
-    if args.command == "inbox-command":
-        print(
-            json.dumps(
-                build_inbox_command(
-                    config=config,
-                    title=args.title,
-                    origin=args.origin,
-                    clip=args.clip,
-                    reader_note=args.reader_note,
-                    agent_note=args.agent_note,
-                    doi=args.doi,
-                    source_url=args.source_url,
-                    topic_id=args.topic_id,
-                    no_inject=args.no_inject,
-                ),
-                ensure_ascii=False,
-            )
+    if args.command in {"inbox-request", "inbox-execute"}:
+        request = build_inbox_request(
+            config=config,
+            title=args.title,
+            origin=args.origin,
+            clip=args.clip,
+            reader_note=args.reader_note,
+            agent_note=args.agent_note,
+            doi=args.doi,
+            source_url=args.source_url,
+            topic_id=args.topic_id,
+            no_inject=args.no_inject,
         )
+        if args.command == "inbox-request":
+            print(json.dumps(asdict(request), ensure_ascii=False, indent=2))
+            return 0
+        result = execute_action_request(config=config, request=request)
+        print(result.message)
+        if result.payload.get("source_id"):
+            print(f"source_id: {result.payload['source_id']}")
         return 0
-    if args.command == "hot-command":
-        print(json.dumps(build_hot_command(config=config, query=args.query, origin=args.origin, intent=args.intent), ensure_ascii=False))
+    if args.command in {"hot-request", "hot-execute"}:
+        request = build_hot_request(
+            config=config,
+            query=args.query,
+            origin=args.origin,
+            intent=args.intent,
+            topic_id=args.topic_id,
+            notes=args.notes,
+        )
+        if args.command == "hot-request":
+            print(json.dumps(asdict(request), ensure_ascii=False, indent=2))
+            return 0
+        result = execute_action_request(config=config, request=request)
+        print(result.message)
         return 0
     raise SystemExit(f"unsupported command: {args.command}")
 

@@ -1,6 +1,6 @@
 # Research Knowledge Framework
 
-[繁體中文](README.zh-TW.md) | [Architecture](docs/ARCHITECTURE.md) | [Mode Registry](MODE_REGISTRY.md) | [Manual](docs/manuals/rkf_manual.en.md) | [Features And Commands](docs/FEATURES_AND_COMMANDS.zh-TW.md)
+[繁體中文](README.zh-TW.md) | [Architecture](docs/ARCHITECTURE.md) | [Mode Registry](MODE_REGISTRY.md) | [Manual](docs/manuals/rkf_manual.en.md) | [Codex Workflows](docs/FEATURES_AND_COMMANDS.zh-TW.md)
 
 Research Knowledge Framework, or RKF, is an LLM Wiki-based research knowledge
 framework for active academic reading. It turns sources, paper drafts, reading
@@ -15,8 +15,7 @@ user-provided PDF. Stable claims, trusted synthesis, citation, and publication
 still require locators, human feedback, an existing supported wiki source, or an
 explicit blocker.
 
-RKF is designed to work beside
-[Academic Research Skills](https://github.com/Imbad0202/academic-research-skills):
+RKF is designed to work beside the Codex `academic-research-suite` skill:
 ARS researches, reasons, writes, and reviews; RKF preserves active reading
 state, human feedback, evidence boundaries, topic governance, and graph-safe
 wiki memory.
@@ -36,7 +35,7 @@ inbox item == captured conversation/web/source lead, not claim evidence
 
 ## Quick Start
 
-Use RKF through natural-language research requests:
+Use RKF through natural-language research requests in the Codex app:
 
 - "Capture this DOI and create a paper draft even if we only have metadata."
 - "Save this ChatGPT/web clip to the RKF inbox; keep my idea separate from the source."
@@ -58,9 +57,9 @@ Use RKF through natural-language research requests:
 |---|---|
 | `rkf-evidence-vault` | Capture sources, stage discovery, track full-text availability, and update reading artifacts |
 | `rkf-knowledge-synthesis` | Maintain paper drafts, questions, concepts, claims, topics, synthesis, and reading-maturity reviews |
-| `rkf-wiki-core` | Retrieve LLM Wiki context, coordinate ARS reasoning, save durable memory, show status, export graph, generate sandbox capsule |
+| `rkf-wiki-core` | Retrieve LLM Wiki context, coordinate ARS reasoning, save durable memory, show Codex session context, export graph, generate handoff capsules |
 | `rkf-lint` | Maintain structure, reading maturity, evidence boundaries, graph integrity, ARS handoff labels, public safety, and repair plans |
-| `rkf-connect` | Experimental shared-database setup for multiple computers and external sandbox access |
+| `rkf-connect` | Experimental shared-database setup for multiple computers and Codex handoff access |
 
 `rkf-ars-bridge` is a protocol, not an active skill. It turns ARS output into
 RKF save/review/synthesis proposals or reading feedback.
@@ -115,10 +114,11 @@ stable knowledge.
 
 ## World Context
 
-`python3 tools/rk.py world` emits an L0-L3 context capsule for future agents:
-L0 identity, critical facts, and active blockers; L1 active papers, paper queue,
-hot queries, and recent reading feedback; L2 topic, synthesis, claim-readiness,
-and contradiction hints; L3 graph/detail links and validation state.
+Ask Codex to show the RKF world context when a session starts or when another
+agent needs handoff. It emits an L0-L3 context capsule: L0 identity, critical
+facts, and active blockers; L1 active papers, paper queue, hot queries, and
+recent reading feedback; L2 topic, synthesis, claim-readiness, and
+contradiction hints; L3 graph/detail links and validation state.
 
 `CRITICAL_FACTS.md` stores short public-safe facts with `observed_at`,
 `valid_from`, `confidence`, and `source_or_blocker` so future agents can recover
@@ -127,27 +127,26 @@ state.
 
 ## Priority Evolve
 
-`python3 tools/rk.py evolve <page> --note "..."`
-is the normal RKF-native path for low-risk updates to existing pages. It writes
-an `AI Integration Note`, marks the page `ai_integrated: true`, and keeps
-maturity conservative. High-risk stable claim promotion, source identity
-conflicts, publication-ready synthesis, and delete/merge choices are written as
-inline blockers or maturity downgrades instead of silent trust upgrades.
+Ask Codex to use `evolve` for low-risk updates to existing pages. It writes an
+`AI Integration Note`, marks the page `ai_integrated: true`, and keeps maturity
+conservative. High-risk stable claim promotion, source identity conflicts,
+publication-ready synthesis, and delete/merge choices are written as inline
+blockers or maturity downgrades instead of silent trust upgrades.
 
 `propagate` remains available as a manual preview/audit fallback when you want
 to inspect affected pages before deciding what to integrate.
 
 ## Reconcile And Challenge
 
-`python3 tools/rk.py reconcile` scans same-topic pages for obvious tension such
-as opposing stance keywords or explicit conflict markers. When it writes, it
-uses high-priority `evolve` updates so the affected pages show an
-`AI Integration Note` and a blocker instead of pretending the conflict is
+Ask Codex to `reconcile` same-topic pages when you want obvious tensions,
+opposing stance keywords, or explicit conflict markers surfaced. When it writes,
+it uses high-priority `evolve` updates so the affected pages show an `AI
+Integration Note` and a blocker instead of pretending the conflict is
 human-resolved.
 
-`python3 tools/rk.py challenge <page>` uses existing RKF pages to list the
-strongest counterpoints, missing evidence, and maturity downgrade suggestions.
-Challenge output is critique, not stable claim evidence.
+Ask Codex to `challenge` a target page when you want existing RKF pages to list
+the strongest counterpoints, missing evidence, and maturity downgrade
+suggestions. Challenge output is critique, not stable claim evidence.
 
 Claim and synthesis pages can carry minimal bi-temporal metadata:
 `observed_at`, `valid_from`, optional `valid_until`, and optional `supersedes`.
@@ -156,15 +155,13 @@ AI-integrated stable content must include an AI Integration Note plus
 
 ## Emergent Pattern Synthesis
 
-`python3 tools/rk.py emerge` scans existing RKF state for unnamed patterns:
-paper reading queue, hot-query demand, human-feedback gaps, and topic state. It
-does not require candidate records and does not use open-web retrieval. With
-`--write`, it creates a low-maturity synthesis draft marked
-`synthesis_maturity: draft`, `source_coverage: partial`, and
-`claim_readiness: not-ready`.
+Ask Codex to `emerge` unnamed patterns from existing RKF state: paper reading
+queue, hot-query demand, human-feedback gaps, and topic state. It does not
+require candidate records and does not use open-web retrieval. When you approve
+a write, it creates a low-maturity synthesis draft marked `synthesis_maturity:
+draft`, `source_coverage: partial`, and `claim_readiness: not-ready`.
 
-`python3 tools/rk.py synthesize auto --write` is a compatibility alias for the
-same auto-synthesis behavior.
+`emerge` is the single pattern-synthesis route.
 
 Agent prompt templates live under `prompts/agents/` for morning, nightly,
 weekly, and health reviews. They are repository prompts only; actual app
@@ -179,25 +176,22 @@ unknown-topic triage. This layer is operational memory only.
 
 ## Validation
 
-```bash
-python3 -m py_compile tools/rk.py rkf/*.py tools/public_safety_scan.py
-python3 -m unittest discover -s tests
-python3 tools/rk.py topic lint
-python3 tools/rk.py lint
-python3 tools/public_safety_scan.py
-```
+Ask Codex to run the smallest relevant validation before publishing, opening a
+PR, or finishing a broad RKF change. The agent should report which tests, lint
+checks, and public-safety checks ran, plus any skipped checks or environment
+limits.
 
 ## Experimental: Shared Database Across Computers
 
 Use `rkf-connect` when you want one shared research database across multiple
-computers or external sandboxes. The current method is to use Google Drive for
-desktop as the shared folder and keep real `raw/` and `wiki/` folders there.
+computers or Codex handoff contexts. The current method is to use Google Drive
+for desktop as the shared folder and keep real `raw/` and `wiki/` folders there.
 Local RKF folders link to those shared folders per computer; machine-specific
 links and private Drive paths do not become public source of truth.
 
-External sandboxes get read access by default. Their useful outputs return as
-reading updates, save/review proposals, or synthesis proposals unless the user
-explicitly approves a write path.
+Other Codex sessions or connected projects get read/proposal access by default.
+Their useful outputs return as reading updates, save/review proposals, or
+synthesis proposals unless the user explicitly approves a write path.
 
 ## Version Management
 

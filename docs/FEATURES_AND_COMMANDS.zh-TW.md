@@ -1,14 +1,18 @@
-# RKF Current Features And Commands
+# RKF Codex App Workflows And Capabilities
 
-這份文件是目前 Research Knowledge Framework 的功能盤點與指令速查。它描述目前
-repo 已有的能力、日常怎麼用、以及哪些檔案或目錄看起來只是本機狀態或清理候選。
+這份文件是目前 Research Knowledge Framework 的功能盤點與 Codex app 工作流速查。
+檔名仍保留 `FEATURES_AND_COMMANDS` 以維持既有連結相容；內容不再把 CLI 當成
+使用者互動介面。
 
 ## 使用入口原則
 
-RKF v0 採用 Markdown-first workflow：`knowledge/` 下的 Markdown pages 是主要使用者介面，
-agent 可以用自然語言協助建立、整理與更新頁面。CLI 保留為薄後端，用於可重現的
-source capture、paper draft 產生、queue、lint、index、graph 與 automation；使用者
-不需要手動執行 CLI 才能完成日常文獻整理。
+RKF v0 的互動入口是 Codex app：使用者用自然語言要求 capture、整理、查詢、review、
+lint 或連接其他專案。`knowledge/` 下的 Markdown pages 是 durable artifact，不是要求
+使用者手動操作 CLI 的前台介面。
+
+Python runtime 透過 `rkf.actions` 提供 structured action request/result。現有
+legacy CLI 只作為 Codex app、測試與維護使用的內部 shim。新的使用者文件應描述
+「要在 Codex app 怎麼問」，不要要求使用者記 command syntax。
 
 ## 核心功能
 
@@ -23,24 +27,25 @@ source capture、paper draft 產生、queue、lint、index、graph 與 automatio
 | Reading ledger | 記錄 public-safe reading event、問題、AI 回答、人為修正、trust 變化與 blocker | `state/reading/*.json` |
 | User PDF handling | 只有讀不到全文時要求 user 提供 PDF；可直接更新 full-text state | `state/evidence/*.json` |
 | Locator/readability check | 記錄 artifact identity、readability、locator notes，提升 claim readiness | `state/evidence/*.json`、paper maturity |
-| Paper queue/nudge | 推播 metadata-only、缺 PDF、缺人為 feedback、重複被問、可進 synthesis review 的 paper | terminal report / automation digest |
+| Paper queue/nudge | 推播 metadata-only、缺 PDF、缺人為 feedback、重複被問、可進 synthesis review 的 paper | Codex app report / automation digest |
 | Non-paper save | 保存 question、concept、claim、synthesis、overview、meeting、seminar | `knowledge/*/*.md` |
 | Hot-query layer | 追蹤近期 public-safe 研究問題與 paper-search demand | `hot.md` |
+| Action runtime | 讓 Codex app / auto-connect 以 structured request 執行 RKF write path | `rkf/actions.py` |
 | Topic governance | 維護 topic id、scope、aliases、include/exclude、default search strings | `governance/topic_registry.json`、`knowledge/topics/*.md` |
-| L0-L3 world context | 快速重建 identity、critical facts、active reading、claim readiness、graph/detail links 與 validation state | terminal report |
+| L0-L3 world context | 快速重建 identity、critical facts、active reading、claim readiness、graph/detail links 與 validation state | Codex app report |
 | Critical facts | 保存短句、public-safe、可重用且有時間 metadata 的 facts | `CRITICAL_FACTS.md` |
 | Future Agent Retrieval Brief | 在 paper / synthesis / topic template 說明何時讀頁、可信度、缺口與下一步 | `templates/rkf/*.md`、knowledge pages |
 | Priority evolve | 低風險 rewrite existing page，並在頁內留下 `AI Integration Note`；高風險只留下 blocker / maturity downgrade | knowledge pages |
 | Reconcile | 自動找同 topic/page 間的 contradiction hints，並以 AI Integration Note 寫入 blocker | knowledge pages |
-| Challenge | 用 RKF 自己的知識反駁目前頁面或 synthesis，不建立 stable claim | terminal critique |
-| Emerge / auto-synthesis | 從 reading queue、hot queries、topic state 找 unnamed patterns，建立 low-maturity synthesis draft | terminal report / `knowledge/synthesis/*.md` |
+| Challenge | 用 RKF 自己的知識反駁目前頁面或 synthesis，不建立 stable claim | Codex app critique |
+| Emerge | 從 reading queue、hot queries、topic state 找 unnamed patterns，建立 low-maturity synthesis draft | Codex app report / `knowledge/synthesis/*.md` |
 | Agent prompt templates | Morning/nightly/weekly/health agent prompt，不建立實際 automation | `prompts/agents/*.md` |
 | Bi-temporal memory | claim / synthesis / critical facts 可記錄 `observed_at`、`valid_from`、`valid_until`、`supersedes` | frontmatter / `CRITICAL_FACTS.md` |
-| Propagation review | 新 evidence、reading maturity 或 synthesis 後列出可能受影響頁面，作為 preview/audit fallback | terminal report 或 `state/gates/propagation/*.md` |
+| Propagation review | 新 evidence、reading maturity 或 synthesis 後列出可能受影響頁面，作為 preview/audit fallback | Codex app report 或 `state/gates/propagation/*.md` |
 | Graph export | 輸出 source/evidence/wiki/topic typed links | `graph/research_graph.json` |
 | Index generation | 產生 LLM retrieval 入口，包含 maturity hints | `index.md` |
-| External sandbox capsule | 產生外部 sandbox 使用的 RKF context | `prompts/external_sandbox_context.md` |
-| Lint and safety scan | 檢查 structure、maturity、claim boundary、graph、ARS handoff、public safety | terminal report |
+| Codex handoff capsule | 產生其他 Codex session / project handoff 使用的 RKF context | `prompts/codex_handoff_context.md` |
+| Lint and safety scan | 檢查 structure、maturity、claim boundary、graph、ARS handoff、public safety | Codex app report |
 | Open-source template scan | 記錄可借鏡的 PKM/wiki/digital-garden 模式與目前不採用的 runtime | `docs/references/open-source-template-scan.zh-TW.md` |
 
 ## Reading And Evidence Rules
@@ -64,295 +69,52 @@ source capture、paper draft 產生、queue、lint、index、graph 與 automatio
   `--update`。
 - Propagation review 是 manual preview / audit fallback；正常狀態查看請先用 `world`。
 
-## Common Commands
+## Codex App Workflow Inventory
 
-所有指令以下列形式執行：
+在 Codex app 中用自然語言提出工作，agent 會依 `MODE_REGISTRY.md` 路由到正確 skill
+與內部 RKF action。下面是使用者應看到的工作流，而不是命令清單。
 
-```bash
-python3 tools/rk.py <command>
-```
-
-## Full Command Inventory
-
-這份 inventory 對齊目前 `rkf/cli.py` parser。若新增 CLI，請同步更新這一段。
-
-| Command | Major Options | Purpose |
+| Workflow | 在 Codex app 可以這樣說 | 主要邊界 |
 |---|---|---|
-| `capture <kind> <value>` | `kind=doi/url/pdf/topic/idea/question`, `--title`, `--topic-id`, `--note` | 建立 SourceRecord 或 public-safe lead |
-| `inbox capture <title>` | `--origin`, `--source-url`, `--doi`, `--clip`, `--reader-note`, `--agent-note`, `--topic-id`, `--no-inject` | 建立 inbox item；有 DOI 時預設建立/連回 SourceRecord 與 paper backlink |
-| `discover <query>` | `--topic-id` | 建立 discovery run 與 candidate backlog |
-| `acquire <source>` | `--pdf`, `--url`, `--screenshot`, `--approve`, `--checkpoint` | 記錄 full-text route、user PDF 或 legacy checkpoint |
-| `verify-pdf <source_id>` | `--locator`, `--note`, `--qc-status codex_qc_done/human_qc_done` | 記錄 locator/readability check 並提升 reading maturity |
-| `read <source_id>` | none | 顯示 source record |
-| `distill paper <source_id>` | `--slug` | 建立或更新分層 paper reading draft；通常由 agent/automation 在背後呼叫 |
-| `paper status [source_id]` | optional `source_id` | 顯示 paper queue/status |
-| `paper feedback <source_id>` | `--level`, `--note`, `--reading-state`, `--fulltext-status`, `--confidence`, `--claim-readiness` | 記錄 human/AI reading feedback 並追加 ledger |
-| `paper queue` | `--limit` | 列出 active paper nudges |
-| `paper next` | none | 顯示最高優先 paper nudge |
-| `paper nudge` | `--limit` | 輸出可排程推播文字 |
-| `topic add <topic_id> <name>` | `--scope`, `--alias`, `--include`, `--exclude`, `--search`, `--cadence` | 新增 governed topic |
-| `topic list` | none | 列出 topic registry |
-| `topic lint` | none | 檢查 topic registry |
-| `query <text>` | `--no-record` | 搜尋 wiki 並預設記錄 hot-query |
-| `save <object_type> <title>` | `--slug`, `--body`, `--update` | 保存 question/concept/claim/overview 等非 paper object |
-| `synthesize <title>` | `--slug`, `--body`, `--update` | 建立或更新 draft synthesis |
-| `synthesize auto` | `--write`, `--topic-id`, `--limit` | `emerge` 的 auto-synthesis alias |
-| `review` | none | 列出 pending gate/review items |
-| `lint` | `--mode all/structure-lint/evidence-lint/graph-lint/ars-handoff-lint/public-safety-lint/repair-plan` | 執行 RKF health checks |
-| `evolve <target>` | `--note`, `--source`, `--priority low/medium/high`, `--blocker`, `--dry-run` | maturity-aware 直接整合低風險頁面更新並留下 AI Integration Note |
-| `reconcile` | `--topic-id`, `--limit`, `--dry-run` | 找矛盾並把高風險矛盾寫成 AI-marked blocker |
-| `challenge <target>` | `--limit` | 用 RKF 既有頁面列出 counterpoints、missing evidence、maturity downgrade 建議 |
-| `emerge` | `--topic-id`, `--limit`, `--write` | 找 unnamed patterns；`--write` 建立 low-maturity synthesis draft |
-| `propagate <target>` | `--write` | 產生 affected-page propagation preview/audit |
-| `graph` | none | 匯出 research graph |
-| `status` | `--log-tail` | 輸出 RKF L0-L3 context capsule |
-| `world` | `--log-tail` | `status` alias，用於 future-agent session bootstrap |
-| `index` | none | 產生 compact LLM wiki index |
-| `log` | `--tail`, `--action`, `--note` | 讀取或追加 operation log |
-| `hot record <query>` | `--topic-id`, `--origin`, `--intent`, `--paper-lead`, `--notes` | 記錄 public-safe hot query event |
-| `hot refresh` | `--days` | 重新產生 `hot.md` dashboard |
-| `export graph` | none | 同 `graph` |
-| `export external-sandbox` | none | 產生外部 sandbox capsule |
-| `prompt external-sandbox` | none | 產生外部 sandbox prompt context |
-
-### Source, Draft, And Reading
-
-Capture DOI or URL:
-
-```bash
-python3 tools/rk.py capture doi "10.1234/example" --title "Example Paper" --topic-id "topic-id"
-python3 tools/rk.py capture url "https://example.org/report.pdf" --title "Official Report"
-```
-
-Capture a ChatGPT or web clip into the inbox:
-
-```bash
-python3 tools/rk.py inbox capture "ChatGPT note on aerosol paper" \
-  --origin chatgpt-web \
-  --source-url "https://chatgpt.com/share/CONVERSATION_ID" \
-  --doi "10.1234/example" \
-  --clip "Short public-safe excerpt or source-grounded summary." \
-  --reader-note "My idea or project relation."
-```
-
-Keep a DOI lead in the inbox without paper backlink injection:
-
-```bash
-python3 tools/rk.py inbox capture "Untriaged DOI lead" --doi "10.1234/example" --no-inject
-```
-
-Classify whether a cross-project discussion should be captured:
-
-```bash
-python3 tools/rkf_auto_connect.py classify "Find DOI 10.1234/example papers for aerosol-cloud parameterization" --project-name ResearchProject
-```
-
-Create a project-local RKF bridge folder without storing private paths:
-
-```bash
-python3 tools/rkf_auto_connect.py bridge-folder /path/to/project --project-name ResearchProject
-```
-
-Stage a discovery run:
-
-```bash
-python3 tools/rk.py discover "aerosol cloud interaction Taiwan" --topic-id "aerosol-cloud"
-```
-
-Create a conservative paper draft even before full text is available:
-
-```bash
-python3 tools/rk.py distill paper doi_10_1234_example
-```
-
-Mark that full text is missing and user PDF is needed:
-
-```bash
-python3 tools/rk.py acquire doi_10_1234_example
-```
-
-Record a user-provided PDF and update full-text state:
-
-```bash
-python3 tools/rk.py acquire doi_10_1234_example --pdf "/path/to/paper.pdf"
-```
-
-Check locator/readability after a PDF is available:
-
-```bash
-python3 tools/rk.py verify-pdf doi_10_1234_example --locator "pp. 3-5 methods" --note "identity checked"
-```
-
-Record human feedback or trust change:
-
-```bash
-python3 tools/rk.py paper feedback doi_10_1234_example --level discussed --note "User clarified the method interpretation."
-```
-
-Show active reading queue and scheduled nudge text:
-
-```bash
-python3 tools/rk.py paper queue
-python3 tools/rk.py paper next
-python3 tools/rk.py paper nudge --limit 5
-```
-
-Legacy compatibility remains available:
-
-```bash
-python3 tools/rk.py acquire doi_10_1234_example --pdf "/path/to/paper.pdf" --checkpoint
-```
-
-### Query, Save, And Hot Questions
-
-Query wiki pages and record a hot-query event:
-
-```bash
-python3 tools/rk.py query "terrain rainfall field campaigns"
-```
-
-Query without recording:
-
-```bash
-python3 tools/rk.py query "private scratch question" --no-record
-```
-
-Save a non-paper object:
-
-```bash
-python3 tools/rk.py save question "Future Taiwan observation experiment" --body "Reusable question body."
-python3 tools/rk.py save concept "Orographic locking" --body "Reusable concept note."
-python3 tools/rk.py synthesize "Taiwan field campaign priorities" --body "Draft synthesis body."
-```
-
-Update an existing non-paper object intentionally:
-
-```bash
-python3 tools/rk.py save concept "Orographic locking" --body "Updated body." --update
-python3 tools/rk.py synthesize "Taiwan field campaign priorities" --body "Updated synthesis." --update
-```
-
-Record and refresh hot-query demand:
-
-```bash
-python3 tools/rk.py hot record "Which wildfire smoke papers still need full read?" --intent paper-search --topic-id wildfire-smoke-cloud-microphysics
-python3 tools/rk.py hot refresh --days 30
-```
-
-### Topic Governance
-
-Add a governed topic:
-
-```bash
-python3 tools/rk.py topic add aerosol-cloud "Aerosol Cloud" --scope "Aerosol-cloud interaction literature" --search "aerosol cloud interaction"
-```
-
-List and lint topics:
-
-```bash
-python3 tools/rk.py topic list
-python3 tools/rk.py topic lint
-```
-
-### Maintenance And Review
-
-Show pending review notes:
-
-```bash
-python3 tools/rk.py review
-```
-
-Run lint checks:
-
-```bash
-python3 tools/rk.py lint
-python3 tools/rk.py lint --mode structure-lint
-python3 tools/rk.py lint --mode evidence-lint
-python3 tools/rk.py lint --mode graph-lint
-python3 tools/rk.py lint --mode ars-handoff-lint
-python3 tools/rk.py lint --mode public-safety-lint
-python3 tools/rk.py lint --mode repair-plan
-```
-
-Run public repo safety scan:
-
-```bash
-python3 tools/public_safety_scan.py
-```
-
-Apply a maturity-aware low-risk rewrite with an AI Integration Note:
-
-```bash
-python3 tools/rk.py evolve knowledge/concepts/example.md --note "Add retrieval brief after reading queue review." --source "daily-agent"
-python3 tools/rk.py evolve knowledge/claims/example.md --priority high --note "Potential stable claim conflict." --blocker "Needs locator or human review before promotion."
-```
-
-Find contradictions and challenge a page:
-
-```bash
-python3 tools/rk.py reconcile --topic-id aerosol-cloud
-python3 tools/rk.py reconcile --dry-run
-python3 tools/rk.py challenge knowledge/synthesis/example.md --limit 5
-```
-
-Find unnamed patterns and save a low-maturity synthesis draft:
-
-```bash
-python3 tools/rk.py emerge --limit 8
-python3 tools/rk.py emerge --write --topic-id aerosol-cloud
-python3 tools/rk.py synthesize auto --write --limit 8
-```
-
-Generate propagation preview/audit fallback:
-
-```bash
-python3 tools/rk.py propagate knowledge/synthesis/example.md
-python3 tools/rk.py propagate knowledge/synthesis/example.md --write
-python3 tools/rk.py propagate doi_10_1234_example --write
-```
-
-Print L0-L3 session bootstrap:
-
-```bash
-python3 tools/rk.py status
-python3 tools/rk.py world --log-tail 10
-```
-
-Export graph and index:
-
-```bash
-python3 tools/rk.py graph
-python3 tools/rk.py index
-```
-
-Read or append wiki log:
-
-```bash
-python3 tools/rk.py log --tail 20
-python3 tools/rk.py log --action note --note "Short public-safe note."
-```
-
-Generate external sandbox context:
-
-```bash
-python3 tools/rk.py prompt external-sandbox
-python3 tools/rk.py export external-sandbox
-```
-
-## Validation Commands
-
-Before publishing or opening a PR, run:
-
-```bash
-python3 -B -m py_compile tools/rk.py rkf/cli.py rkf/core.py rkf/__init__.py tools/public_safety_scan.py
-python3 -B -m unittest discover -s tests
-python3 tools/rk.py topic lint
-python3 tools/rk.py lint
-python3 tools/rk.py lint --mode graph-lint
-python3 tools/rk.py lint --mode ars-handoff-lint
-python3 tools/rk.py lint --mode public-safety-lint
-python3 tools/public_safety_scan.py
-```
+| Capture source | 「把這個 DOI/URL 加入 RKF，先建立保守 source record。」 | 只確認 source identity，不升級 claim |
+| Save to inbox | 「把這段 ChatGPT/web clip 存到 inbox，我的想法和來源內容分開。」 | Inbox item 不是 evidence |
+| Auto-connect capture | 「這個外部專案討論有研究價值，幫我回饋到 RKF。」 | 透過 `rkf-auto-connect` 分類，先進 inbox/hot |
+| Discover papers | 「針對這個 topic 找候選文獻，但不要把 candidates 當 evidence。」 | Candidate 只能啟動 draft |
+| Create paper draft | 「就算目前只有 metadata，也幫我建 paper draft 並標清楚 maturity。」 | Paper page 必須保守標記 reading state |
+| Request user PDF | 「列出哪些 paper 需要我提供 PDF。」 | 不繞過 paywall 或授權限制 |
+| Record provided PDF | 「我提供了 PDF，請更新 full-text status 並保留 private evidence 邊界。」 | Public wiki 只留 safe pointer/locator |
+| Verify locators | 「檢查這篇 paper 的 locator/readability，能不能支撐 claim readiness？」 | Claim readiness 需要 locator 或人為 review |
+| Record feedback | 「我剛討論/註解了這篇，請寫入 reading ledger。」 | Ledger 是 operational memory |
+| Paper queue | 「列出今天最需要處理的 paper queue/nudges。」 | 只回報 public-safe 摘要 |
+| Query wiki | 「問 RKF 現在知道什麼，必要時讓 ARS 對 retrieved context 推理。」 | 回答不自動變 wiki page |
+| Save knowledge | 「把這個問題/概念/claim/synthesis 保存成 RKF page。」 | 覆寫既有頁要明確要求 |
+| Record hot demand | 「把這個 paper-search 問題記到 hot.md。」 | `hot.md` 是 demand dashboard，不是 evidence |
+| Topic governance | 「幫我新增/整理 topic registry，檢查 aliases 與 search strings。」 | 大型 merge/split 先提案 |
+| Maintenance review | 「跑 RKF health check，找 maturity/evidence/graph/public-safety 問題。」 | Lint 可回報/規劃，不靜默重寫 |
+| Evolve page | 「低風險地更新這頁，留下 AI Integration Note。」 | 高風險內容要 blocker 或 maturity downgrade |
+| Reconcile | 「找這個 topic 的矛盾，標成 AI-marked blockers。」 | 不假裝矛盾已被 human-resolved |
+| Challenge | 「用 RKF 既有知識反駁這個 synthesis。」 | Critique 不是 stable claim |
+| Emerge | 「從 reading queue/hot/topic state 找 unnamed patterns，保持 low maturity。」 | Auto-synthesis 從 draft 開始 |
+| Propagation review | 「新 evidence 可能影響哪些頁，先列出 preview。」 | 只是 audit fallback |
+| World context | 「開始前給我 L0-L3 world context。」 | 用於 Codex session bootstrap |
+| Graph/index | 「更新 graph/index 讓未來 retrieval 更準。」 | 只產生 public-safe graph/index |
+| Codex handoff | 「把目前 RKF context 交給另一個 Codex session/project。」 | 預設 read/proposal boundary |
+
+## Legacy Runtime Boundary
+
+現有 `tools/rk.py` / `rkf/cli.py` 在第一階段保留為 legacy/dev shim，供 Codex app
+agent、測試與維護使用。第二階段開始，`inbox.capture` 與 `hot.record` 已可透過
+`rkf.actions.ActionRequest` 執行；auto-connect 也可直接執行這些 action。CLI 不是正式
+使用者控制介面。新增或修改能力時，優先描述 Codex app 工作流與 RKF action 邊界；
+不要新增面向使用者的 CLI 教學。
+
+## Validation
+
+發布、開 PR 或完成較大修改前，請在 Codex app 要求 agent 執行最小相關驗證，並回報：
+
+- 使用了哪些 test/lint/public-safety 檢查。
+- 是否涉及 live `wiki_root` 或只動到 repo fixture/example。
+- 是否有 existing failure、環境限制或未執行的檢查。
 
 ## Current Cleanup Candidates
 

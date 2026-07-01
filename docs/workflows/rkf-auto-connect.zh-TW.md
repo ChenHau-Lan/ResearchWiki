@@ -11,6 +11,8 @@
 ```
 
 Agent 會使用全域 `rkf-auto-connect` skill，從 `$HOME/.codex/rkf_connector.toml` 找到 ResearchWiki checkout，再由 ResearchWiki 的 `rkf.workspace.toml` 解析 live `wiki_root`。
+repo-side helper 會產生 `rkf.actions.ActionRequest`，並可直接執行目前已支援的
+`inbox.capture` 與 `hot.record` action；不需要把 RKF CLI command 當主要整合介面。
 
 ## 自動記錄政策
 
@@ -62,10 +64,10 @@ config = "global"
 
 這個檔案不得存 private Drive path；真正的 RKF 路徑由全域 config 與 `rkf.workspace.toml` 解析。
 
-也可以用 helper 建立：
+也可以請 Codex 建立：
 
-```bash
-python3 tools/rkf_auto_connect.py mark-project /path/to/project
+```text
+幫這個專案建立 RKF auto-connect marker。
 ```
 
 ## 專案內 RKF bridge folder
@@ -73,8 +75,8 @@ python3 tools/rkf_auto_connect.py mark-project /path/to/project
 如果希望未來 agent 在該專案更快找到 RKF 相關線索，可以在專案內建立 `RKF/`
 bridge folder：
 
-```bash
-python3 tools/rkf_auto_connect.py bridge-folder /path/to/project --project-name ProjectName
+```text
+幫這個專案建立 RKF bridge folder，project name 用 ProjectName。
 ```
 
 這會建立：
@@ -89,8 +91,8 @@ RKF/
 
 這個資料夾是 project-local index，不是第二份 RKF database：
 
-- `RKF/hot.md`：本專案的研究需求、search strings、候選問題；可再透過
-  `rk hot record` 送進中央 RKF `hot.md`。
+- `RKF/hot.md`：本專案的研究需求、search strings、候選問題；可再請 Codex app
+  送進中央 RKF `hot.md`。
 - `RKF/memory.md`：本專案要如何查 RKF 的 pointer、topic、paper、query hints。
 - `RKF/captures.md`：記錄哪些項目已送進 RKF inbox/hot，以及哪些沒有被 promote。
 - 既有檔案不會被覆寫；helper 只補缺少的 bridge 檔案。

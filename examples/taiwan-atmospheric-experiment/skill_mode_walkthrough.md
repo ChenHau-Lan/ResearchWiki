@@ -15,9 +15,9 @@ Interpretation:
 
 | Step | User Intent | Skill | Mode | Output | Stop Condition |
 |---|---|---|---|---|---|
-| 1 | Clarify topic boundary | `academic-research-skills` | `deep-research:socratic` or `deep-research:quick` | Research scope and search terms | If campaign names are ambiguous |
-| 2 | Find SCI papers | `academic-research-skills` | `deep-research:lit-review` | Candidate paper list with DOI/routes | Candidates can seed drafts; not claim evidence |
-| 3 | Check source quality | `academic-research-skills` | `deep-research:fact-check` | Source verification notes | If source identity or DOI is unclear |
+| 1 | Clarify topic boundary | `academic-research-suite` | `deep-research:socratic` or `deep-research:quick` | Research scope and search terms | If campaign names are ambiguous |
+| 2 | Find SCI papers | `academic-research-suite` | `deep-research:lit-review` | Candidate paper list with DOI/routes | Candidates can seed drafts; not claim evidence |
+| 3 | Check source quality | `academic-research-suite` | `deep-research:fact-check` | Source verification notes | If source identity or DOI is unclear |
 | 4 | Capture DOI/URL/PDF lead | `rkf-evidence-vault` | `capture` | SourceRecord | No wiki write yet |
 | 5 | Create paper draft | `rkf-knowledge-synthesis` | `distill-paper` | `knowledge/papers/*.md` with maturity fields | Mark metadata-only or needs-user-pdf honestly |
 | 6 | Record full text route | `rkf-evidence-vault` | `acquire` | full-text status update or route note | Ask user for PDF only when full text is unavailable |
@@ -28,7 +28,7 @@ Interpretation:
 | 11 | Record feedback or nudge | `rkf-wiki-core` | `paper-feedback`, `paper-queue` | reading ledger update or paper queue | Ledger is operational memory, not evidence itself |
 | 12 | Save recommendation | `rkf-knowledge-synthesis` | `synthesize` | Synthesis page with maturity fields | Save only durable cross-source results |
 | 13 | Check safety | `rkf-lint` | `evidence-lint`, `public-safety-lint` | Findings or repair plan | Block if PDFs/private paths leak |
-| 14 | Share across machines | `rkf-connect` | `shared-database-plan`, `sandbox-grant` | Drive RAW/wiki plan or sandbox capsule | Experimental; no private paths in Git |
+| 14 | Share across machines | `rkf-connect` | `shared-database-plan`, `handoff-grant` | Drive RAW/wiki plan or handoff capsule | Experimental; no private paths in Git |
 
 ## Why Not Use ARS Alone?
 

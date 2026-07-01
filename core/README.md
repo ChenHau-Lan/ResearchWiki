@@ -8,7 +8,9 @@ plans.
 Active surfaces:
 
 - `rkf/`: Python runtime and validation helpers.
-- `tools/rk.py`: CLI wrapper.
+- `rkf/actions.py`: structured Codex app action API. New integrations should
+  prefer this over command-string construction.
+- `tools/rk.py`: legacy/dev CLI shim.
 - `schemas/`: SourceRecord, EvidenceArtifact, KnowledgeObject, ReadingLedger,
   Topic, GateDecision, and GraphEdge contracts.
 - `templates/rkf/`: public-safe knowledge page templates.

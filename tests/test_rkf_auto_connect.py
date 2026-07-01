@@ -1,7 +1,10 @@
 from __future__ import annotations
 
 import io
+import json
 import os
+import subprocess
+import sys
 import tempfile
 import unittest
 from contextlib import redirect_stdout
@@ -10,16 +13,17 @@ from pathlib import Path
 from tools import rkf_auto_connect as auto
 
 
+REPO = Path(__file__).resolve().parents[1]
+
+
 class RKFAutoConnectTests(unittest.TestCase):
     def setUp(self) -> None:
         self.tmp = tempfile.TemporaryDirectory()
         self.root = Path(self.tmp.name)
         self.researchwiki = self.root / "ResearchWiki"
         self.researchwiki.mkdir()
-        (self.researchwiki / "tools").mkdir()
-        (self.researchwiki / "tools" / "rk.py").write_text("# test RKF CLI\n", encoding="utf-8")
         (self.researchwiki / "rkf.workspace.toml").write_text(
-            "[storage]\nwiki_root = \"${HOME}/ResearchWiki/wiki\"\n",
+            f"[storage]\nwiki_root = \"{self.researchwiki.as_posix()}\"\n",
             encoding="utf-8",
         )
         self.config = self.root / "rkf_connector.toml"
@@ -77,6 +81,24 @@ class RKFAutoConnectTests(unittest.TestCase):
         self.assertEqual(decision.level, "none")
         self.assertEqual(decision.targets, [])
 
+    def test_helper_script_runs_from_an_external_project_cwd(self) -> None:
+        result = subprocess.run(
+            [
+                sys.executable,
+                str(REPO / "tools" / "rkf_auto_connect.py"),
+                "classify",
+                "Find papers related to DOI 10.1234/example.",
+            ],
+            cwd=self.root,
+            env=os.environ.copy(),
+            text=True,
+            capture_output=True,
+            check=False,
+        )
+
+        self.assertEqual(result.returncode, 0, result.stderr)
+        self.assertIn('"level": "active"', result.stdout)
+
     def test_block_private_paths_and_long_transcripts(self) -> None:
         private_path = "/" + "Users/example/private.txt"
         private_decision = auto.classify_capture(
@@ -95,9 +117,15 @@ class RKFAutoConnectTests(unittest.TestCase):
         self.assertEqual(long_decision.level, "blocked")
         self.assertIn("too-long", long_decision.reasons)
 
-    def test_build_inbox_command_uses_existing_rkf_cli(self) -> None:
+    def test_load_config_does_not_require_legacy_cli(self) -> None:
         config = auto.load_connector_config()
-        command = auto.build_inbox_command(
+
+        self.assertEqual(config.researchwiki_root, self.researchwiki.resolve())
+        self.assertFalse((self.researchwiki / "tools" / "rk.py").exists())
+
+    def test_build_inbox_request_uses_structured_action(self) -> None:
+        config = auto.load_connector_config()
+        request = auto.build_inbox_request(
             config=config,
             title="ChatGPT note on aerosol paper",
             origin="project:QUACS",
@@ -108,23 +136,38 @@ class RKFAutoConnectTests(unittest.TestCase):
             no_inject=False,
         )
 
-        self.assertEqual(command[:4], ["python3", str((self.researchwiki / "tools" / "rk.py").resolve()), "inbox", "capture"])
-        self.assertIn("--doi", command)
-        self.assertIn("10.1234/example", command)
-        self.assertNotIn("/" + "Users/", " ".join(command))
+        self.assertEqual(request.action, "inbox.capture")
+        self.assertEqual(request.params["doi"], "10.1234/example")
+        self.assertEqual(request.params["origin"], "project:QUACS")
+        self.assertNotIn("/" + "Users/", repr(request.params))
 
-    def test_build_hot_command_records_research_demand(self) -> None:
+    def test_build_hot_request_records_research_demand(self) -> None:
         config = auto.load_connector_config()
-        command = auto.build_hot_command(
+        request = auto.build_hot_request(
             config=config,
             query="recent aerosol-cloud parameterization papers",
             origin="project:ResearchProject",
             intent="paper-search",
         )
 
-        self.assertEqual(command[:4], ["python3", str((self.researchwiki / "tools" / "rk.py").resolve()), "hot", "record"])
-        self.assertIn("--intent", command)
-        self.assertIn("paper-search", command)
+        self.assertEqual(request.action, "hot.record")
+        self.assertEqual(request.params["query"], "recent aerosol-cloud parameterization papers")
+        self.assertEqual(request.params["intent"], "paper-search")
+
+    def test_execute_action_request_writes_to_configured_researchwiki_root(self) -> None:
+        config = auto.load_connector_config()
+        request = auto.build_hot_request(
+            config=config,
+            query="recent aerosol-cloud parameterization papers",
+            origin="project:ResearchProject",
+            intent="paper-search",
+        )
+
+        result = auto.execute_action_request(config=config, request=request)
+
+        self.assertEqual(result.status, "ok")
+        hot = (self.researchwiki / "hot.md").read_text(encoding="utf-8")
+        self.assertIn("recent aerosol-cloud parameterization papers", hot)
 
     def test_write_project_marker_is_public_safe(self) -> None:
         project = self.root / "SomeProject"
@@ -181,6 +224,57 @@ class RKFAutoConnectTests(unittest.TestCase):
         self.assertEqual(status, 0)
         self.assertIn(str(project / "RKF"), stdout.getvalue())
         self.assertTrue((project / "RKF" / "README.md").exists())
+
+    def test_hot_request_command_outputs_structured_action_json(self) -> None:
+        stdout = io.StringIO()
+
+        with redirect_stdout(stdout):
+            status = auto.main(
+                [
+                    "hot-request",
+                    "recent aerosol-cloud parameterization papers",
+                    "--origin",
+                    "project:ResearchProject",
+                    "--intent",
+                    "paper-search",
+                ]
+            )
+
+        self.assertEqual(status, 0)
+        payload = json.loads(stdout.getvalue())
+        self.assertEqual(payload["action"], "hot.record")
+        self.assertEqual(payload["params"]["intent"], "paper-search")
+
+    def test_hot_execute_command_writes_without_legacy_cli(self) -> None:
+        stdout = io.StringIO()
+
+        with redirect_stdout(stdout):
+            status = auto.main(
+                [
+                    "hot-execute",
+                    "recent aerosol-cloud parameterization papers",
+                    "--origin",
+                    "project:ResearchProject",
+                    "--intent",
+                    "paper-search",
+                ]
+            )
+
+        self.assertEqual(status, 0)
+        self.assertIn("recorded hot query:", stdout.getvalue())
+        hot = (self.researchwiki / "hot.md").read_text(encoding="utf-8")
+        self.assertIn("recent aerosol-cloud parameterization papers", hot)
+
+    def test_legacy_command_array_subcommands_are_removed(self) -> None:
+        self.assertFalse(hasattr(auto, "build_inbox_command"))
+        self.assertFalse(hasattr(auto, "build_hot_command"))
+        for argv in (
+            ["inbox-command", "Legacy", "--origin", "project:Legacy", "--clip", "note"],
+            ["hot-command", "legacy hot query", "--origin", "project:Legacy"],
+        ):
+            with self.assertRaises(SystemExit) as caught:
+                auto.main(argv)
+            self.assertEqual(caught.exception.code, 2)
 
 
 if __name__ == "__main__":

@@ -1,7 +1,7 @@
 # Paper Intake Workflow
 
-這份流程說明 RKF v0 的日常文獻整理方式：Markdown 是主要工作介面，CLI 是 agent
-與 automation 的薄後端。使用者不需要手動執行 CLI 才能整理 paper。
+這份流程說明 RKF v0 的日常文獻整理方式：Codex app 是互動介面，Markdown pages 是
+durable artifact。使用者不需要手動執行 CLI 才能整理 paper。
 
 ## 使用者入口
 
@@ -44,21 +44,14 @@
 Candidate、ARS output、hot query、route note、AI/Agent Notes 都不能單獨作為
 stable claim evidence。
 
-## CLI 的角色
+## Codex App 的角色
 
-CLI 是 agent-safe backend，不是使用者一定要手動操作的入口。Agent 或 automation
-可以在背後使用：
+使用者在 Codex app 用自然語言要求 paper intake、reading queue、lint、index 或 graph
+更新。Agent 會依 RKF skill routing 和 evidence boundary 執行必要的內部 action，並在
+最後回報修改與驗證結果。
 
-```bash
-python3 tools/rk.py distill paper <source_id>
-python3 tools/rk.py paper queue
-python3 tools/rk.py lint
-python3 tools/rk.py index
-python3 tools/rk.py graph
-```
-
-手動使用 CLI 適合可重現檢查、批次整理、debug、或 automation 設定。日常閱讀與整理
-優先保持 Markdown-first。
+現有 Python runtime / legacy CLI 僅作為 Codex app、測試與維護使用的內部 shim。日常
+閱讀與整理優先保持 Codex app + Markdown artifact 的流程。
 
 ## 安全邊界
 

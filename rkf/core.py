@@ -2546,12 +2546,12 @@ def render_workspace_status(ws: Workspace, *, log_tail: int = 5) -> str:
             f"- Reading ledger directory: {relative_workspace_path(ws, ws.paths.reading)}",
             f"- Critical facts: {relative_workspace_path(ws, ws.paths.critical_facts)}",
             "",
-            "### Validation Commands",
+            "### Validation Checks",
             "",
             "- python3 -B -m unittest discover -s tests",
-            "- python3 tools/rk.py lint",
-            "- python3 tools/rk.py lint --mode graph-lint",
             "- python3 tools/public_safety_scan.py",
+            "- RKF all lint through the Codex app/internal runtime",
+            "- RKF graph lint through the Codex app/internal runtime",
             "",
             "## Recent Log",
             "",
@@ -2652,7 +2652,7 @@ def export_graph(ws: Workspace) -> dict[str, Any]:
     return graph
 
 
-def external_sandbox_capsule(ws: Workspace) -> Path:
+def codex_handoff_capsule(ws: Workspace) -> Path:
     allowed_modes = [
         "capture",
         "discover",
@@ -2662,7 +2662,6 @@ def external_sandbox_capsule(ws: Workspace) -> Path:
         "query",
         "save",
         "synthesize",
-        "synthesize auto",
         "emerge",
         "hot record",
         "hot refresh",
@@ -2671,7 +2670,6 @@ def external_sandbox_capsule(ws: Workspace) -> Path:
         "paper queue",
         "paper next",
         "paper nudge",
-        "status",
         "world",
         "evolve",
         "reconcile",
@@ -2680,7 +2678,7 @@ def external_sandbox_capsule(ws: Workspace) -> Path:
         "lint",
         "graph",
     ]
-    path = ws.paths.prompts / "external_sandbox_context.md"
+    path = ws.paths.prompts / "codex_handoff_context.md"
     write_text(
         path,
         "# Research Knowledge Framework Context Capsule\n\n"
@@ -2691,7 +2689,7 @@ def external_sandbox_capsule(ws: Workspace) -> Path:
         "- Durable path: capture source -> create/read paper draft -> update full-text status -> request user PDF only when unavailable -> record feedback/locators -> promote claims only at the boundary.\n"
         "- Claim boundary: stable claims and trusted synthesis need a locator, human feedback, or existing governed source; explicit blockers prevent promotion until reviewed.\n"
         "- Reading ledger rule: public-safe reading events live under state/reading/ and are operational memory, not claim evidence by themselves.\n"
-        "- Hot-query rule: public-safe research questions may be recorded in hot.md with `python3 tools/rk.py hot record`; do not create separate hot-query files.\n"
+        "- Hot-query rule: public-safe research questions may be recorded in hot.md through the Codex app action `hot.record`; do not create separate hot-query files.\n"
         "- Target save layers: paper, question, concept, claim, synthesis, topic, meeting, seminar, review item.\n"
         "- Allowed modes: "
         + ", ".join(allowed_modes)

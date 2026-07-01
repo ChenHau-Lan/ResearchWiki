@@ -13,8 +13,9 @@ external research, reasoning, writing, and review engine.
 
 Work in this repository is research-engineering hybrid work:
 
-- Engineering surface: Python CLI and RKF framework code under `tools/`, `rkf/`,
-  tests, schemas, templates, lint checks, and manuals.
+- Engineering surface: Python runtime/action API, legacy CLI shim, and RKF
+  framework code under `tools/`, `rkf/`, tests, schemas, templates, lint
+  checks, and manuals.
 - Research surface: governed wiki objects, paper drafts, reading ledgers,
   maturity gates, public-safe synthesis, topic registry, and ARS bridge
   proposals.
@@ -35,7 +36,8 @@ order:
    known workflow traps.
 2. `README.md` or `README.zh-TW.md` for the public project contract.
 3. `MODE_REGISTRY.md` for RKF mode routing and write boundaries.
-4. `docs/FEATURES_AND_COMMANDS.zh-TW.md` for the current CLI inventory.
+4. `docs/FEATURES_AND_COMMANDS.zh-TW.md` for the current Codex app workflow and
+   capability map.
 5. `docs/LITERATURE_MATRIX.md` and `docs/AI_USE_LOG.md` when the task touches
    literature synthesis, research writing, summaries, or publication-facing
    artifacts.
@@ -51,9 +53,9 @@ docs or code unless the user explicitly asks for machine-local setup notes.
 |---|---|---|
 | `rkf-evidence-vault` | Source capture, candidate discovery, full-text availability, user PDF routing, PDF/OCR/visual reading state | DOI, URL, PDF, literature discovery, source intake, 文獻搜尋, 找文章, 提供PDF, full text |
 | `rkf-knowledge-synthesis` | Paper drafts, maintained knowledge objects, topic review, emerge, and maturity-aware synthesis | paper note, synthesis, emerge, auto synthesis, topic, claim, 整理成wiki, 論文筆記, 概念頁, topic整理 |
-| `rkf-wiki-core` | LLM Wiki retrieval, ARS reasoning handoff, save, graph, L0-L3 world context, evolve, challenge, paper queue, sandbox context | LLM Wiki, query, save, graph, world, evolve, challenge, status, paper queue, 回寫wiki |
+| `rkf-wiki-core` | LLM Wiki retrieval, ARS reasoning handoff, save, graph, L0-L3 world context, evolve, challenge, paper queue, handoff context | LLM Wiki, query, save, graph, world, evolve, challenge, paper queue, 回寫wiki |
 | `rkf-lint` | Health checks, reconcile detection, and repair planning for structure, maturity, evidence boundary, graph, public safety | lint, reconcile, audit, repair plan, 檢查, 修復計畫, 發布安全 |
-| `rkf-connect` | Experimental shared database, multi-computer Drive links, and external sandbox access boundaries | shared database, Google Drive, symlink, sandbox access, 共享資料庫 |
+| `rkf-connect` | Experimental shared database, multi-computer Drive links, and Codex handoff access boundaries | shared database, Google Drive, symlink, handoff access, 共享資料庫 |
 
 `rkf-ars-bridge` is not an active skill. It is an implicit protocol for
 translating ARS outputs into RKF proposals or reading-feedback events.
@@ -77,8 +79,8 @@ translating ARS outputs into RKF proposals or reading-feedback events.
 4. If the user asks to query the wiki, retrieve governed RKF context with
    `rkf-wiki-core`; when interpretation or recommendation is needed, let ARS
    reason over that context; save only through RKF proposal/synthesis rules.
-5. If the user asks to save discussion memory, export graph, check status, or
-   hand off to another sandbox, route to `rkf-wiki-core`. Use `world` when a
+5. If the user asks to save discussion memory, export graph, check state, or
+   hand off to another Codex session, route to `rkf-wiki-core`. Use `world` when a
    future agent needs session bootstrap context.
 6. If the user asks to track frequently asked research questions or hot paper
    search demand, route to `rkf-wiki-core` hot-query behavior.
@@ -87,10 +89,11 @@ translating ARS outputs into RKF proposals or reading-feedback events.
    `rkf-lint` when the request is structural drift detection or repair
    planning. Use `reconcile` when the task is contradiction detection across
    existing pages.
-8. If the user asks for unnamed patterns, nightly synthesis, or auto-synthesis,
+8. If the user asks for unnamed patterns or nightly synthesis,
    route to `rkf-knowledge-synthesis` `emerge`; the output starts low maturity.
 9. If the user asks to set up shared RAW/wiki folders, connect multiple
-   computers, or grant external sandbox access, route to `rkf-connect`.
+   computers, or grant Codex handoff access, route to
+   `rkf-connect`.
 10. If the user asks for deep research, paper writing, peer review, or a full
    research-to-paper workflow, use ARS externally; return durable results to RKF
    only through the bridge protocol.
@@ -128,9 +131,8 @@ translating ARS outputs into RKF proposals or reading-feedback events.
   during a digest unless the user explicitly asks.
 - When no public-safe full-text Markdown exists, link safe wiki/read-note pages
   and say that article text is unavailable or unsuitable for durable storage.
-- Do not use `python3 tools/rk.py hot show`; this CLI currently supports
-  `hot record` and `hot refresh`. Inspect `hot.md` directly or resolve the live
-  wiki root from `rkf.workspace.toml`.
+- There is no `hot show` workflow. Inspect `hot.md` directly or resolve the
+  live wiki root from `rkf.workspace.toml`.
 
 ## Key Rules
 
@@ -166,7 +168,7 @@ translating ARS outputs into RKF proposals or reading-feedback events.
   maturity-downgraded until reviewed.
 - `challenge` is allowed to argue against a page using RKF knowledge, but its
   output is critique only.
-- `emerge` and `synthesize auto` create low-maturity synthesis drafts only.
+- `emerge` creates low-maturity synthesis drafts only.
   They do not require candidate records and must not promote stable claims.
 - AI-integrated stable claim or synthesis content needs `observed_at`,
   `valid_from`, and an `AI Integration Note`.
@@ -250,8 +252,9 @@ changes, prefer:
 ```bash
 python3 -m py_compile tools/rk.py rkf/*.py tools/public_safety_scan.py
 python3 -m unittest discover -s tests
-python3 tools/rk.py topic lint
-python3 tools/rk.py lint
-python3 tools/rk.py paper queue
 python3 tools/public_safety_scan.py
 ```
+
+Also request RKF topic lint, all lint, and paper queue checks through the Codex
+app/internal runtime when the change touches framework behavior or reading
+state.

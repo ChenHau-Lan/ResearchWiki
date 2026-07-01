@@ -15,7 +15,7 @@ FORBIDDEN_PATH_PATTERNS = [
     re.compile(r"C:\\Users\\", re.IGNORECASE),
 ]
 PRIVATE_REPORTS = {
-    "prompts/external_sandbox_context.md",
+    "prompts/codex_handoff_context.md",
     "rkf.workspace.toml",
     "workspace.toml",
 }

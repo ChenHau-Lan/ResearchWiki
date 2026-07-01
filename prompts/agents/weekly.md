@@ -2,14 +2,12 @@
 
 Goal: review topic drift, synthesis gaps, and reading maturity debt.
 
-Use:
+Use the Codex app RKF workflow to request:
 
-```bash
-python3 tools/rk.py world --log-tail 20
-python3 tools/rk.py topic lint
-python3 tools/rk.py emerge --limit 12
-python3 tools/rk.py reconcile --dry-run --limit 12
-```
+- `world` context with a longer recent-log view.
+- `topic lint` for registry and scope drift checks.
+- `emerge` preview for low-maturity pattern candidates.
+- `reconcile` dry-run for contradiction candidates.
 
 Report:
 

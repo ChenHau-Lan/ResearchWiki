@@ -1,6 +1,6 @@
 # PROJECT_MEMORY
 
-Last updated: 2026-06-22
+Last updated: 2026-07-01
 
 ## Project Summary
 
@@ -27,17 +27,23 @@ Last updated: 2026-06-22
 - The repo contains `docs/LITERATURE_MATRIX.md` and `docs/AI_USE_LOG.md`; use
   them for public-safe literature synthesis notes and AI-use/disclosure traces.
 - README files are the public front door; `MODE_REGISTRY.md` is the active mode
-  and write-boundary reference; `docs/FEATURES_AND_COMMANDS.zh-TW.md` is the
-  command inventory.
+  and write-boundary reference; `docs/FEATURES_AND_COMMANDS.zh-TW.md` is now the
+  Codex app workflow and capability map.
 
 ## Durable Decisions
 
 - RKF treats evidence as an upgrade boundary, not an entry gate. Paper drafts
   can start from metadata, abstract, partial full text, publisher HTML, or a
   user-provided PDF.
-- The current paper intake workflow is Markdown-first. Users can work through natural
-  language and Markdown pages; the CLI remains a thin backend for repeatable
-  agent operations, validation, indexing, graph export, and automation.
+- The current RKF interaction model is Codex app-only for users. Users work
+  through natural language in Codex, while Markdown pages remain durable
+  artifacts. New integrations should use `rkf.actions` structured requests.
+  The existing legacy CLI is an internal shim for Codex agents, tests,
+  validation, indexing, graph export, and maintenance, not a user-facing
+  control surface.
+- `rkf.actions` currently covers `inbox.capture` and `hot.record`; the legacy
+  CLI uses those actions for the same write paths so Codex app and CLI shim
+  behavior do not drift.
 - Mixed ChatGPT/web/project-note capture should use `knowledge/inbox/` first.
   DOI injection is guarded: create/update source identity and paper backlinks
   only, while preserving source-grounded notes, reader ideas, and AI/agent notes
@@ -46,6 +52,19 @@ Last updated: 2026-06-22
   repo-side helper. Connected projects use Active/Aggressive hybrid capture:
   source-like material is captured actively, valuable research discussion is
   captured aggressively, and claim promotion remains conservative.
+- The repo-side `tools/rkf_auto_connect.py` helper builds and executes
+  structured `ActionRequest` objects for durable capture. Legacy command-array
+  builders and `inbox-command` / `hot-command` subcommands were removed; use
+  `inbox-request`, `hot-request`, `inbox-execute`, or `hot-execute` instead.
+- Codex handoff/bootstrap prompts should request RKF app workflows, structured
+  actions, or proposals. They should not instruct users or handoff agents to
+  operate RKF through shell commands.
+- Legacy handoff naming has been retired. Use `codex-handoff` for hot
+  origins, `prompt codex-handoff` for internal context capsule generation,
+  `prompts/codex_handoff_context.md` for generated local handoff context, and
+  `prompts/codex_handoff_bootstrap.*.md` for committed bootstrap templates.
+- Redundant runtime aliases were removed from the internal shim. Use `world`,
+  `graph`, and `emerge` as the canonical routes.
 - Connected projects may add a project-local `RKF/` bridge folder with
   `README.md`, `hot.md`, `memory.md`, and `captures.md` to speed future agent
   retrieval. Treat that folder as an operational index only, not a second RKF
@@ -75,7 +94,7 @@ Last updated: 2026-06-22
 ## Personalized Workflow Preferences
 
 - If the user writes in Chinese, reply in Traditional Chinese while preserving
-  RKF field names, CLI commands, and skill names in English where useful.
+  RKF field names, mode names, and skill names in English where useful.
 - For recurring RKF daily digests, check the live/shared `hot.md` first. If no
   useful `hot.md` exists, fall back to recently modified or current-goal pages
   under `knowledge/topics`, `knowledge/questions`, `knowledge/concepts`,
@@ -99,30 +118,20 @@ Last updated: 2026-06-22
 - When no public-safe full-text Markdown exists, cite safe wiki/read-note pages
   instead of article text or private artifacts.
 
-## Verified Commands
+## Verified Validation
 
-Use the narrowest command set that matches the change. Commands observed or
+Use the narrowest validation set that matches the change. Commands observed or
 documented as valid for this repo include:
 
 ```bash
 python3 -m py_compile tools/rk.py rkf/*.py tools/public_safety_scan.py
 python3 -m unittest discover -s tests
-python3 tools/rk.py topic lint
-python3 tools/rk.py lint
-python3 tools/rk.py paper queue
-python3 tools/rk.py world
 python3 tools/public_safety_scan.py
 ```
 
-For hot-query workflows, use:
-
-```bash
-python3 tools/rk.py hot record "<query>" --intent paper-search
-python3 tools/rk.py hot refresh --days 30
-```
-
-Do not use `python3 tools/rk.py hot show`; the current CLI does not provide that
-read-only subcommand.
+For RKF state checks, ask Codex for topic lint, all lint, paper queue, world
+context, hot demand recording, or hot refresh through the app/internal runtime.
+There is no `hot show` workflow; inspect `hot.md` directly.
 
 ## Known Operational Traps
 
@@ -145,7 +154,7 @@ read-only subcommand.
   `rkf-auto-connect` skill and keep project markers small and public-safe.
 - Trap: treating a project-local `RKF/hot.md` or `RKF/memory.md` as canonical
   RKF evidence. Fix: keep `RKF/` bridge files pointer-oriented and route
-  durable capture through the central RKF CLI.
+  durable capture through the central RKF Codex app/action flow.
 
 ## Documentation Map
 
@@ -155,7 +164,8 @@ read-only subcommand.
 - `MODE_REGISTRY.md`: modes, write boundaries, oversight levels, and bridge
   protocol.
 - `docs/ARCHITECTURE.md`: framework architecture.
-- `docs/FEATURES_AND_COMMANDS.zh-TW.md`: current feature and command inventory.
+- `docs/FEATURES_AND_COMMANDS.zh-TW.md`: current Codex app workflow and
+  capability map.
 - `docs/LITERATURE_MATRIX.md`: concise public-safe cross-paper synthesis notes.
 - `docs/AI_USE_LOG.md`: AI-assisted research/digest/writing disclosure log.
 - `docs/references/ars_bridge_protocol.md`: ARS-to-RKF handoff contract.
@@ -182,4 +192,5 @@ read-only subcommand.
   repo-local file presence.
 - Keep validating that digest and synthesis outputs do not blur proposals,
   route notes, and evidence-backed claims.
-- Expand tests and docs together when adding new CLI commands or RKF modes.
+- Expand tests and docs together when adding new Codex app workflows, RKF action
+  surfaces, or RKF modes.

@@ -11,9 +11,9 @@ claims, trusted synthesis, citation confidence, and publication still require a
 locator, human feedback, an existing governed RKF source, or an explicit review
 blocker.
 
-RKF works beside `academic-research-skills`: ARS can search, reason, write, and
-review; RKF decides what becomes durable wiki memory and what remains a reading
-draft or proposal.
+RKF works beside the Codex `academic-research-suite` skill: ARS can search,
+reason, write, and review; RKF decides what becomes durable wiki memory and
+what remains a reading draft or proposal.
 
 ## Mental Model
 
@@ -66,51 +66,39 @@ It becomes trusted only when coverage, feedback, and claim readiness are clear.
 
 ### Save a ChatGPT or web clip to the inbox
 
-```bash
-python3 tools/rk.py inbox capture "ChatGPT note on aerosol paper" \
-  --origin chatgpt-web \
-  --source-url "https://chatgpt.com/share/CONVERSATION_ID" \
-  --doi "10.1234/example" \
-  --clip "Short public-safe excerpt or summary." \
-  --reader-note "My idea or project relation."
-```
+Ask Codex: "Save this ChatGPT or web clip to the RKF inbox. Keep the source
+summary, DOI/URL, my reader note, and any AI/agent note in separate sections."
 
 An inbox item is a low-risk capture object. DOI injection only creates or links
 the `SourceRecord` and paper backlink; it does not promote stable claims.
 
 ### Register a paper and create an early draft
 
-```bash
-python3 tools/rk.py capture doi "10.1234/example" --title "Example Paper" --topic-id "topic-id"
-python3 tools/rk.py distill paper doi_10_1234_example
-```
+Ask Codex: "Capture this DOI/URL in RKF and create a conservative paper draft,
+even if we only have metadata or an abstract."
 
 If no full text is available, the draft should show `fulltext_status:
 needs-user-pdf` and the paper should appear in the queue.
 
 ### Ask the user for a PDF only when needed
 
-```bash
-python3 tools/rk.py acquire doi_10_1234_example
-```
+Ask Codex: "Show which registered papers need my PDF or authorized full text."
 
 This marks the source as needing a user PDF. It does not create a new required
 checkpoint. Older checkpoint files remain valid for legacy records.
 
 ### Record a user-provided PDF
 
-```bash
-python3 tools/rk.py acquire doi_10_1234_example --pdf "/private/path/to/paper.pdf"
-```
+Ask Codex: "I have the PDF for this paper; update full-text status and keep the
+private evidence boundary intact."
 
 The PDF remains in private evidence storage. The public wiki records only safe
 metadata, reading state, and locator notes.
 
 ### Check locators and upgrade readiness
 
-```bash
-python3 tools/rk.py verify-pdf doi_10_1234_example --locator "p. 3 Fig. 2; p. 8 Section 4" --note "Identity and key locators checked."
-```
+Ask Codex: "Check the locators/readability for this paper and tell me whether
+it can support claim readiness."
 
 Use this when a PDF, publisher HTML page, or visual artifact has been checked
 enough to support claims. For scanned or image-only papers, record visual
@@ -118,9 +106,8 @@ locators, OCR confidence, and human reading notes.
 
 ### Record feedback
 
-```bash
-python3 tools/rk.py paper feedback doi_10_1234_example --level discussed --note "User corrected the interpretation of the method section."
-```
+Ask Codex: "Record that I discussed, annotated, corrected, or trusted this
+paper, and append the public-safe event to its reading ledger."
 
 Feedback updates the paper frontmatter and appends a public-safe event to
 `state/reading/`. The ledger helps RKF know which papers are trusted by the
@@ -128,30 +115,23 @@ user, but a ledger entry alone is not claim evidence.
 
 ### Use the active paper queue
 
-```bash
-python3 tools/rk.py paper status
-python3 tools/rk.py paper queue
-python3 tools/rk.py paper next
-python3 tools/rk.py paper nudge --limit 5
-```
+Ask Codex: "Show my active RKF paper queue and the next papers that need PDF,
+feedback, locators, or synthesis review."
 
 The queue should prioritize papers that are metadata-only, need a user PDF,
 lack human feedback, have repeated questions, or are ready for synthesis review.
 
 ### Start a session with world context
 
-```bash
-python3 tools/rk.py world --log-tail 10
-```
+Ask Codex: "Start this session with RKF world context."
 
 `world` returns the L0-L3 context capsule: critical facts, active reading,
 claim readiness, contradiction hints, graph links, and validation state.
 
 ### Evolve an existing page
 
-```bash
-python3 tools/rk.py evolve knowledge/concepts/example.md --note "Add retrieval brief after reading review." --source "daily-agent"
-```
+Ask Codex: "Use `evolve` to add this low-risk update to the existing page and
+leave an AI Integration Note."
 
 Low-risk updates may rewrite existing pages when they leave an AI Integration
 Note. High-risk stable claim promotion, source identity conflicts,
@@ -160,22 +140,16 @@ blockers or maturity downgrades.
 
 ### Reconcile contradictions and challenge a synthesis
 
-```bash
-python3 tools/rk.py reconcile --topic-id aerosol-cloud
-python3 tools/rk.py reconcile --dry-run
-python3 tools/rk.py challenge knowledge/synthesis/example.md --limit 5
-```
+Ask Codex: "Reconcile contradictions in this topic and challenge this synthesis
+using only existing RKF knowledge."
 
 `reconcile` marks contradictions as AI-integrated blockers. `challenge` returns
 counterpoints and downgrade suggestions only; it does not create stable claims.
 
 ### Discover unnamed patterns
 
-```bash
-python3 tools/rk.py emerge --limit 8
-python3 tools/rk.py emerge --write --topic-id aerosol-cloud
-python3 tools/rk.py synthesize auto --write --limit 8
-```
+Ask Codex: "Find unnamed patterns from the current reading queue, hot demand,
+feedback gaps, and topic state; keep any written synthesis low maturity."
 
 Auto-synthesis uses existing RKF reading, hot-query, feedback, and topic state.
 It does not require candidate records and starts as low maturity.
@@ -190,12 +164,12 @@ It does not require candidate records and starts as low maturity.
 | Check locators/readability | `rkf-evidence-vault` | `verify-pdf` |
 | Create/update paper draft | `rkf-knowledge-synthesis` | `distill-paper` |
 | Save question/concept/claim/synthesis | `rkf-knowledge-synthesis` | `save-*` / `synthesize` |
-| Find unnamed patterns | `rkf-knowledge-synthesis` | `emerge` / `synthesize auto` |
+| Find unnamed patterns | `rkf-knowledge-synthesis` | `emerge` |
 | Query wiki and record hot demand | `rkf-wiki-core` | `query` / `hot-query` |
 | Evolve or challenge existing pages | `rkf-wiki-core` | `evolve` / `challenge` |
 | Track paper queue and feedback | `rkf-wiki-core` | `paper-*` |
 | Run maintenance checks or reconcile contradictions | `rkf-lint` | `structure`, `evidence`, `graph`, `ARS`, `public-safety`, `reconcile` |
-| Connect external sandboxes | `rkf-connect` | `sandbox-*` |
+| Connect other Codex sessions or projects | `rkf-connect` | `handoff-*` |
 
 ## Save Rules
 
@@ -212,34 +186,21 @@ It does not require candidate records and starts as low maturity.
 - Durable article text, PDFs, browser captures, private Drive paths, and local
   secrets must not be committed.
 
-## External Sandboxes
+## Codex Handoff Contexts
 
-External sandboxes should read the generated context capsule:
+Other Codex sessions or connected projects should receive a generated RKF
+context capsule and the same reading-boundary rules. They default to
+read/proposal access. If a handoff context only has search results, unclear
+topic fit, missing full text, low reading maturity, or insufficient locators,
+it should return a proposal instead of editing stable claims.
 
-```bash
-python3 tools/rk.py prompt external-sandbox
-```
-
-Trusted sandboxes with write access may use the CLI, but they must preserve the
-same maturity and claim boundaries. If a sandbox only has search results,
-unclear topic fit, missing full text, low reading maturity, or insufficient
-locators, it should return a proposal instead of editing stable claims.
-
-Trusted sandboxes may return `evolve`, `reconcile`, or `emerge` updates when the
-changes remain AI-marked and maturity-aware. They should not implement open-web
-or multimodal ingestion pipelines inside RKF; use ARS for external research.
+Trusted handoff contexts may return `evolve`, `reconcile`, or `emerge` updates
+when the changes remain AI-marked and maturity-aware. They should not implement
+open-web or multimodal ingestion pipelines inside RKF; use ARS for external
+research.
 
 ## Validation
 
-Before publishing or opening a PR, run:
-
-```bash
-python3 -B -m py_compile tools/rk.py rkf/cli.py rkf/core.py rkf/__init__.py tools/public_safety_scan.py
-python3 -B -m unittest discover -s tests
-python3 tools/rk.py topic lint
-python3 tools/rk.py lint
-python3 tools/rk.py lint --mode graph-lint
-python3 tools/rk.py lint --mode ars-handoff-lint
-python3 tools/rk.py lint --mode public-safety-lint
-python3 tools/public_safety_scan.py
-```
+Before publishing or opening a PR, ask Codex to run the smallest relevant
+validation suite. The final report should name the tests, lint checks,
+public-safety checks, skipped checks, and any environment limits.

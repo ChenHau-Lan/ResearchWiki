@@ -1,6 +1,6 @@
 # Research Knowledge Framework
 
-[English](README.md) | [Architecture](docs/ARCHITECTURE.md) | [Mode Registry](MODE_REGISTRY.md) | [手冊](docs/manuals/rkf_manual.zh-TW.md) | [功能與指令](docs/FEATURES_AND_COMMANDS.zh-TW.md)
+[English](README.md) | [Architecture](docs/ARCHITECTURE.md) | [Mode Registry](MODE_REGISTRY.md) | [手冊](docs/manuals/rkf_manual.zh-TW.md) | [Codex 工作流](docs/FEATURES_AND_COMMANDS.zh-TW.md)
 
 Research Knowledge Framework，簡稱 RKF，是以 LLM Wiki 為核心的主動研究閱讀框架。
 它把 source、paper draft、閱讀互動、人為反饋、question、claim、synthesis
@@ -13,9 +13,9 @@ RKF 現在把 evidence 視為**升級邊界**，不是入口門檻。Paper draft
 但 stable claim、trusted synthesis、citation、publication 仍需要 locator、人為反饋、
 既有受支持 wiki source，或明確 blocker。
 
-RKF 可以和 [Academic Research Skills](https://github.com/Imbad0202/academic-research-skills) 搭配：
-ARS 負責研究、推理、寫作與審查；RKF 負責 active reading state、human feedback、
-evidence boundary、topic governance 與 graph-safe wiki memory。
+RKF 可以和 Codex `academic-research-suite` skill 搭配：ARS 負責研究、推理、寫作與
+審查；RKF 負責 active reading state、human feedback、evidence boundary、topic
+governance 與 graph-safe wiki memory。
 
 ```text
 paper draft == active reading object
@@ -31,6 +31,8 @@ inbox item == ChatGPT/web/source lead capture，不是 claim evidence
 ```
 
 ## 快速開始
+
+在 Codex app 裡用自然語言操作 RKF：
 
 - 「先 capture 這個 DOI，就算只有 metadata 也建立 paper draft。」
 - 「把這段 ChatGPT/web clip 存到 RKF inbox，並把我的想法和來源內容分開。」
@@ -52,9 +54,9 @@ inbox item == ChatGPT/web/source lead capture，不是 claim evidence
 |---|---|
 | `rkf-evidence-vault` | Capture source、discovery、追蹤 full text availability、更新 reading artifact |
 | `rkf-knowledge-synthesis` | 維護 paper draft、question、concept、claim、topic、synthesis 與 reading maturity review |
-| `rkf-wiki-core` | 取回 LLM Wiki context、銜接 ARS reasoning、保存 durable memory、status、graph、sandbox capsule |
+| `rkf-wiki-core` | 取回 LLM Wiki context、銜接 ARS reasoning、保存 durable memory、Codex session context、graph、handoff capsule |
 | `rkf-lint` | 維護 structure、reading maturity、evidence boundary、graph、ARS handoff、public safety、repair plan |
-| `rkf-connect` | 實驗性的多電腦共享資料庫、Drive 連結與外部 sandbox 存取管理 |
+| `rkf-connect` | 實驗性的多電腦共享資料庫、Drive 連結與 Codex handoff 存取管理 |
 
 `rkf-ars-bridge` 是 protocol，不是 active skill。它把 ARS output 轉成 RKF
 save/review/synthesis proposal 或 reading feedback。
@@ -107,10 +109,10 @@ claim 自動變成 stable knowledge。
 
 ## World Context
 
-`python3 tools/rk.py world` 會輸出 L0-L3 context capsule：L0 identity、
-critical facts、active blockers；L1 active papers、paper queue、hot queries、
-recent reading feedback；L2 topic、synthesis、claim readiness、contradiction
-hints；L3 graph/detail links 和 validation state。
+開始 session 或交接給另一個 agent 時，請 Codex 顯示 RKF world context。它會輸出
+L0-L3 context capsule：L0 identity、critical facts、active blockers；L1 active
+papers、paper queue、hot queries、recent reading feedback；L2 topic、synthesis、
+claim readiness、contradiction hints；L3 graph/detail links 和 validation state。
 
 `CRITICAL_FACTS.md` 保存短句、public-safe、可重用且有 `observed_at`、
 `valid_from`、`confidence`、`source_or_blocker` 的 facts，讓未來 agent 不需要
@@ -118,29 +120,27 @@ hints；L3 graph/detail links 和 validation state。
 
 ## Priority Evolve
 
-`python3 tools/rk.py evolve <page> --note "..."`
-是低風險更新 existing pages 的正常路徑。它會寫入 `AI Integration Note`，標記
-`ai_integrated: true`，並保持 maturity 保守。Stable claim promotion、source
-identity conflict、publication-ready synthesis、delete/merge choices 都要留 blocker
-或 maturity downgrade，不能靜默升級信任。
+請 Codex 使用 `evolve` 做低風險 existing page 更新。它會寫入 `AI Integration
+Note`，標記 `ai_integrated: true`，並保持 maturity 保守。Stable claim promotion、
+source identity conflict、publication-ready synthesis、delete/merge choices 都要留
+blocker 或 maturity downgrade，不能靜默升級信任。
 
 `propagate` 仍保留為 manual preview/audit fallback，用於先看受影響頁面。
 
 ## Reconcile、Challenge 與 Emerge
 
-`python3 tools/rk.py reconcile` 會掃描同 topic 頁面中的明顯 tension；寫入時透過
-high-priority `evolve` 留下 AI-marked blocker，不假裝已經 human-resolved。
+請 Codex 用 `reconcile` 掃描同 topic 頁面中的明顯 tension；寫入時透過 high-priority
+`evolve` 留下 AI-marked blocker，不假裝已經 human-resolved。
 
-`python3 tools/rk.py challenge <page>` 只用現有 RKF pages 列出 counterpoints、
-missing evidence 與 maturity downgrade 建議。Challenge output 是 critique，不是
-stable claim evidence。
+請 Codex 用 `challenge` 只從現有 RKF pages 列出 counterpoints、missing evidence 與
+maturity downgrade 建議。Challenge output 是 critique，不是 stable claim evidence。
 
-`python3 tools/rk.py emerge` 從 reading queue、hot-query demand、human-feedback
-gap 與 topic state 找 unnamed patterns。它不需要 candidate records，也不使用 open-web
-retrieval。使用 `--write` 時會建立 low-maturity synthesis draft：
-`synthesis_maturity: draft`、`source_coverage: partial`、`claim_readiness: not-ready`。
+請 Codex 用 `emerge` 從 reading queue、hot-query demand、human-feedback gap 與 topic
+state 找 unnamed patterns。它不需要 candidate records，也不使用 open-web retrieval。
+當你批准寫入時，會建立 low-maturity synthesis draft：`synthesis_maturity: draft`、
+`source_coverage: partial`、`claim_readiness: not-ready`。
 
-`python3 tools/rk.py synthesize auto --write` 是同一套 auto-synthesis 行為的 alias。
+`emerge` 是唯一的 pattern-synthesis 路徑。
 
 Agent prompt templates 位於 `prompts/agents/`，包含 morning、nightly、weekly、
 health。這些只是 repo prompt；真正建立 app automation 需要使用者另外批准。
@@ -153,22 +153,19 @@ unknown-topic triage。這一層是 operational memory，不是 evidence。
 
 ## 驗證
 
-```bash
-python3 -m py_compile tools/rk.py rkf/*.py tools/public_safety_scan.py
-python3 -m unittest discover -s tests
-python3 tools/rk.py topic lint
-python3 tools/rk.py lint
-python3 tools/public_safety_scan.py
-```
+發布、開 PR 或完成較大的 RKF 修改前，請 Codex 執行最小相關驗證。Agent 應回報跑了
+哪些 tests、lint、public-safety checks，以及哪些檢查因環境或範圍沒有執行。
 
 ## 實驗項目：共享資料庫
 
-當你想讓多台電腦或外部 sandbox 共用同一份研究資料庫時，使用 `rkf-connect`。目前建議
-用 Google Drive for desktop 放真正的 `raw/` 與 `wiki/`，每台電腦再用本機 link 連到
-該共享資料夾。Machine-specific links 與 private Drive paths 不進 public source of truth。
+當你想讓多台電腦或其他 Codex session/project 共用同一份研究資料庫時，使用
+`rkf-connect`。目前建議用 Google Drive for desktop 放真正的 `raw/` 與 `wiki/`，
+每台電腦再用本機 link 連到該共享資料夾。Machine-specific links 與 private Drive
+paths 不進 public source of truth。
 
-外部 sandbox 預設只給讀取權限。它的有用輸出回到 RKF 時，應成為 reading update、
-save/review proposal 或 synthesis proposal；除非使用者明確批准寫入路徑。
+其他 Codex session 或 connected project 預設只給 read/proposal 邊界。它的有用輸出
+回到 RKF 時，應成為 reading update、save/review proposal 或 synthesis proposal；
+除非使用者明確批准寫入路徑。
 
 ## 版本管理
 

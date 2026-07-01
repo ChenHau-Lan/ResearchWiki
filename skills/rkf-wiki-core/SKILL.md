@@ -1,6 +1,6 @@
 ---
 name: rkf-wiki-core
-description: Operate the RKF LLM Wiki memory: retrieve governed wiki context, coordinate ARS reasoning, save durable discussion results, evolve low-risk pages with AI Integration Notes, challenge answers using existing RKF knowledge, track paper reading queues, export graph, and create compact context capsules. Use when the task mentions LLM Wiki, knowledge base memory, query, save, evolve, challenge, graph, paper queue, nudge, reading feedback, wiki context capsule, 問知識庫, 回寫wiki, 保存討論結果, 查詢wiki, 知識圖譜, paper推播, or context capsule. Use rkf-connect for multi-computer shared folders or sandbox access permissions.
+description: Operate the RKF LLM Wiki memory: retrieve governed wiki context, coordinate ARS reasoning, save durable discussion results, evolve low-risk pages with AI Integration Notes, challenge answers using existing RKF knowledge, track paper reading queues, export graph, and create compact Codex handoff context capsules. Use when the task mentions LLM Wiki, knowledge base memory, query, save, evolve, challenge, graph, paper queue, nudge, reading feedback, wiki context capsule, Codex handoff, 問知識庫, 回寫wiki, 保存討論結果, 查詢wiki, 知識圖譜, paper推播, or context capsule. Use rkf-connect for multi-computer shared folders or handoff access.
 ---
 
 # RKF Wiki Core
@@ -25,7 +25,7 @@ maturity and claim boundaries.
 | `challenge` | Use existing RKF pages to argue against a target | counterpoints and maturity downgrade suggestions |
 | `propagate` | Identify pages affected by new evidence or synthesis | preview/audit review gate |
 | `graph` | Export typed source/evidence/wiki links | `graph/research_graph.json` |
-| `external-sandbox` | Generate compact wiki context prompt | context capsule |
+| `codex-handoff` | Generate compact wiki context prompt for another Codex session/project | context capsule |
 
 ## Trigger Phrases
 
@@ -43,12 +43,12 @@ Use this skill when the user says things like:
 - "Challenge this synthesis using my own wiki."
 - "Which pages might this new evidence affect? Do not rewrite them yet."
 - "Export the research graph."
-- "Make a context capsule for another sandbox."
+- "Make a context capsule for another Codex session."
 - "問我的知識庫"
 - "根據 wiki 脈絡分析這個問題"
 - "把剛剛值得保留的內容回寫 wiki"
 - "列出需要我提供 PDF 或 feedback 的 paper"
-- "做一份外部 sandbox prompt"
+- "做一份 Codex handoff context"
 - "產生知識圖譜"
 
 ## Query Flow
@@ -83,6 +83,6 @@ change, human correction, or review blocker.
   without a later evidence-boundary review.
 - A query answer is not a wiki page until saved.
 - Do not save unsupported chat claims as stable knowledge.
-- External sandbox results return as save/review/synthesis proposals.
+- Codex handoff results return as save/review/synthesis proposals by default.
 - Use `rkf-connect` when the task is about Drive links, cross-computer setup, or
-  sandbox permissions rather than a plain context capsule.
+  handoff access rather than a plain context capsule.

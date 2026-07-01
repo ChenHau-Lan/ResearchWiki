@@ -1,6 +1,6 @@
-# RKF External Sandbox Bootstrap
+# RKF Codex Handoff Bootstrap
 
-Enable Research Knowledge Framework (RKF) mode in this sandbox.
+Enable Research Knowledge Framework (RKF) mode in this Codex handoff session.
 
 ## Workspace
 
@@ -13,7 +13,7 @@ Primary RKF repo:
 First read:
 
 ```text
-<RKF_REPO_PATH>/prompts/external_sandbox_context.md
+<RKF_REPO_PATH>/prompts/codex_handoff_context.md
 ```
 
 Follow its reading maturity boundary, public-safe boundary, and save proposal
@@ -22,30 +22,16 @@ format.
 ## Default Mode
 
 You may help search for papers, read legally available PDFs or publisher
-artifacts, organize source candidates, create paper reading drafts, and add
-durable research knowledge to RKF.
+artifacts, organize source candidates, create paper reading drafts, and propose
+durable research knowledge for RKF.
 
-If you have write access to `<RKF_REPO_PATH>`, use RKF CLI directly:
+Use the Codex app RKF workflow, structured RKF actions, or the proposal format
+below. Do not bypass the Codex app or structured action boundary. If write
+access is unavailable, or the claim boundary is incomplete, do
+not edit stable wiki knowledge directly. Return a proposal instead.
 
-```bash
-cd <RKF_REPO_PATH>
-python3 tools/rk.py capture doi "10.xxxx/xxxxx" --title "Paper title" --topic-id "topic-id"
-python3 tools/rk.py distill paper "source_id" --slug "author-year-short-title"
-python3 tools/rk.py acquire "source_id" --pdf "/private/path/to/paper.pdf"
-python3 tools/rk.py verify-pdf "source_id" --locator "p. 3 Fig. 2; p. 8 Section 4" --note "Locator/readability notes"
-python3 tools/rk.py paper feedback "source_id" --level discussed --note "User question, correction, or reading note"
-python3 tools/rk.py paper queue
-python3 tools/rk.py world --log-tail 10
-python3 tools/rk.py emerge --limit 8
-python3 tools/rk.py reconcile --dry-run --limit 8
-python3 tools/rk.py hot record "short paper-search question" --topic-id "topic-id" --origin external-sandbox --intent paper-search
-```
-
-For hot-query tracking, use the CLI command above or return a short hot-query
-proposal. Do not create separate hot-query files or a sandbox inbox.
-
-If you do not have write access, or the claim boundary is incomplete, do not
-edit stable wiki knowledge directly. Return a proposal instead.
+For hot-query tracking, request the `hot.record` RKF action or return a short
+hot-query proposal. Do not create separate hot-query files or a handoff inbox.
 
 Low-risk direct updates may use `evolve` only when the page will show an AI
 Integration Note and conservative maturity. `reconcile` may write blockers for
@@ -103,12 +89,6 @@ notes: short notes only; no full article text
 
 ## Validation
 
-After RKF writes, run:
-
-```bash
-cd <RKF_REPO_PATH>
-python3 -B -m py_compile tools/rk.py rkf/cli.py rkf/core.py rkf/__init__.py tools/public_safety_scan.py
-python3 -B -m unittest discover -s tests
-python3 tools/rk.py lint
-python3 tools/public_safety_scan.py
-```
+After RKF writes, ask the host Codex app to run the smallest relevant
+verification: tests for changed code, RKF lint for changed knowledge, and the
+public-safety scan before sharing or publishing. Report any skipped checks.

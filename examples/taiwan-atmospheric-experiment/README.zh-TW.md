@@ -4,7 +4,7 @@
 
 > 我想整理在台灣的大氣實驗，如 TAMEX、SOMEX、TAHOPE。
 
-流程先用 `academic-research-skills` 做 ARS-style 文獻搜尋與 source verification，
+流程先用 Codex `academic-research-suite` 做 ARS-style 文獻搜尋與 source verification，
 再用 RKF skills 做 source capture、full-text route note、paper reading maturity、
 paper wiki draft，以及最後針對 wiki 提問：「未來台灣要做氣象觀測實驗，有哪些建議？」
 

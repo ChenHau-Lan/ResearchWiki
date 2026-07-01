@@ -4,7 +4,7 @@ This example demonstrates how RKF handles the prompt:
 
 > I want to organize atmospheric experiments in Taiwan, such as TAMEX, SoWMEX, and TAHOPE.
 
-It uses `academic-research-skills` for ARS-style literature discovery and
+It uses Codex `academic-research-suite` for ARS-style literature discovery and
 source verification, then uses RKF skills for source capture, full-text route
 notes, paper reading maturity, paper wiki drafts, and a final wiki query about
 future meteorological observation experiments in Taiwan.

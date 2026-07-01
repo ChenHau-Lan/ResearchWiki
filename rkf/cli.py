@@ -7,17 +7,18 @@ import json
 import sys
 from pathlib import Path
 
+from .actions import capture_inbox as action_capture_inbox
+from .actions import record_hot as action_record_hot
 from .core import (
     Workspace,
     add_topic,
     append_log,
     approved_pdf_acquisition,
     challenge_page,
-    create_inbox_item,
     create_paper_note,
     create_source,
+    codex_handoff_capsule,
     emerge_patterns,
-    external_sandbox_capsule,
     evolve_page,
     export_graph,
     generate_wiki_index,
@@ -102,8 +103,8 @@ def cmd_discover(args: argparse.Namespace) -> int:
 
 def cmd_inbox_capture(args: argparse.Namespace) -> int:
     ws = Workspace()
-    result = create_inbox_item(
-        ws,
+    action = action_capture_inbox(
+        workspace=ws,
         title=args.title,
         origin=args.origin,
         source_url=args.source_url or "",
@@ -114,6 +115,7 @@ def cmd_inbox_capture(args: argparse.Namespace) -> int:
         topic_id=args.topic_id or "",
         inject=not args.no_inject,
     )
+    result = action.payload
     print(f"wrote inbox item: {result['path']}")
     if result["source_id"]:
         print(f"source_id: {result['source_id']}")
@@ -356,17 +358,7 @@ def cmd_save(args: argparse.Namespace) -> int:
 
 def cmd_synthesize(args: argparse.Namespace) -> int:
     if args.title == "auto":
-        ws = Workspace()
-        patterns = emerge_patterns(ws, topic_id=getattr(args, "topic_id", "") or "", limit=getattr(args, "limit", 8))
-        print(f"emergent patterns: {len(patterns)}")
-        for pattern in patterns:
-            print(f"- {pattern['kind']}\tmaturity={pattern['maturity']}\tcoverage={pattern['source_coverage']}\t{pattern['summary']}")
-        if getattr(args, "write", False):
-            path = write_emergent_synthesis(ws, patterns=patterns, topic_id=getattr(args, "topic_id", "") or "")
-            print(f"wrote: {path}")
-        else:
-            print("rule: low-maturity synthesis preview; rerun with --write to save")
-        return 0
+        raise SystemExit("automatic synthesis alias was removed; use emerge")
     args.object_type = "synthesis"
     return cmd_save(args)
 
@@ -539,8 +531,8 @@ def cmd_log(args: argparse.Namespace) -> int:
 
 def cmd_hot_record(args: argparse.Namespace) -> int:
     ws = Workspace()
-    event = record_hot_query(
-        ws,
+    action = action_record_hot(
+        workspace=ws,
         query=args.query,
         topic_id=args.topic_id or "",
         origin=args.origin,
@@ -548,7 +540,7 @@ def cmd_hot_record(args: argparse.Namespace) -> int:
         paper_leads=args.paper_lead or [],
         notes=args.notes or "",
     )
-    refresh_hot_markdown(ws)
+    event = action.payload["event"]
     print(f"recorded hot query: {event['event_id']}")
     print(f"topics: {','.join(event.get('topic_ids', [])) or 'unknown'}")
     return 0
@@ -561,20 +553,9 @@ def cmd_hot_refresh(args: argparse.Namespace) -> int:
     return 0
 
 
-def cmd_export(args: argparse.Namespace) -> int:
-    if args.export_type == "graph":
-        return cmd_graph(args)
-    if args.export_type == "external-sandbox":
-        ws = Workspace()
-        path = external_sandbox_capsule(ws)
-        print(f"wrote: {relative_workspace_path(ws, path)}")
-        return 0
-    raise SystemExit(f"unknown export type: {args.export_type}")
-
-
-def cmd_prompt_external_sandbox(args: argparse.Namespace) -> int:
+def cmd_prompt_codex_handoff(args: argparse.Namespace) -> int:
     ws = Workspace()
-    path = external_sandbox_capsule(ws)
+    path = codex_handoff_capsule(ws)
     print(f"wrote: {relative_workspace_path(ws, path)}")
     return 0
 
@@ -713,9 +694,9 @@ def build_parser() -> argparse.ArgumentParser:
     synthesize.add_argument("--slug")
     synthesize.add_argument("--body")
     synthesize.add_argument("--update", action="store_true", help="Intentionally replace an existing synthesis with the same slug")
-    synthesize.add_argument("--write", action="store_true", help="When title is 'auto', save the emergent synthesis draft")
-    synthesize.add_argument("--topic-id", help="When title is 'auto', limit emergence to a topic")
-    synthesize.add_argument("--limit", type=int, default=8, help="When title is 'auto', limit emergent pattern count")
+    synthesize.add_argument("--write", action="store_true", help=argparse.SUPPRESS)
+    synthesize.add_argument("--topic-id", help=argparse.SUPPRESS)
+    synthesize.add_argument("--limit", type=int, default=8, help=argparse.SUPPRESS)
     synthesize.set_defaults(func=cmd_synthesize)
 
     review = sub.add_parser("review", help="List pending gates and review items")
@@ -759,10 +740,6 @@ def build_parser() -> argparse.ArgumentParser:
     graph = sub.add_parser("graph", help="Export the research graph")
     graph.set_defaults(func=cmd_graph)
 
-    status = sub.add_parser("status", help="Print RKF L0-L3 workspace context for session bootstrap")
-    status.add_argument("--log-tail", type=int, default=5)
-    status.set_defaults(func=cmd_status)
-
     world = sub.add_parser("world", help="Alias for the RKF L0-L3 workspace context capsule")
     world.add_argument("--log-tail", type=int, default=5)
     world.set_defaults(func=cmd_status)
@@ -781,7 +758,7 @@ def build_parser() -> argparse.ArgumentParser:
     hot_record = hot_sub.add_parser("record", help="Record a public-safe hot query event")
     hot_record.add_argument("query")
     hot_record.add_argument("--topic-id")
-    hot_record.add_argument("--origin", choices=["local", "external-sandbox"], default="local")
+    hot_record.add_argument("--origin", choices=["local", "codex-handoff"], default="local")
     hot_record.add_argument(
         "--intent",
         choices=["query", "discover", "paper-search", "proposal"],
@@ -794,14 +771,10 @@ def build_parser() -> argparse.ArgumentParser:
     hot_refresh.add_argument("--days", type=int, default=30)
     hot_refresh.set_defaults(func=cmd_hot_refresh)
 
-    export = sub.add_parser("export", help="Export graph or external sandbox capsule")
-    export.add_argument("export_type", choices=["graph", "external-sandbox"])
-    export.set_defaults(func=cmd_export)
-
     prompt = sub.add_parser("prompt", help="Prompt helpers")
     prompt_sub = prompt.add_subparsers(dest="prompt_command", required=True)
-    external = prompt_sub.add_parser("external-sandbox")
-    external.set_defaults(func=cmd_prompt_external_sandbox)
+    handoff = prompt_sub.add_parser("codex-handoff")
+    handoff.set_defaults(func=cmd_prompt_codex_handoff)
 
     return parser
 

@@ -2,13 +2,11 @@
 
 Goal: let the wiki evolve safely from the day active reading signals.
 
-Use:
+Use the Codex app RKF workflow to request:
 
-```bash
-python3 tools/rk.py emerge --write --limit 8
-python3 tools/rk.py reconcile --limit 8
-python3 tools/rk.py lint
-```
+- `emerge` with write approval only for low-maturity synthesis drafts.
+- `reconcile` for contradiction blockers with AI Integration Notes.
+- `lint` for reading maturity, evidence boundary, graph, ARS handoff, and public-safety checks.
 
 Report:
 

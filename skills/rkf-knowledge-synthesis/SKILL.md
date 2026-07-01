@@ -49,8 +49,8 @@ decision, will likely be asked again, exposes evidence gaps, changes topic
 direction, or reflects repeated human interaction. Otherwise return a query
 answer or save a smaller question/concept.
 
-Use `emerge` or `synthesize auto` when the user wants pattern discovery from
-existing RKF state. The output starts as `synthesis_maturity: draft`,
+Use `emerge` when the user wants pattern discovery from existing RKF state. The
+output starts as `synthesis_maturity: draft`,
 `source_coverage: partial` or unknown, and `claim_readiness: not-ready`.
 
 ## Topic Review Heuristic

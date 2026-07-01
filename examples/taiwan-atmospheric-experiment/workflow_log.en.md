@@ -9,9 +9,9 @@ User request:
 
 Skill routing:
 
-- `academic-research-skills` / `deep-research:lit-review`: find SCI papers and
+- `academic-research-suite` / `deep-research:lit-review`: find SCI papers and
   plausible DOI/PDF routes.
-- `academic-research-skills` / `deep-research:fact-check`: verify source
+- `academic-research-suite` / `deep-research:fact-check`: verify source
   identity and keep ARS output as proposal context.
 - `rkf-evidence-vault`: capture sources, track full-text routes, and run locator
   checks.

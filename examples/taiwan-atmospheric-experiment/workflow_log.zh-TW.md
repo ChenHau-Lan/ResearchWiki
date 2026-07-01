@@ -8,9 +8,9 @@
 
 Skill routing：
 
-- `academic-research-skills` / `deep-research:lit-review`：找 SCI paper 與
+- `academic-research-suite` / `deep-research:lit-review`：找 SCI paper 與
   可能的 DOI/PDF route。
-- `academic-research-skills` / `deep-research:fact-check`：確認 source
+- `academic-research-suite` / `deep-research:fact-check`：確認 source
   identity，並把 ARS 結果保留為 proposal context。
 - `rkf-evidence-vault`：capture source、追蹤 full-text route、做 locator check。
 - `rkf-knowledge-synthesis`：建立 paper reading draft、concept、overview 與

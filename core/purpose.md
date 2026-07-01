@@ -16,7 +16,7 @@ wiki knowledge.
 - Paper, question, concept, claim, topic, synthesis, overview, meeting, and
   seminar pages.
 - ARS output handoff as proposals.
-- Graph export, sandbox context, active paper nudges, and lint.
+- Graph export, Codex handoff context, active paper nudges, and lint.
 
 ## Out Of Scope
 

@@ -586,19 +586,20 @@ class RKFCliTests(unittest.TestCase):
         self.assertIn("AI Integration Note", text)
         self.assertFalse(list((self.root / "state" / "search_runs").glob("*/candidates.json")))
 
-    def test_synthesize_auto_alias_writes_emergent_synthesis(self) -> None:
+    def test_removed_synthesize_auto_alias_points_to_emerge(self) -> None:
         self.run_rk("capture", "doi", "10.1234/Auto.Signal", "--title", "Auto Signal")
 
-        result = self.run_rk("synthesize", "auto", "--write", "--limit", "2").stdout
+        result = self.run_rk("synthesize", "auto", "--write", "--limit", "2", check=False)
 
-        self.assertIn("emergent patterns:", result)
-        self.assertIn("wrote: knowledge/synthesis/", result)
+        self.assertNotEqual(result.returncode, 0)
+        self.assertIn("use emerge", result.stderr + result.stdout)
 
     def test_agent_prompt_templates_exist_without_creating_automation(self) -> None:
         prompt_dir = REPO / "prompts" / "agents"
         for name in ("morning.md", "nightly.md", "weekly.md", "health.md"):
             text = (prompt_dir / name).read_text(encoding="utf-8")
-            self.assertIn("python3 tools/rk.py", text)
+            self.assertIn("Codex app", text)
+            self.assertNotIn("python3 tools/rk.py", text)
         self.assertIn("Do not create app automations", (prompt_dir / "nightly.md").read_text(encoding="utf-8"))
 
     def test_status_and_world_print_workspace_bootstrap(self) -> None:
@@ -607,17 +608,25 @@ class RKFCliTests(unittest.TestCase):
             encoding="utf-8",
         )
         self.run_rk("save", "question", "Aerosol Question", "--body", "What matters next?")
-        status = self.run_rk("status").stdout
         world = self.run_rk("world", "--log-tail", "1").stdout
-        self.assertIn("RKF Workspace Status", status)
         self.assertIn("L0 Identity And Critical Facts", world)
         self.assertIn("L1 Active Reading And Demand", world)
         self.assertIn("L2 Topics, Synthesis, And Claim Readiness", world)
         self.assertIn("L3 Graph, Files, And Validation", world)
         self.assertIn("fact_id=rkf-purpose", world)
         self.assertIn("CRITICAL_FACTS.md", world)
-        self.assertIn("Knowledge pages: 1", status)
+        self.assertIn("Knowledge pages: 1", world)
         self.assertIn("Recent Log", world)
+
+        legacy = self.run_rk("status", check=False)
+        self.assertNotEqual(legacy.returncode, 0)
+        self.assertIn("invalid choice", legacy.stderr)
+
+    def test_removed_export_alias_points_to_graph(self) -> None:
+        legacy = self.run_rk("export", "graph", check=False)
+
+        self.assertNotEqual(legacy.returncode, 0)
+        self.assertIn("invalid choice", legacy.stderr)
 
     def test_hot_refresh_preserves_single_file_records(self) -> None:
         self.run_rk(
@@ -637,7 +646,7 @@ class RKFCliTests(unittest.TestCase):
             "--topic-id",
             "aerosol-ice-phase-clouds",
             "--origin",
-            "external-sandbox",
+            "codex-handoff",
             "--intent",
             "paper-search",
         )
@@ -648,7 +657,20 @@ class RKFCliTests(unittest.TestCase):
         self.assertNotIn("RKF-HOT-INBOX", hot)
         self.assertIn("aerosol-ice-phase-clouds (Aerosol Effects on Ice-Phase Clouds): 1", hot)
         self.assertIn("supercooled liquid iwp aerosol mechanism: 1", hot)
-        self.assertIn('origin=external-sandbox | topic=aerosol-ice-phase-clouds | intent=paper-search', hot)
+        self.assertIn('origin=codex-handoff | topic=aerosol-ice-phase-clouds | intent=paper-search', hot)
+
+    def test_hot_record_rejects_removed_external_sandbox_origin(self) -> None:
+        result = self.run_rk(
+            "hot",
+            "record",
+            "legacy external sandbox query",
+            "--origin",
+            "external-sandbox",
+            check=False,
+        )
+
+        self.assertNotEqual(result.returncode, 0)
+        self.assertIn("invalid choice", result.stderr)
 
     def test_hot_record_rejects_private_paths_and_oversized_text(self) -> None:
         private_path = self.run_rk("hot", "record", "/" + "Users/example/private.pdf", check=False)
@@ -782,7 +804,7 @@ class RKFCliTests(unittest.TestCase):
         graph = (self.root / "graph" / "research_graph.json").read_text(encoding="utf-8")
         self.assertIn("supported-by", graph)
 
-    def test_topic_lint_and_external_sandbox_capsule(self) -> None:
+    def test_topic_lint_and_codex_handoff_capsule(self) -> None:
         self.run_rk(
             "topic",
             "add",
@@ -794,13 +816,19 @@ class RKFCliTests(unittest.TestCase):
             "aerosol cloud interaction",
         )
         self.assertIn("topic lint passed", self.run_rk("topic", "lint").stdout)
-        self.run_rk("prompt", "external-sandbox")
-        capsule = (self.root / "prompts" / "external_sandbox_context.md").read_text(encoding="utf-8")
+        self.run_rk("prompt", "codex-handoff")
+        capsule = (self.root / "prompts" / "codex_handoff_context.md").read_text(encoding="utf-8")
         self.assertIn("metadata, search candidates, and ARS reports may start paper drafts", capsule)
         self.assertIn("Claim boundary", capsule)
         self.assertIn("active ResearchWiki checkout supplied by the host environment", capsule)
         self.assertIn("resolve from `rkf.workspace.toml` when authorized", capsule)
+        self.assertIn("Codex app action", capsule)
+        self.assertNotIn("python3 tools/rk.py", capsule)
         self.assertNotIn(str(self.root), capsule)
+
+        legacy = self.run_rk("prompt", "external-sandbox", check=False)
+        self.assertNotEqual(legacy.returncode, 0)
+        self.assertIn("invalid choice", legacy.stderr)
 
     def test_active_repo_has_no_legacy_router_or_full_text_workflow(self) -> None:
         tracked = subprocess.check_output(["git", "ls-files"], cwd=REPO, text=True)
@@ -836,7 +864,7 @@ class RKFCliTests(unittest.TestCase):
         )
         self.assertFalse((REPO / "skills" / "rkf-ars-bridge" / "SKILL.md").exists())
 
-    def test_skills_are_plain_language_and_manuals_include_commands(self) -> None:
+    def test_skills_are_plain_language_and_manuals_use_codex_workflows(self) -> None:
         skill_text = "\n".join(
             path.read_text(encoding="utf-8", errors="replace") for path in (REPO / "skills").glob("rkf-*/SKILL.md")
         )
@@ -847,7 +875,8 @@ class RKFCliTests(unittest.TestCase):
         self.assertNotIn("python3 tools/rk.py", skill_text)
         self.assertIn("Trigger Phrases", skill_text)
         self.assertIn("Common Workflows", manual_text)
-        self.assertIn("python3 tools/rk.py paper queue", manual_text)
+        self.assertIn("Codex app", manual_text)
+        self.assertNotIn("python3 tools/rk.py", manual_text)
 
     def test_core_docs_use_knowledge_framework_positioning(self) -> None:
         core_paths = [
@@ -877,14 +906,14 @@ class RKFCliTests(unittest.TestCase):
         manual_text = (REPO / "docs" / "manuals" / "rkf_manual.en.md").read_text(encoding="utf-8")
         manual_zh = (REPO / "docs" / "manuals" / "rkf_manual.zh-TW.md").read_text(encoding="utf-8")
         self.assertIn("Paper Maturity", manual_text)
-        self.assertIn("academic-research-skills", manual_text)
+        self.assertIn("academic-research-suite", manual_text)
         self.assertIn("needs-user-pdf", manual_text)
         self.assertIn("OCR confidence", manual_text)
-        self.assertIn("External Sandboxes", manual_text)
+        self.assertIn("Codex Handoff Contexts", manual_text)
         self.assertIn("Paper Maturity", manual_zh)
         self.assertIn("needs-user-pdf", manual_zh)
         self.assertIn("Paper Maturity", manual_zh)
-        self.assertIn("External Sandboxes", manual_zh)
+        self.assertIn("Codex Handoff Contexts", manual_zh)
         self.assertNotIn("manual " + "interprets", manual_text)
         self.assertNotIn("本手冊" + "把", manual_zh)
 
@@ -902,8 +931,8 @@ class RKFCliTests(unittest.TestCase):
             "core/agent_contract.md",
             "core/data_contract.md",
             "core/test_contract.md",
-            "prompts/external_sandbox_bootstrap.en.md",
-            "prompts/external_sandbox_bootstrap.zh-TW.md",
+            "prompts/codex_handoff_bootstrap.en.md",
+            "prompts/codex_handoff_bootstrap.zh-TW.md",
         ]
         paths.extend(str(path.relative_to(REPO)) for path in (REPO / "skills").glob("rkf-*/SKILL.md"))
         text = "\n".join((REPO / path).read_text(encoding="utf-8", errors="replace") for path in paths)
@@ -919,6 +948,24 @@ class RKFCliTests(unittest.TestCase):
         ]
         for phrase in forbidden:
             self.assertNotIn(phrase, text)
+        handoff_text = "\n".join(
+            (REPO / path).read_text(encoding="utf-8", errors="replace")
+            for path in [
+                "prompts/codex_handoff_bootstrap.en.md",
+                "prompts/codex_handoff_bootstrap.zh-TW.md",
+            ]
+        )
+        self.assertFalse((REPO / "prompts" / "external_sandbox_bootstrap.en.md").exists())
+        self.assertFalse((REPO / "prompts" / "external_sandbox_bootstrap.zh-TW.md").exists())
+        self.assertNotIn("python3 tools/rk.py", handoff_text)
+        self.assertNotIn("RKF CLI directly", handoff_text)
+        self.assertNotIn("external-sandbox", text)
+        self.assertNotIn("external_sandbox", text)
+        self.assertNotIn("python3 tools/rk.py", text)
+        self.assertNotIn("sandbox-grant", text)
+        self.assertNotIn("sandbox-bootstrap", text)
+        self.assertNotIn("sandbox-direct-write", text)
+        self.assertNotIn("sandbox-save-proposal", text)
         self.assertIn("evolve", text)
         self.assertIn("reconcile", text)
         self.assertIn("emerge", text)
@@ -947,48 +994,38 @@ class RKFCliTests(unittest.TestCase):
             text = (REPO / "templates" / "rkf" / name).read_text(encoding="utf-8")
             self.assertIn("Future Agent Retrieval Brief", text)
 
-    def test_command_inventory_lists_current_parser_commands(self) -> None:
+    def test_codex_workflow_inventory_replaces_user_facing_command_inventory(self) -> None:
         inventory = (REPO / "docs" / "FEATURES_AND_COMMANDS.zh-TW.md").read_text(encoding="utf-8")
         required = [
-            "capture <kind> <value>",
-            "inbox capture <title>",
-            "discover <query>",
-            "acquire <source>",
-            "verify-pdf <source_id>",
-            "read <source_id>",
-            "distill paper <source_id>",
-            "paper status [source_id]",
-            "paper feedback <source_id>",
-            "paper queue",
-            "paper next",
-            "paper nudge",
-            "topic add <topic_id> <name>",
-            "topic list",
-            "topic lint",
-            "query <text>",
-            "save <object_type> <title>",
-            "synthesize <title>",
-            "synthesize auto",
-            "review",
-            "lint",
-            "evolve <target>",
-            "reconcile",
-            "challenge <target>",
-            "emerge",
-            "propagate <target>",
-            "graph",
-            "status",
-            "world",
-            "index",
-            "log",
-            "hot record <query>",
-            "hot refresh",
-            "export graph",
-            "export external-sandbox",
-            "prompt external-sandbox",
+            "Codex App Workflow Inventory",
+            "Capture source",
+            "Save to inbox",
+            "Auto-connect capture",
+            "Discover papers",
+            "Create paper draft",
+            "Request user PDF",
+            "Verify locators",
+            "Record feedback",
+            "Paper queue",
+            "Query wiki",
+            "Save knowledge",
+            "Record hot demand",
+            "Topic governance",
+            "Maintenance review",
+            "Evolve page",
+            "Reconcile",
+            "Challenge",
+            "Emerge",
+            "Propagation review",
+            "World context",
+            "Graph/index",
+            "Codex handoff",
+            "Legacy Runtime Boundary",
         ]
-        for command in required:
-            self.assertIn(f"`{command}`", inventory)
+        for phrase in required:
+            self.assertIn(phrase, inventory)
+        self.assertNotIn("Full Command Inventory", inventory)
+        self.assertNotIn("python3 tools/rk.py", inventory)
 
     def test_taiwan_example_contains_research_memory_walkthrough(self) -> None:
         example = REPO / "examples" / "taiwan-atmospheric-experiment"
@@ -1009,7 +1046,7 @@ class RKFCliTests(unittest.TestCase):
             self.assertIn("PDF Locators", text)
 
         walkthrough = (example / "skill_mode_walkthrough.md").read_text(encoding="utf-8")
-        self.assertIn("academic-research-skills", walkthrough)
+        self.assertIn("academic-research-suite", walkthrough)
         self.assertIn("deep-research:lit-review", walkthrough)
         self.assertIn("rkf-evidence-vault", walkthrough)
         self.assertIn("durable memory", walkthrough)

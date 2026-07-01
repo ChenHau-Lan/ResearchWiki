@@ -2,13 +2,11 @@
 
 Goal: prepare a public-safe research day bootstrap from RKF state.
 
-Use:
+Use the Codex app RKF workflow to request:
 
-```bash
-python3 tools/rk.py world --log-tail 10
-python3 tools/rk.py paper queue --limit 10
-python3 tools/rk.py paper nudge --limit 5
-```
+- `world` context with recent log tail.
+- `paper queue` for papers needing user PDF, feedback, locators, or synthesis review.
+- `paper nudge` for the highest-priority active reading reminders.
 
 Report:
 

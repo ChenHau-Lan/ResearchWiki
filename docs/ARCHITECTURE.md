@@ -20,17 +20,18 @@ graph export, ARS handoff proposals, and optional shared-database connections.
 | Knowledge Objects | Maintain paper, question, concept, claim, topic, synthesis, overview, meeting, seminar pages | concise Markdown only |
 | Research Graph | Export typed source/evidence/wiki/topic edges and maturity metadata | generated public-safe graph |
 | Hot Query Layer | Track recent public-safe research questions and paper-search demand | single retrieval file: `hot.md` |
-| L0-L3 World Context | Rebuild session context from identity, critical facts, active reading, synthesis, graph links, and validation state | terminal capsule, public-safe |
+| Action Runtime | Execute Codex app workflow requests without routing through the CLI parser | `rkf/actions.py`, structured request/result only |
+| L0-L3 World Context | Rebuild session context from identity, critical facts, active reading, synthesis, graph links, and validation state | Codex app capsule, public-safe |
 | Critical Facts | Store short public-safe facts with temporal metadata for future agents | `CRITICAL_FACTS.md` |
 | Priority Evolve | Rewrite low-risk existing pages with visible AI Integration Notes and maturity-aware blockers | governed page update |
 | Reconcile | Detect contradictions across same-topic pages and write AI-marked blockers when needed | page-local blockers |
-| Challenge | Use existing RKF pages to argue against a target answer or synthesis | terminal critique only |
+| Challenge | Use existing RKF pages to argue against a target answer or synthesis | Codex app critique only |
 | Emerge | Detect unnamed patterns from active reading, hot queries, and topic state | low-maturity synthesis draft |
 | Agent Prompts | Morning, nightly, weekly, and health operating prompts | `prompts/agents/*.md` |
 | Bi-Temporal Memory | Track when RKF observed a claim and when the described fact is valid | frontmatter and critical facts |
 | Propagation Review | Identify pages affected by new reading, evidence, or synthesis | manual preview/audit fallback |
 | ARS Bridge | Convert ARS research/reasoning/writing/review output into RKF proposals or reading feedback | proposals only |
-| Connect | Manage experimental shared RAW/wiki folders and external sandbox access boundaries | connection plans only; no private paths |
+| Connect | Manage experimental shared RAW/wiki folders and Codex handoff access boundaries | connection plans only; no private paths |
 
 ## Knowledge Flow
 
@@ -86,8 +87,10 @@ flowchart TD
 - Paper pages separate source-grounded summaries from reader interpretation and
   AI/agent notes. Only locator-backed or otherwise supported source-grounded
   material can support claim promotion.
-- The CLI is a thin backend for repeatable agent and automation operations; the
-  user-facing paper intake workflow remains Markdown-first.
+- The Codex app is the only user-facing RKF interaction surface. Markdown pages
+  are durable artifacts. New integrations should call `rkf.actions` structured
+  requests; the legacy CLI is only an internal shim for agents, tests, and
+  maintenance.
 - Search candidates are not stable claim evidence.
 - ARS outputs are not evidence by themselves; they may become reading feedback
   or save/review proposals.
@@ -129,6 +132,18 @@ RKF separates public memory from private or machine-specific artifacts:
 The multi-computer version is an experimental `rkf-connect` concern. The current
 pattern is to keep real shared `RAW` and `wiki` folders in one Google Drive for
 desktop research folder, then link those folders into each local RKF project.
+
+## Runtime Surfaces
+
+- `rkf.actions`: structured Codex app action API. It currently covers
+  `inbox.capture` and `hot.record`, returning `ActionResult` objects for
+  agent-facing summaries.
+- `tools/rkf_auto_connect.py`: connector helper that classifies cross-project
+  material, builds `ActionRequest` objects, and can execute those requests
+  directly against the configured ResearchWiki root.
+- `tools/rk.py` / `rkf/cli.py`: legacy/dev shim kept for compatibility,
+  repeatable maintenance, and existing tests. New app workflows should not add
+  user-facing command syntax here first.
 
 ## ARS Integration
 

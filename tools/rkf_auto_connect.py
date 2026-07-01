@@ -97,6 +97,13 @@ class CaptureDecision:
     summary: str
 
 
+@dataclass(frozen=True)
+class BridgeFolderResult:
+    root: Path
+    created: list[Path]
+    existing: list[Path]
+
+
 def _load_toml(path: Path) -> dict[str, Any]:
     if not path.exists():
         raise SystemExit(f"RKF connector config not found: {path}")
@@ -238,6 +245,137 @@ def write_project_marker(project_root: Path, *, mode: str = "active-aggressive")
     return marker
 
 
+def _bridge_template_readme(*, project_name: str, mode: str) -> str:
+    return f"""# RKF Bridge
+
+This folder is a project-local RKF bridge index for `{project_name}`. It is not
+a copy of the RKF database and is not stable evidence.
+
+## Source Of Truth
+
+- Project marker: `../.rkf-connect.toml`
+- Global connector config: `$HOME/.codex/rkf_connector.toml`
+- Live RKF storage: resolved by the ResearchWiki checkout through
+  `rkf.workspace.toml`
+
+Do not store private Drive paths, secrets, PDFs, full article text, or whole
+private transcripts here.
+
+## Capture Mode
+
+- mode: `{mode}`
+- source-like material goes to RKF inbox and, when useful, central `hot.md`
+- valuable research discussion can go to RKF inbox as reader/agent notes
+- stable claims still need locators, supported RKF pages, or human feedback
+
+## Files
+
+- `hot.md`: project-local research demand queue
+- `memory.md`: project-local retrieval hints for RKF
+- `captures.md`: project-local capture log
+"""
+
+
+def _bridge_template_hot(*, project_name: str) -> str:
+    return f"""# RKF Project Hot Queue
+
+Scope: project-local demand queue for `{project_name}`; not stable evidence.
+
+Use this file for research questions, search strings, DOI leads, and recurring
+needs that should be routed to the central RKF `hot.md` through
+`rk hot record`.
+
+## Candidate Questions
+
+- [ ] <research question>
+
+## Search Strings
+
+- <search string>
+
+## Notes To Route
+
+- <note>
+"""
+
+
+def _bridge_template_memory(*, project_name: str) -> str:
+    return f"""# RKF Project Memory Index
+
+Scope: project-local retrieval hints for `{project_name}`; not stable evidence.
+
+Use this file to help future agents quickly find the right RKF context. Keep
+entries short, public-safe, and pointer-oriented.
+
+## Project Scope
+
+- <scope note>
+
+## Relevant RKF Topics
+
+- <topic id or title>
+
+## Relevant Papers Or Sources
+
+- <paper, source id, DOI, or URL>
+
+## Useful Queries
+
+- <query>
+
+## Boundaries
+
+- Do not treat this file as source evidence.
+- Do not paste article text, private paths, secrets, or whole transcripts.
+- Promote only through RKF review, reading feedback, or source-backed pages.
+"""
+
+
+def _bridge_template_captures(*, project_name: str) -> str:
+    return f"""# RKF Capture Log
+
+Scope: project-local capture log for `{project_name}`; not stable evidence.
+
+Record what was routed into RKF, where it went, and what remained unpromoted.
+
+| Date | RKF target | Title or query | Boundary |
+|---|---|---|---|
+"""
+
+
+def _write_if_missing(path: Path, text: str) -> bool:
+    if path.exists():
+        return False
+    path.write_text(text, encoding="utf-8")
+    return True
+
+
+def write_bridge_folder(
+    project_root: Path,
+    *,
+    mode: str = "active-aggressive",
+    project_name: str = "",
+) -> BridgeFolderResult:
+    project_root.mkdir(parents=True, exist_ok=True)
+    bridge = project_root / "RKF"
+    bridge.mkdir(exist_ok=True)
+    name = project_name or project_root.name
+    templates = {
+        bridge / "README.md": _bridge_template_readme(project_name=name, mode=mode),
+        bridge / "hot.md": _bridge_template_hot(project_name=name),
+        bridge / "memory.md": _bridge_template_memory(project_name=name),
+        bridge / "captures.md": _bridge_template_captures(project_name=name),
+    }
+    created: list[Path] = []
+    existing: list[Path] = []
+    for path, text in templates.items():
+        if _write_if_missing(path, text):
+            created.append(path)
+        else:
+            existing.append(path)
+    return BridgeFolderResult(root=bridge, created=created, existing=existing)
+
+
 def read_project_marker(project_root: Path) -> dict[str, Any]:
     marker = project_root / ".rkf-connect.toml"
     if not marker.exists():
@@ -262,6 +400,11 @@ def main(argv: list[str] | None = None) -> int:
     marker = sub.add_parser("mark-project")
     marker.add_argument("project_root")
     marker.add_argument("--mode", default="active-aggressive")
+
+    bridge = sub.add_parser("bridge-folder")
+    bridge.add_argument("project_root")
+    bridge.add_argument("--mode", default="active-aggressive")
+    bridge.add_argument("--project-name", default="")
 
     inbox = sub.add_parser("inbox-command")
     inbox.add_argument("title")
@@ -291,6 +434,19 @@ def main(argv: list[str] | None = None) -> int:
     if args.command == "mark-project":
         path = write_project_marker(Path(args.project_root).expanduser().resolve(), mode=args.mode)
         print(path)
+        return 0
+    if args.command == "bridge-folder":
+        result = write_bridge_folder(
+            Path(args.project_root).expanduser().resolve(),
+            mode=args.mode,
+            project_name=args.project_name,
+        )
+        payload = {
+            "root": str(result.root),
+            "created": [str(path) for path in result.created],
+            "existing": [str(path) for path in result.existing],
+        }
+        print(json.dumps(payload, ensure_ascii=False, indent=2))
         return 0
 
     config = load_connector_config()

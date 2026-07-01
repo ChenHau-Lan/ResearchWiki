@@ -62,6 +62,42 @@ config = "global"
 
 這個檔案不得存 private Drive path；真正的 RKF 路徑由全域 config 與 `rkf.workspace.toml` 解析。
 
+也可以用 helper 建立：
+
+```bash
+python3 tools/rkf_auto_connect.py mark-project /path/to/project
+```
+
+## 專案內 RKF bridge folder
+
+如果希望未來 agent 在該專案更快找到 RKF 相關線索，可以在專案內建立 `RKF/`
+bridge folder：
+
+```bash
+python3 tools/rkf_auto_connect.py bridge-folder /path/to/project --project-name ProjectName
+```
+
+這會建立：
+
+```text
+RKF/
+  README.md
+  hot.md
+  memory.md
+  captures.md
+```
+
+這個資料夾是 project-local index，不是第二份 RKF database：
+
+- `RKF/hot.md`：本專案的研究需求、search strings、候選問題；可再透過
+  `rk hot record` 送進中央 RKF `hot.md`。
+- `RKF/memory.md`：本專案要如何查 RKF 的 pointer、topic、paper、query hints。
+- `RKF/captures.md`：記錄哪些項目已送進 RKF inbox/hot，以及哪些沒有被 promote。
+- 既有檔案不會被覆寫；helper 只補缺少的 bridge 檔案。
+
+Bridge folder 不得保存 private path、PDF、全文、secret、個資或整段私人 transcript。
+其中任何內容都只是 operational index，不是 stable evidence。
+
 ## 取消或暫停
 
 在目前 session 可直接說：

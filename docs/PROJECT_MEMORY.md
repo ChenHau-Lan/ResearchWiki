@@ -46,6 +46,10 @@ Last updated: 2026-06-22
   repo-side helper. Connected projects use Active/Aggressive hybrid capture:
   source-like material is captured actively, valuable research discussion is
   captured aggressively, and claim promotion remains conservative.
+- Connected projects may add a project-local `RKF/` bridge folder with
+  `README.md`, `hot.md`, `memory.md`, and `captures.md` to speed future agent
+  retrieval. Treat that folder as an operational index only, not a second RKF
+  database or stable evidence layer.
 - Paper pages must keep source-grounded literature notes, reader interpretation,
   AI/agent notes, questions/feedback, and claim-promotion candidates visibly
   separate.
@@ -139,6 +143,9 @@ read-only subcommand.
   injection.
 - Trap: making every project duplicate RKF routing rules. Fix: use the global
   `rkf-auto-connect` skill and keep project markers small and public-safe.
+- Trap: treating a project-local `RKF/hot.md` or `RKF/memory.md` as canonical
+  RKF evidence. Fix: keep `RKF/` bridge files pointer-oriented and route
+  durable capture through the central RKF CLI.
 
 ## Documentation Map
 

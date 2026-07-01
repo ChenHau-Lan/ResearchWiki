@@ -16,7 +16,7 @@ source capture、paper draft 產生、queue、lint、index、graph 與 automatio
 |---|---|---|
 | Source capture | 攝取 DOI、URL、PDF pointer、topic seed、idea、question | `state/sources/*.json` |
 | Inbox capture | 把 ChatGPT 對話片段、網頁 clip、DOI、URL 與想法先放進低風險 inbox；DOI 只做保守 source/paper backlink injection | `knowledge/inbox/*.md`、可選 `state/sources/*.json`、`knowledge/papers/*.md` backlink |
-| Auto-connect helper | 跨專案偵測研究相關搜尋、DOI/URL、web clip 與有價值研究討論，並自動回饋到 RKF inbox/hot.md | global `rkf-auto-connect` skill、`tools/rkf_auto_connect.py` |
+| Auto-connect helper | 跨專案偵測研究相關搜尋、DOI/URL、web clip 與有價值研究討論，並自動回饋到 RKF inbox/hot.md；可在外部專案建立 `RKF/` bridge folder 作為 project-local index | global `rkf-auto-connect` skill、`tools/rkf_auto_connect.py`、`.rkf-connect.toml`、`RKF/` |
 | Discovery staging | 建立候選文獻搜尋 run；候選可啟動 draft，但不是 claim evidence | `state/search_runs/*/candidates.json`、`hot.md` |
 | Paper reading draft | 從 metadata、abstract、partial full text 或 PDF 先建立 paper draft；頁面分開 source-grounded summary、locator/evidence、reader notes、AI/Agent notes 與 claim candidates | `knowledge/papers/*.md` |
 | Full-text status | 標記 `needs-user-pdf`、`user-pdf-provided`、`fulltext-read` 等狀態 | source frontmatter/JSON、paper frontmatter |
@@ -145,6 +145,12 @@ Classify whether a cross-project discussion should be captured:
 
 ```bash
 python3 tools/rkf_auto_connect.py classify "Find DOI 10.1234/example papers for aerosol-cloud parameterization" --project-name ResearchProject
+```
+
+Create a project-local RKF bridge folder without storing private paths:
+
+```bash
+python3 tools/rkf_auto_connect.py bridge-folder /path/to/project --project-name ResearchProject
 ```
 
 Stage a discovery run:

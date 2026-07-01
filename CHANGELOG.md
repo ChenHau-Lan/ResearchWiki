@@ -15,6 +15,9 @@
   that creates or backlinks source/paper pages without promoting claims.
 - Add RKF auto-connect design and helper plan for cross-project
   Active/Aggressive capture into RKF inbox and hot-query layers.
+- Add project-local `RKF/` bridge folder scaffolding for connected projects,
+  with public-safe `README.md`, `hot.md`, `memory.md`, and `captures.md`
+  templates that remain operational indexes rather than evidence.
 - Soft-migrate acquisition: user-provided PDFs update full-text state directly,
   while legacy checkpoint records remain compatible.
 - Add the hot-query layer: `hot.md` as a single public-safe retrieval file with

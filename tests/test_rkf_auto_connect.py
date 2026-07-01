@@ -1,8 +1,10 @@
 from __future__ import annotations
 
+import io
 import os
 import tempfile
 import unittest
+from contextlib import redirect_stdout
 from pathlib import Path
 
 from tools import rkf_auto_connect as auto
@@ -135,6 +137,50 @@ class RKFAutoConnectTests(unittest.TestCase):
         self.assertIn("enabled = true", text)
         self.assertIn("mode = \"active-aggressive\"", text)
         self.assertNotIn(str(self.researchwiki), text)
+
+    def test_write_bridge_folder_creates_project_local_index_files(self) -> None:
+        project = self.root / "SomeProject"
+        project.mkdir()
+
+        result = auto.write_bridge_folder(project, mode="active-aggressive", project_name="SomeProject")
+
+        self.assertEqual(result.root, project / "RKF")
+        expected_files = {
+            project / "RKF" / "README.md",
+            project / "RKF" / "hot.md",
+            project / "RKF" / "memory.md",
+            project / "RKF" / "captures.md",
+        }
+        self.assertEqual(set(result.created), expected_files)
+        for path in expected_files:
+            text = path.read_text(encoding="utf-8")
+            self.assertIn("project-local", text)
+            self.assertIn("not stable evidence", text)
+            self.assertNotIn(str(self.researchwiki), text)
+
+    def test_write_bridge_folder_preserves_existing_files(self) -> None:
+        project = self.root / "SomeProject"
+        bridge = project / "RKF"
+        bridge.mkdir(parents=True)
+        memory = bridge / "memory.md"
+        memory.write_text("custom project memory\n", encoding="utf-8")
+
+        result = auto.write_bridge_folder(project, mode="active-aggressive", project_name="SomeProject")
+
+        self.assertEqual(memory.read_text(encoding="utf-8"), "custom project memory\n")
+        self.assertIn(memory, result.existing)
+
+    def test_bridge_folder_command_writes_files(self) -> None:
+        project = self.root / "SomeProject"
+        project.mkdir()
+        stdout = io.StringIO()
+
+        with redirect_stdout(stdout):
+            status = auto.main(["bridge-folder", str(project), "--project-name", "SomeProject"])
+
+        self.assertEqual(status, 0)
+        self.assertIn(str(project / "RKF"), stdout.getvalue())
+        self.assertTrue((project / "RKF" / "README.md").exists())
 
 
 if __name__ == "__main__":

@@ -8,7 +8,13 @@ import sys
 from pathlib import Path
 
 from .actions import capture_inbox as action_capture_inbox
+from .actions import export_graph_action as action_export_graph
+from .actions import generate_codex_handoff as action_generate_codex_handoff
+from .actions import generate_index as action_generate_index
+from .actions import queue_papers as action_queue_papers
 from .actions import record_hot as action_record_hot
+from .actions import render_world as action_render_world
+from .actions import run_lint as action_run_lint
 from .core import (
     Workspace,
     add_topic,
@@ -17,16 +23,9 @@ from .core import (
     challenge_page,
     create_paper_note,
     create_source,
-    codex_handoff_capsule,
     emerge_patterns,
     evolve_page,
-    export_graph,
-    generate_wiki_index,
     infer_evidence_tier,
-    lint_ars_handoff,
-    lint_graph_links,
-    lint_knowledge_pages,
-    lint_public_safety,
     lint_topics,
     parse_frontmatter,
     paper_queue,
@@ -36,7 +35,6 @@ from .core import (
     record_hot_query,
     render_paper_nudge,
     relative_workspace_path,
-    render_workspace_status,
     refresh_hot_markdown,
     slugify,
     today,
@@ -220,8 +218,11 @@ def cmd_paper_feedback(args: argparse.Namespace) -> int:
 
 def cmd_paper_queue(args: argparse.Namespace) -> int:
     ws = Workspace()
-    items = paper_queue(ws)[: args.limit]
-    print(f"paper queue: {len(items)}")
+    result = action_queue_papers(workspace=ws, limit=args.limit)
+    items = result.payload["items"]
+    if not items:
+        print("paper queue is empty")
+        return 0
     for item in items:
         print(f"- {item['source_id']}\taction={item['action']}\tpriority={item['priority']}\tpath={item.get('path', '')}")
         print(f"  reasons: {'; '.join(item['reasons'])}")
@@ -375,20 +376,9 @@ def cmd_review(args: argparse.Namespace) -> int:
 
 
 def cmd_lint(args: argparse.Namespace) -> int:
-    if args.mode not in LINT_MODES:
-        raise SystemExit(f"unknown lint mode: {args.mode}")
     ws = Workspace()
-    errors: list[str] = []
-    if args.mode in {"all", "structure-lint", "evidence-lint"}:
-        errors.extend(lint_knowledge_pages(ws))
-    if args.mode in {"all", "structure-lint"}:
-        errors.extend(lint_topics(ws))
-    if args.mode in {"all", "graph-lint"}:
-        errors.extend(lint_graph_links(ws))
-    if args.mode in {"all", "ars-handoff-lint"}:
-        errors.extend(lint_ars_handoff(ws))
-    if args.mode == "public-safety-lint":
-        errors.extend(lint_public_safety(ws))
+    result = action_run_lint(workspace=ws, mode=args.mode)
+    errors = result.payload["errors"]
     if errors:
         print(f"rkf {args.mode} failed:")
         for error in errors:
@@ -494,23 +484,24 @@ def cmd_emerge(args: argparse.Namespace) -> int:
 
 def cmd_graph(args: argparse.Namespace) -> int:
     ws = Workspace()
-    graph = export_graph(ws)
-    print(f"graph nodes: {len(graph['nodes'])}")
-    print(f"graph edges: {len(graph['edges'])}")
-    print(f"wrote: {relative_workspace_path(ws, ws.paths.graph / 'research_graph.json')}")
+    result = action_export_graph(workspace=ws)
+    print(f"graph nodes: {result.payload['node_count']}")
+    print(f"graph edges: {result.payload['edge_count']}")
+    print(f"wrote: {result.payload['path']}")
     return 0
 
 
 def cmd_status(args: argparse.Namespace) -> int:
     ws = Workspace()
-    print(render_workspace_status(ws, log_tail=args.log_tail), end="")
+    result = action_render_world(workspace=ws, log_tail=args.log_tail)
+    print(result.payload["markdown"], end="")
     return 0
 
 
 def cmd_index(args: argparse.Namespace) -> int:
     ws = Workspace()
-    path = generate_wiki_index(ws)
-    print(f"wrote: {relative_workspace_path(ws, path)}")
+    result = action_generate_index(workspace=ws)
+    print(f"wrote: {result.payload['path']}")
     return 0
 
 
@@ -555,8 +546,8 @@ def cmd_hot_refresh(args: argparse.Namespace) -> int:
 
 def cmd_prompt_codex_handoff(args: argparse.Namespace) -> int:
     ws = Workspace()
-    path = codex_handoff_capsule(ws)
-    print(f"wrote: {relative_workspace_path(ws, path)}")
+    result = action_generate_codex_handoff(workspace=ws)
+    print(f"wrote: {result.payload['path']}")
     return 0
 
 

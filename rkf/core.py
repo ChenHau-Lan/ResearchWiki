@@ -2656,6 +2656,233 @@ def export_graph(ws: Workspace) -> dict[str, Any]:
     return graph
 
 
+GRAPH_DIRECTIONS = {"outgoing", "incoming", "both"}
+
+
+def _graph_error(message: str, **payload: Any) -> dict[str, Any]:
+    return {"status": "error", "error": message, **payload}
+
+
+def _graph_not_found(node_id: str) -> dict[str, Any]:
+    return {"status": "not-found", "node_id": node_id, "node": None}
+
+
+def _normalize_graph_direction(direction: str) -> str:
+    value = str(direction or "both")
+    if value not in GRAPH_DIRECTIONS:
+        raise ValueError("direction must be one of: both, incoming, outgoing")
+    return value
+
+
+def _positive_graph_int(value: int, *, name: str) -> int:
+    try:
+        number = int(value)
+    except (TypeError, ValueError) as exc:
+        raise ValueError(f"{name} must be an integer") from exc
+    if number <= 0:
+        raise ValueError(f"{name} must be greater than 0")
+    return number
+
+
+def _implicit_graph_node_type(edge: dict[str, Any], endpoint: str) -> str:
+    edge_type = str(edge.get("type", ""))
+    if endpoint == "to" and edge_type in {"has-evidence", "supported-by"}:
+        return "evidence"
+    if endpoint == "to" and edge_type == "tagged-with":
+        return "topic"
+    return "implicit"
+
+
+def _graph_nodes_by_id(graph: dict[str, Any]) -> dict[str, dict[str, Any]]:
+    nodes: dict[str, dict[str, Any]] = {}
+    for node in graph.get("nodes", []):
+        node_id = str(node.get("id", ""))
+        if node_id:
+            nodes[node_id] = dict(node)
+    for edge in graph.get("edges", []):
+        for endpoint in ("from", "to"):
+            node_id = str(edge.get(endpoint, ""))
+            if node_id and node_id not in nodes:
+                nodes[node_id] = {
+                    "id": node_id,
+                    "type": _implicit_graph_node_type(edge, endpoint),
+                    "status": "implicit",
+                }
+    return nodes
+
+
+def _iter_graph_edges(
+    graph: dict[str, Any],
+    node_id: str,
+    *,
+    direction: str,
+) -> list[tuple[dict[str, Any], str]]:
+    matches: list[tuple[dict[str, Any], str]] = []
+    for edge in graph.get("edges", []):
+        from_id = str(edge.get("from", ""))
+        to_id = str(edge.get("to", ""))
+        if direction in {"outgoing", "both"} and from_id == node_id and to_id:
+            matches.append((dict(edge), to_id))
+        if direction in {"incoming", "both"} and to_id == node_id and from_id:
+            matches.append((dict(edge), from_id))
+    return matches
+
+
+def graph_neighbors(
+    ws: Workspace,
+    *,
+    node_id: str,
+    direction: str = "both",
+    limit: int = 20,
+) -> dict[str, Any]:
+    try:
+        normalized_direction = _normalize_graph_direction(direction)
+        normalized_limit = _positive_graph_int(limit, name="limit")
+    except ValueError as exc:
+        return _graph_error(str(exc), node_id=node_id)
+
+    graph = build_research_graph(ws)
+    nodes = _graph_nodes_by_id(graph)
+    if node_id not in nodes:
+        return _graph_not_found(node_id)
+
+    neighbors: list[dict[str, Any]] = []
+    edges: list[dict[str, Any]] = []
+    seen: set[str] = set()
+    for edge, neighbor_id in _iter_graph_edges(graph, node_id, direction=normalized_direction):
+        if neighbor_id in seen:
+            continue
+        if len(neighbors) >= normalized_limit:
+            break
+        seen.add(neighbor_id)
+        neighbors.append(nodes[neighbor_id])
+        edges.append(edge)
+
+    return {
+        "status": "ok",
+        "node": nodes[node_id],
+        "neighbors": neighbors,
+        "edges": edges,
+        "direction": normalized_direction,
+        "limit": normalized_limit,
+    }
+
+
+def graph_paths(
+    ws: Workspace,
+    *,
+    source_id: str,
+    target_id: str,
+    direction: str = "both",
+    max_depth: int = 4,
+    limit: int = 5,
+) -> dict[str, Any]:
+    try:
+        normalized_direction = _normalize_graph_direction(direction)
+        normalized_depth = _positive_graph_int(max_depth, name="max_depth")
+        normalized_limit = _positive_graph_int(limit, name="limit")
+    except ValueError as exc:
+        return _graph_error(str(exc), source_id=source_id, target_id=target_id)
+
+    graph = build_research_graph(ws)
+    nodes = _graph_nodes_by_id(graph)
+    if source_id not in nodes:
+        return _graph_not_found(source_id)
+    if target_id not in nodes:
+        return _graph_not_found(target_id)
+
+    queue: list[tuple[str, list[str], list[dict[str, Any]]]] = [(source_id, [source_id], [])]
+    paths: list[dict[str, Any]] = []
+    while queue and len(paths) < normalized_limit:
+        current_id, node_path, edge_path = queue.pop(0)
+        if len(edge_path) >= normalized_depth:
+            continue
+        for edge, next_id in _iter_graph_edges(graph, current_id, direction=normalized_direction):
+            if next_id in node_path:
+                continue
+            next_node_path = [*node_path, next_id]
+            next_edge_path = [*edge_path, edge]
+            if next_id == target_id:
+                paths.append(
+                    {
+                        "node_ids": next_node_path,
+                        "nodes": [nodes[item] for item in next_node_path],
+                        "edges": next_edge_path,
+                        "length": len(next_edge_path),
+                    }
+                )
+                if len(paths) >= normalized_limit:
+                    break
+            else:
+                queue.append((next_id, next_node_path, next_edge_path))
+
+    return {
+        "status": "ok",
+        "source": nodes[source_id],
+        "target": nodes[target_id],
+        "paths": paths,
+        "direction": normalized_direction,
+        "max_depth": normalized_depth,
+        "limit": normalized_limit,
+    }
+
+
+def graph_page_context(
+    ws: Workspace,
+    *,
+    page_id: str,
+    limit: int = 20,
+) -> dict[str, Any]:
+    try:
+        normalized_limit = _positive_graph_int(limit, name="limit")
+    except ValueError as exc:
+        return _graph_error(str(exc), page_id=page_id)
+
+    graph = build_research_graph(ws)
+    nodes = _graph_nodes_by_id(graph)
+    if page_id not in nodes:
+        return _graph_not_found(page_id)
+
+    incoming_pairs = _iter_graph_edges(graph, page_id, direction="incoming")[:normalized_limit]
+    outgoing_pairs = _iter_graph_edges(graph, page_id, direction="outgoing")[:normalized_limit]
+    related_ids: list[str] = []
+    for _edge, node_id in [*incoming_pairs, *outgoing_pairs]:
+        if node_id not in related_ids:
+            related_ids.append(node_id)
+    related_nodes = [nodes[node_id] for node_id in related_ids]
+
+    related_sources = [node for node in related_nodes if node.get("type") == "source"]
+    related_evidence = [node for node in related_nodes if node.get("type") == "evidence"]
+    related_topics = [node for node in related_nodes if node.get("type") == "topic"]
+    related_pages = [
+        node
+        for node in related_nodes
+        if node.get("type") not in {"source", "evidence", "topic", "implicit"}
+    ]
+    summary = [
+        f"{len(incoming_pairs)} incoming edge(s)",
+        f"{len(outgoing_pairs)} outgoing edge(s)",
+        f"{len(related_sources)} related source(s)",
+        f"{len(related_evidence)} related evidence item(s)",
+        f"{len(related_topics)} related topic(s)",
+        f"{len(related_pages)} related page(s)",
+    ]
+
+    return {
+        "status": "ok",
+        "page_id": page_id,
+        "node": nodes[page_id],
+        "incoming": [edge for edge, _node_id in incoming_pairs],
+        "outgoing": [edge for edge, _node_id in outgoing_pairs],
+        "related_sources": related_sources,
+        "related_evidence": related_evidence,
+        "related_topics": related_topics,
+        "related_pages": related_pages,
+        "summary": summary,
+        "limit": normalized_limit,
+    }
+
+
 def codex_handoff_capsule(ws: Workspace) -> Path:
     allowed_modes = [
         "capture",

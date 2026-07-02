@@ -19,6 +19,9 @@ from .core import (
     create_inbox_item,
     export_graph,
     generate_wiki_index,
+    graph_neighbors,
+    graph_page_context,
+    graph_paths,
     knowledge_page_records,
     lint_ars_handoff,
     lint_graph_links,
@@ -276,6 +279,75 @@ def export_graph_action(*, workspace: Workspace | Path | None = None) -> ActionR
     )
 
 
+def _graph_action_result(*, action: str, payload: dict[str, Any], ok_message: str) -> ActionResult:
+    status = str(payload.get("status", "ok"))
+    if status == "ok":
+        message = ok_message
+    elif status == "not-found":
+        message = f"graph node not found: {payload.get('node_id', payload.get('page_id', 'unknown'))}"
+    else:
+        message = str(payload.get("error", "graph traversal failed"))
+    return ActionResult(action=action, status=status, message=message, payload=payload)
+
+
+def graph_neighbors_action(
+    *,
+    workspace: Workspace | Path | None = None,
+    node_id: str,
+    direction: str = "both",
+    limit: int = 20,
+) -> ActionResult:
+    ws = _workspace(workspace)
+    payload = graph_neighbors(ws, node_id=node_id, direction=direction, limit=limit)
+    neighbor_count = len(payload.get("neighbors", []))
+    return _graph_action_result(
+        action="graph.neighbors",
+        payload=payload,
+        ok_message=f"found {neighbor_count} graph neighbor(s) for {node_id}",
+    )
+
+
+def graph_paths_action(
+    *,
+    workspace: Workspace | Path | None = None,
+    source_id: str,
+    target_id: str,
+    direction: str = "both",
+    max_depth: int = 4,
+    limit: int = 5,
+) -> ActionResult:
+    ws = _workspace(workspace)
+    payload = graph_paths(
+        ws,
+        source_id=source_id,
+        target_id=target_id,
+        direction=direction,
+        max_depth=max_depth,
+        limit=limit,
+    )
+    path_count = len(payload.get("paths", []))
+    return _graph_action_result(
+        action="graph.paths",
+        payload=payload,
+        ok_message=f"found {path_count} graph path(s) from {source_id} to {target_id}",
+    )
+
+
+def graph_page_context_action(
+    *,
+    workspace: Workspace | Path | None = None,
+    page_id: str,
+    limit: int = 20,
+) -> ActionResult:
+    ws = _workspace(workspace)
+    payload = graph_page_context(ws, page_id=page_id, limit=limit)
+    return _graph_action_result(
+        action="graph.page_context",
+        payload=payload,
+        ok_message=f"rendered graph page context for {page_id}",
+    )
+
+
 def generate_index(*, workspace: Workspace | Path | None = None) -> ActionResult:
     ws = _workspace(workspace)
     path = generate_wiki_index(ws)
@@ -358,6 +430,12 @@ def execute_action_request(request: ActionRequest, *, workspace: Workspace | Pat
         return run_lint(workspace=workspace, **params)
     if request.action == "graph.export":
         return export_graph_action(workspace=workspace, **params)
+    if request.action == "graph.neighbors":
+        return graph_neighbors_action(workspace=workspace, **params)
+    if request.action == "graph.paths":
+        return graph_paths_action(workspace=workspace, **params)
+    if request.action == "graph.page_context":
+        return graph_page_context_action(workspace=workspace, **params)
     if request.action == "index.generate":
         return generate_index(workspace=workspace, **params)
     if request.action == "codex_handoff.generate":

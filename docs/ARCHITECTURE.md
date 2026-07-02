@@ -135,9 +135,11 @@ desktop research folder, then link those folders into each local RKF project.
 
 ## Runtime Surfaces
 
-- `rkf.actions`: structured Codex app action API. It currently covers
-  `inbox.capture` and `hot.record`, returning `ActionResult` objects for
-  agent-facing summaries.
+- `rkf.actions`: structured Codex app action API. It covers
+  `inbox.capture`, `hot.record`, report/read actions (`world.render`,
+  `paper.queue`, `lint.run`, `graph.export`, `index.generate`,
+  `codex_handoff.generate`), and `stats.snapshot` for compact health review.
+  Actions return `ActionResult` objects for agent-facing summaries and tests.
 - `tools/rkf_auto_connect.py`: connector helper that classifies cross-project
   material, builds `ActionRequest` objects, and can execute those requests
   directly against the configured ResearchWiki root.

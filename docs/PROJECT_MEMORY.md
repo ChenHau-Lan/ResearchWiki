@@ -41,9 +41,12 @@ Last updated: 2026-07-01
   The existing legacy CLI is an internal shim for Codex agents, tests,
   validation, indexing, graph export, and maintenance, not a user-facing
   control surface.
-- `rkf.actions` currently covers `inbox.capture` and `hot.record`; the legacy
-  CLI uses those actions for the same write paths so Codex app and CLI shim
-  behavior do not drift.
+- `rkf.actions` is the Codex app-facing runtime boundary. It covers
+  `inbox.capture`, `hot.record`, report/read actions (`world.render`,
+  `paper.queue`, `lint.run`, `graph.export`, `index.generate`,
+  `codex_handoff.generate`), and the read-only `stats.snapshot` health report.
+  The legacy CLI delegates shared report paths to these actions where practical
+  so Codex app and maintenance behavior do not drift.
 - Mixed ChatGPT/web/project-note capture should use `knowledge/inbox/` first.
   DOI injection is guarded: create/update source identity and paper backlinks
   only, while preserving source-grounded notes, reader ideas, and AI/agent notes

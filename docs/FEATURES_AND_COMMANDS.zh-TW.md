@@ -30,9 +30,10 @@ legacy CLI 只作為 Codex app、測試與維護使用的內部 shim。新的使
 | Paper queue/nudge | 推播 metadata-only、缺 PDF、缺人為 feedback、重複被問、可進 synthesis review 的 paper | Codex app report / automation digest |
 | Non-paper save | 保存 question、concept、claim、synthesis、overview、meeting、seminar | `knowledge/*/*.md` |
 | Hot-query layer | 追蹤近期 public-safe 研究問題與 paper-search demand | `hot.md` |
-| Action runtime | 讓 Codex app / auto-connect 以 structured request 執行 RKF write path | `rkf/actions.py` |
+| Action runtime | 讓 Codex app / auto-connect 以 structured request 執行 RKF write path 與 report/read path | `rkf/actions.py` |
 | Topic governance | 維護 topic id、scope、aliases、include/exclude、default search strings | `governance/topic_registry.json`、`knowledge/topics/*.md` |
 | L0-L3 world context | 快速重建 identity、critical facts、active reading、claim readiness、graph/detail links 與 validation state | Codex app report |
+| Health snapshot | 以 Codex app report 顯示 sources、paper queue、claim readiness、maturity、hot-query 與 lint 摘要 | `stats.snapshot` action |
 | Critical facts | 保存短句、public-safe、可重用且有時間 metadata 的 facts | `CRITICAL_FACTS.md` |
 | Future Agent Retrieval Brief | 在 paper / synthesis / topic template 說明何時讀頁、可信度、缺口與下一步 | `templates/rkf/*.md`、knowledge pages |
 | Priority evolve | 低風險 rewrite existing page，並在頁內留下 `AI Integration Note`；高風險只留下 blocker / maturity downgrade | knowledge pages |
@@ -86,6 +87,7 @@ legacy CLI 只作為 Codex app、測試與維護使用的內部 shim。新的使
 | Verify locators | 「檢查這篇 paper 的 locator/readability，能不能支撐 claim readiness？」 | Claim readiness 需要 locator 或人為 review |
 | Record feedback | 「我剛討論/註解了這篇，請寫入 reading ledger。」 | Ledger 是 operational memory |
 | Paper queue | 「列出今天最需要處理的 paper queue/nudges。」 | 只回報 public-safe 摘要 |
+| Health snapshot | 「幫我看 RKF 今天最需要處理什麼。」 | Read-only report；不提升 evidence maturity |
 | Query wiki | 「問 RKF 現在知道什麼，必要時讓 ARS 對 retrieved context 推理。」 | 回答不自動變 wiki page |
 | Save knowledge | 「把這個問題/概念/claim/synthesis 保存成 RKF page。」 | 覆寫既有頁要明確要求 |
 | Record hot demand | 「把這個 paper-search 問題記到 hot.md。」 | `hot.md` 是 demand dashboard，不是 evidence |
@@ -102,11 +104,10 @@ legacy CLI 只作為 Codex app、測試與維護使用的內部 shim。新的使
 
 ## Legacy Runtime Boundary
 
-現有 `tools/rk.py` / `rkf/cli.py` 在第一階段保留為 legacy/dev shim，供 Codex app
-agent、測試與維護使用。第二階段開始，`inbox.capture` 與 `hot.record` 已可透過
-`rkf.actions.ActionRequest` 執行；auto-connect 也可直接執行這些 action。CLI 不是正式
-使用者控制介面。新增或修改能力時，優先描述 Codex app 工作流與 RKF action 邊界；
-不要新增面向使用者的 CLI 教學。
+現有 `tools/rk.py` / `rkf/cli.py` 保留為 legacy/dev shim，供 Codex app agent、測試與維護使用。
+`rkf.actions` 已支援 `inbox.capture`、`hot.record`、常用 report/read actions 與
+`stats.snapshot`；auto-connect 也可直接執行已支援的 action。CLI 不是正式使用者控制介面。
+新增或修改能力時，優先描述 Codex app 工作流與 RKF action 邊界；不要新增面向使用者的 CLI 教學。
 
 ## Validation
 

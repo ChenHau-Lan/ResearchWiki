@@ -123,6 +123,27 @@ class RKFActionsTests(unittest.TestCase):
         self.assertEqual(handoff.payload["path"], "prompts/codex_handoff_context.md")
         self.assertTrue((self.root / "prompts" / "codex_handoff_context.md").exists())
 
+    def test_stats_snapshot_summarizes_review_health_without_writes(self) -> None:
+        source_id = self.seed_paper(doi="10.1234/stats.snapshot")
+        before_files = sorted(path.relative_to(self.root).as_posix() for path in self.root.rglob("*") if path.is_file())
+
+        result = execute_action_request(
+            ActionRequest(action="stats.snapshot", params={"paper_limit": 3}),
+            workspace=self.workspace,
+        )
+
+        after_files = sorted(path.relative_to(self.root).as_posix() for path in self.root.rglob("*") if path.is_file())
+        self.assertEqual(after_files, before_files)
+        self.assertEqual(result.action, "stats.snapshot")
+        self.assertEqual(result.status, "ok")
+        self.assertEqual(result.payload["counts"]["sources"], 1)
+        self.assertEqual(result.payload["counts"]["knowledge_pages"], 1)
+        self.assertEqual(result.payload["counts"]["paper_queue"], 1)
+        self.assertEqual(result.payload["distributions"]["knowledge_types"]["paper"], 1)
+        self.assertEqual(result.payload["distributions"]["claim_readiness"]["not-ready"], 1)
+        self.assertEqual(result.payload["top_paper_nudges"][0]["source_id"], source_id)
+        self.assertIn("review the top paper nudges", result.payload["next_actions"][0])
+
 
 if __name__ == "__main__":
     unittest.main()

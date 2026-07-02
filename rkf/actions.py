@@ -8,6 +8,7 @@ building command strings.
 
 from __future__ import annotations
 
+from collections import Counter
 from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Any
@@ -91,6 +92,57 @@ def _lint_errors(ws: Workspace, mode: str) -> list[str]:
     if mode == "public-safety-lint":
         errors.extend(lint_public_safety(ws))
     return errors
+
+
+def _counter_dict(values: list[str]) -> dict[str, int]:
+    return dict(Counter(values).most_common())
+
+
+def _source_status_counts(ws: Workspace) -> dict[str, int]:
+    if not ws.paths.sources.exists():
+        return {}
+    statuses: list[str] = []
+    for path in sorted(ws.paths.sources.glob("*.json")):
+        record = read_json(path)
+        statuses.append(str(record.get("status", "unknown")))
+    return _counter_dict(statuses)
+
+
+def _evidence_status_counts(ws: Workspace) -> dict[str, int]:
+    if not ws.paths.evidence_index.exists():
+        return {}
+    statuses: list[str] = []
+    for path in sorted(ws.paths.evidence_index.glob("*.json")):
+        record = read_json(path)
+        statuses.append(str(record.get("status", "unknown")))
+    return _counter_dict(statuses)
+
+
+def _knowledge_distributions(ws: Workspace) -> dict[str, dict[str, int]]:
+    records = knowledge_page_records(ws)
+    return {
+        "knowledge_types": _counter_dict([str(meta.get("type", "unknown")) for _, meta, _ in records]),
+        "paper_reading_state": _counter_dict(
+            [
+                str(meta.get("reading_state", meta.get("reading_status", "unknown")))
+                for _, meta, _ in records
+                if meta.get("type") == "paper"
+            ]
+        ),
+        "fulltext_status": _counter_dict(
+            [str(meta.get("fulltext_status", "unknown")) for _, meta, _ in records if meta.get("type") == "paper"]
+        ),
+        "claim_readiness": _counter_dict(
+            [
+                str(meta.get("claim_readiness", "unknown"))
+                for _, meta, _ in records
+                if meta.get("type") in {"paper", "claim", "synthesis"}
+            ]
+        ),
+        "synthesis_maturity": _counter_dict(
+            [str(meta.get("synthesis_maturity", "unknown")) for _, meta, _ in records if meta.get("type") == "synthesis"]
+        ),
+    }
 
 
 def capture_inbox(
@@ -248,6 +300,50 @@ def generate_codex_handoff(*, workspace: Workspace | Path | None = None) -> Acti
     )
 
 
+def snapshot_stats(
+    *,
+    workspace: Workspace | Path | None = None,
+    paper_limit: int = 8,
+    lint_mode: str = "all",
+) -> ActionResult:
+    ws = _workspace(workspace)
+    queue_items = paper_queue(ws)
+    hot_events = recent_hot_events(ws) if ws.paths.hot_md.exists() else []
+    lint_errors = _lint_errors(ws, lint_mode)
+    counts = _workspace_counts(ws)
+    counts.update(
+        {
+            "paper_queue": len(queue_items),
+            "hot_queries": len(hot_events),
+            "lint_errors": len(lint_errors),
+        }
+    )
+    distributions = {
+        "source_status": _source_status_counts(ws),
+        "evidence_status": _evidence_status_counts(ws),
+        **_knowledge_distributions(ws),
+    }
+    next_actions: list[str] = []
+    if queue_items:
+        next_actions.append("review the top paper nudges before promoting claims")
+    if lint_errors:
+        next_actions.append(f"resolve {len(lint_errors)} lint finding(s) before publishing or trusting synthesis")
+    if not next_actions:
+        next_actions.append("no deterministic RKF health blocker detected in this snapshot")
+    return ActionResult(
+        action="stats.snapshot",
+        status="ok" if not lint_errors else "blocked",
+        message=f"snapshot: {counts['paper_queue']} paper nudges, {counts['lint_errors']} lint findings",
+        payload={
+            "counts": counts,
+            "distributions": distributions,
+            "top_paper_nudges": queue_items[:paper_limit],
+            "lint": {"mode": lint_mode, "passed": not lint_errors, "errors": lint_errors},
+            "next_actions": next_actions,
+        },
+    )
+
+
 def execute_action_request(request: ActionRequest, *, workspace: Workspace | Path | None = None) -> ActionResult:
     params = dict(request.params)
     if request.action == "inbox.capture":
@@ -266,4 +362,6 @@ def execute_action_request(request: ActionRequest, *, workspace: Workspace | Pat
         return generate_index(workspace=workspace, **params)
     if request.action == "codex_handoff.generate":
         return generate_codex_handoff(workspace=workspace, **params)
+    if request.action == "stats.snapshot":
+        return snapshot_stats(workspace=workspace, **params)
     raise SystemExit(f"unsupported RKF action: {request.action}")

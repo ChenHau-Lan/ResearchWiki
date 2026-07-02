@@ -43,7 +43,7 @@ legacy CLI 只作為 Codex app、測試與維護使用的內部 shim。新的使
 | Agent prompt templates | Morning/nightly/weekly/health agent prompt，不建立實際 automation | `prompts/agents/*.md` |
 | Bi-temporal memory | claim / synthesis / critical facts 可記錄 `observed_at`、`valid_from`、`valid_until`、`supersedes` | frontmatter / `CRITICAL_FACTS.md` |
 | Propagation review | 新 evidence、reading maturity 或 synthesis 後列出可能受影響頁面，作為 preview/audit fallback | Codex app report 或 `state/gates/propagation/*.md` |
-| Graph export | 輸出 source/evidence/wiki/topic typed links | `graph/research_graph.json` |
+| Graph export / traversal | 輸出 source/evidence/wiki/topic typed links，並用 `graph.neighbors`、`graph.paths`、`graph.page_context` 在 Codex app 內讀取 public-safe graph context | `graph/research_graph.json` / Codex app report |
 | Index generation | 產生 LLM retrieval 入口，包含 maturity hints | `index.md` |
 | Codex handoff capsule | 產生其他 Codex session / project handoff 使用的 RKF context | `prompts/codex_handoff_context.md` |
 | Lint and safety scan | 檢查 structure、maturity、claim boundary、graph、ARS handoff、public safety | Codex app report |

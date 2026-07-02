@@ -47,6 +47,11 @@ Last updated: 2026-07-01
   `codex_handoff.generate`), and the read-only `stats.snapshot` health report.
   The legacy CLI delegates shared report paths to these actions where practical
   so Codex app and maintenance behavior do not drift.
+- Graph traversal is action-first and read-only: `graph.neighbors`,
+  `graph.paths`, and `graph.page_context` use the in-memory
+  `build_research_graph(ws)` helper. They do not write
+  `graph/research_graph.json`; `graph.export` remains the explicit generated
+  graph file route.
 - Mixed ChatGPT/web/project-note capture should use `knowledge/inbox/` first.
   DOI injection is guarded: create/update source identity and paper backlinks
   only, while preserving source-grounded notes, reader ideas, and AI/agent notes

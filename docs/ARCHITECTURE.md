@@ -20,7 +20,7 @@ graph export, ARS handoff proposals, and optional shared-database connections.
 | Knowledge Objects | Maintain paper, question, concept, claim, topic, synthesis, overview, meeting, seminar pages | concise Markdown only |
 | Research Graph | Export typed source/evidence/wiki/topic edges and maturity metadata | generated public-safe graph |
 | Hot Query Layer | Track recent public-safe research questions and paper-search demand | single retrieval file: `hot.md` |
-| Action Runtime | Execute Codex app workflow requests without routing through the CLI parser | `rkf/actions.py`, structured request/result only |
+| Action Runtime | Execute Codex app workflow requests without routing through the CLI parser, including read/report actions and read-only graph traversal | `rkf/actions.py`, structured request/result only |
 | L0-L3 World Context | Rebuild session context from identity, critical facts, active reading, synthesis, graph links, and validation state | Codex app capsule, public-safe |
 | Critical Facts | Store short public-safe facts with temporal metadata for future agents | `CRITICAL_FACTS.md` |
 | Priority Evolve | Rewrite low-risk existing pages with visible AI Integration Notes and maturity-aware blockers | governed page update |
@@ -140,6 +140,11 @@ desktop research folder, then link those folders into each local RKF project.
   `paper.queue`, `lint.run`, `graph.export`, `index.generate`,
   `codex_handoff.generate`), and `stats.snapshot` for compact health review.
   Actions return `ActionResult` objects for agent-facing summaries and tests.
+  It also exposes read-only graph traversal actions: `graph.neighbors`,
+  `graph.paths`, and `graph.page_context`. These actions read from an in-memory
+  graph built by `build_research_graph(ws)` and do not write
+  `graph/research_graph.json`; explicit `graph.export` remains the generated-file
+  route.
 - `tools/rkf_auto_connect.py`: connector helper that classifies cross-project
   material, builds `ActionRequest` objects, and can execute those requests
   directly against the configured ResearchWiki root.

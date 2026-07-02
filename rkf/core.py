@@ -2609,7 +2609,7 @@ def lint_public_safety(ws: Workspace) -> list[str]:
     return errors
 
 
-def export_graph(ws: Workspace) -> dict[str, Any]:
+def build_research_graph(ws: Workspace) -> dict[str, Any]:
     nodes: list[dict[str, Any]] = []
     edges: list[dict[str, Any]] = []
     for path in sorted(ws.paths.sources.glob("*.json")) if ws.paths.sources.exists() else []:
@@ -2647,7 +2647,11 @@ def export_graph(ws: Workspace) -> dict[str, Any]:
                 edges.append({"from": node_id, "to": meta["source_id"], "type": "derived-from"})
             for topic_id in meta.get("topics", []):
                 edges.append({"from": node_id, "to": topic_id, "type": "tagged-with"})
-    graph = {"schema": "rkf-graph-v1", "generated": today(), "nodes": nodes, "edges": edges}
+    return {"schema": "rkf-graph-v1", "generated": today(), "nodes": nodes, "edges": edges}
+
+
+def export_graph(ws: Workspace) -> dict[str, Any]:
+    graph = build_research_graph(ws)
     write_json(ws.paths.graph / "research_graph.json", graph)
     return graph
 

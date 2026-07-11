@@ -1,0 +1,42 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://example.org/rkf/operational_event.schema.json",
+  "title": "RKFOperationalEvent",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schema",
+    "event_id",
+    "action",
+    "actor",
+    "origin",
+    "machine_id",
+    "created",
+    "target_identity",
+    "idempotency_key",
+    "public_safe",
+    "payload"
+  ],
+  "properties": {
+    "schema": {"const": "rkf-operational-event-v1"},
+    "event_id": {
+      "type": "string",
+      "pattern": "^evt_[0-9]{8}T[0-9]{6}Z_[a-z0-9-]+_[a-z0-9]+$"
+    },
+    "action": {
+      "type": "string",
+      "enum": ["capture.route", "capture.review"]
+    },
+    "actor": {
+      "type": "string",
+      "enum": ["codex", "human", "codex-handoff", "automation"]
+    },
+    "origin": {"type": "string", "minLength": 1, "maxLength": 200},
+    "machine_id": {"type": "string", "pattern": "^[a-z0-9-]+$"},
+    "created": {"type": "string", "format": "date-time"},
+    "target_identity": {"type": "string", "minLength": 1, "maxLength": 500},
+    "idempotency_key": {"type": "string", "minLength": 1, "maxLength": 128},
+    "public_safe": {"const": true},
+    "payload": {"type": "object"}
+  }
+}

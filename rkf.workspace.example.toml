@@ -16,6 +16,18 @@ wiki_root = "~/Google Drive/My Drive/ResearchSync/wiki"
 # knowledge pages.
 private_evidence_root = "~/Google Drive/My Drive/ResearchSync/evidence"
 
+[machine]
+# Use a random, non-personal identifier that is unique per computer. This is
+# compared with the writer registry before any shared projection is written.
+id = "machine-7f3a2c91"
+maintenance_writer = false
+
+[sync]
+# Immutable capture events are the synchronization source of truth. Only the
+# registered maintenance writer may project them into inbox/hot/wiki views.
+writer_registry = "state/sync/maintenance-writer.json"
+event_root = "state/events"
+
 [gates]
 require_pdf_checkpoint = true
 require_pdf_qc = true

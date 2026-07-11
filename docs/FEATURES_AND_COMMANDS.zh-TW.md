@@ -6,7 +6,8 @@
 
 ## 使用入口原則
 
-RKF v0 的互動入口是 Codex app：使用者用自然語言要求 capture、整理、查詢、review、
+RKF 1.1 的互動入口是 Codex app。每個新 task 預設 RKF OFF；使用者明確說
+「啟動 RKF」後，agent 才以 `rkf.activate` 完成 read-only preflight，並接受 capture、整理、查詢、review、
 lint 或連接其他專案。`knowledge/` 下的 Markdown pages 是 durable artifact，不是要求
 使用者手動操作 CLI 的前台介面。
 
@@ -20,7 +21,7 @@ legacy CLI 只作為 Codex app、測試與維護使用的內部 shim。新的使
 |---|---|---|
 | Source capture | 攝取 DOI、URL、PDF pointer、topic seed、idea、question | `state/sources/*.json` |
 | Inbox capture | 把 ChatGPT 對話片段、網頁 clip、DOI、URL 與想法先放進低風險 inbox；DOI 只做保守 source/paper backlink injection | `knowledge/inbox/*.md`、可選 `state/sources/*.json`、`knowledge/papers/*.md` backlink |
-| Auto-connect helper | 跨專案偵測研究相關搜尋、DOI/URL、web clip 與有價值研究討論，並自動回饋到 RKF inbox/hot.md；可在外部專案建立 `RKF/` bridge folder 作為 project-local index | global `rkf-auto-connect` skill、`tools/rkf_auto_connect.py`、`.rkf-connect.toml`、`RKF/` |
+| Auto-connect helper | 啟動後才分類跨專案研究內容並建立 structured request；helper 本身不能啟動 session 或直接繞過 guard 寫入 | global `rkf-auto-connect` skill、`tools/rkf_auto_connect.py`、`.rkf-connect.toml`、`RKF/` |
 | Discovery staging | 建立候選文獻搜尋 run；候選可啟動 draft，但不是 claim evidence | `state/search_runs/*/candidates.json`、`hot.md` |
 | Paper reading draft | 從 metadata、abstract、partial full text 或 PDF 先建立 paper draft；頁面分開 source-grounded summary、locator/evidence、reader notes、AI/Agent notes 與 claim candidates | `knowledge/papers/*.md` |
 | Full-text status | 標記 `needs-user-pdf`、`user-pdf-provided`、`fulltext-read` 等狀態 | source frontmatter/JSON、paper frontmatter |
@@ -30,7 +31,10 @@ legacy CLI 只作為 Codex app、測試與維護使用的內部 shim。新的使
 | Paper queue/nudge | 推播 metadata-only、缺 PDF、缺人為 feedback、重複被問、可進 synthesis review 的 paper | Codex app report / automation digest |
 | Non-paper save | 保存 question、concept、claim、synthesis、overview、meeting、seminar | `knowledge/*/*.md` |
 | Hot-query layer | 追蹤近期 public-safe 研究問題與 paper-search demand | `hot.md` |
-| Action runtime | 讓 Codex app / auto-connect 以 structured request 執行 RKF write path 與 report/read path | `rkf/actions.py` |
+| Session activation | 每個新 task 從 OFF 開始；read-only preflight 後才進 ACTIVE 或 ACTIVE_READ_ONLY | `rkf.activate`、`rkf.status`、`rkf.deactivate` |
+| Deterministic retrieval | 先從 RKF 找 exact identifier、alias、keyword、topic 與 graph context，並回報 maturity/evidence boundary | `query.search` |
+| Event-first capture | 分類、去重、先寫 immutable event，再由單一 writer 投影 inbox/hot/wiki；writer 可用 checkpoint 安全重試 queued/partial event；不自動 promotion | `capture.route`、`capture.project_pending`、`state/events/` |
+| Action runtime | 讓 Codex app 以 session-owned structured runtime 執行 guarded read/write path | `rkf/actions.py` |
 | Topic governance | 維護 topic id、scope、aliases、include/exclude、default search strings | `governance/topic_registry.json`、`knowledge/topics/*.md` |
 | L0-L3 world context | 快速重建 identity、critical facts、active reading、claim readiness、graph/detail links 與 validation state | Codex app report |
 | Health snapshot | 以 Codex app report 顯示 sources、paper queue、claim readiness、maturity、hot-query 與 lint 摘要 | `stats.snapshot` action |
@@ -75,11 +79,21 @@ legacy CLI 只作為 Codex app、測試與維護使用的內部 shim。新的使
 在 Codex app 中用自然語言提出工作，agent 會依 `MODE_REGISTRY.md` 路由到正確 skill
 與內部 RKF action。下面是使用者應看到的工作流，而不是命令清單。
 
+| 使用者說法 | Structured action | 行為邊界 |
+|---|---|---|
+| 啟動 RKF | `rkf.activate` | 唯讀 preflight；回傳遮蔽路徑的 session receipt |
+| 問 RKF：... | `query.search` | 先查中央 RKF；不足才讀 project-local |
+| 收進 RKF：... | `capture.route` | 先寫 immutable event；回報 dedupe、queued/materialized、`Promotion: none` |
+| 停用 RKF | `rkf.deactivate` | 本 task 後續不再查詢或攝入 RKF |
+
 | Workflow | 在 Codex app 可以這樣說 | 主要邊界 |
 |---|---|---|
 | Capture source | 「把這個 DOI/URL 加入 RKF，先建立保守 source record。」 | 只確認 source identity，不升級 claim |
 | Save to inbox | 「把這段 ChatGPT/web clip 存到 inbox，我的想法和來源內容分開。」 | Inbox item 不是 evidence |
-| Auto-connect capture | 「這個外部專案討論有研究價值，幫我回饋到 RKF。」 | 透過 `rkf-auto-connect` 分類，先進 inbox/hot |
+| Activate RKF | 「啟動 RKF。」 | 只啟動目前 task；先做 storage/writer preflight |
+| Query wiki | 「先用 RKF 找這個 DOI／概念。」 | 使用 `query.search`；答案不自動成為 wiki page |
+| Auto-connect capture | 「這個外部專案討論有研究價值，幫我回饋到 RKF。」 | 啟動後透過 `capture.route` 先記 event；`Promotion: none` |
+| Deactivate RKF | 「停用 RKF。」 | 使用 `rkf.deactivate`；後續 action 再次被 OFF guard 阻擋 |
 | Discover papers | 「針對這個 topic 找候選文獻，但不要把 candidates 當 evidence。」 | Candidate 只能啟動 draft |
 | Create paper draft | 「就算目前只有 metadata，也幫我建 paper draft 並標清楚 maturity。」 | Paper page 必須保守標記 reading state |
 | Request user PDF | 「列出哪些 paper 需要我提供 PDF。」 | 不繞過 paywall 或授權限制 |
@@ -88,7 +102,7 @@ legacy CLI 只作為 Codex app、測試與維護使用的內部 shim。新的使
 | Record feedback | 「我剛討論/註解了這篇，請寫入 reading ledger。」 | Ledger 是 operational memory |
 | Paper queue | 「列出今天最需要處理的 paper queue/nudges。」 | 只回報 public-safe 摘要 |
 | Health snapshot | 「幫我看 RKF 今天最需要處理什麼。」 | Read-only report；不提升 evidence maturity |
-| Query wiki | 「問 RKF 現在知道什麼，必要時讓 ARS 對 retrieved context 推理。」 | 回答不自動變 wiki page |
+| Query governed context | 「問 RKF 現在知道什麼，必要時讓 ARS 對 retrieved context 推理。」 | 回答不自動變 wiki page |
 | Save knowledge | 「把這個問題/概念/claim/synthesis 保存成 RKF page。」 | 覆寫既有頁要明確要求 |
 | Record hot demand | 「把這個 paper-search 問題記到 hot.md。」 | `hot.md` 是 demand dashboard，不是 evidence |
 | Topic governance | 「幫我新增/整理 topic registry，檢查 aliases 與 search strings。」 | 大型 merge/split 先提案 |
@@ -105,8 +119,9 @@ legacy CLI 只作為 Codex app、測試與維護使用的內部 shim。新的使
 ## Legacy Runtime Boundary
 
 現有 `tools/rk.py` / `rkf/cli.py` 保留為 legacy/dev shim，供 Codex app agent、測試與維護使用。
-`rkf.actions` 已支援 `inbox.capture`、`hot.record`、常用 report/read actions 與
-`stats.snapshot`；auto-connect 也可直接執行已支援的 action。CLI 不是正式使用者控制介面。
+`rkf.actions` 以 session-owned `RKFActionRuntime` 執行；`rkf.activate`、
+`query.search`、`capture.route` 與 `rkf.deactivate` 是 Phase 1 的正式 action
+boundary。Auto-connect helper 只建立 request，不能自行取得 ACTIVE 狀態。CLI 不是正式使用者控制介面。
 新增或修改能力時，優先描述 Codex app 工作流與 RKF action 邊界；不要新增面向使用者的 CLI 教學。
 
 ## Validation

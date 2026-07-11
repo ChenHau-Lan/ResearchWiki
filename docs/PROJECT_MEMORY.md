@@ -1,6 +1,6 @@
 # PROJECT_MEMORY
 
-Last updated: 2026-07-01
+Last updated: 2026-07-10
 
 ## Project Summary
 
@@ -32,6 +32,24 @@ Last updated: 2026-07-01
 
 ## Durable Decisions
 
+- RKF 1.1 Phase 1 uses a session-owned `RKFActionRuntime`. Every new Codex task
+  starts OFF; only explicit `rkf.activate` can enable that task after a
+  read-only storage/writer preflight. `rkf.deactivate` returns it to OFF, and a
+  project marker never persists activation.
+- `query.search` is the deterministic retrieval-first entry point.
+  `capture.route` classifies and deduplicates cross-project material, then
+  preserves an immutable operational event before any derived projection.
+- Shared-machine writes use an event-first, single-writer contract. The
+  registered maintenance writer may project events into inbox/hot/wiki views;
+  other machines queue events or remain read-only. Every Phase 1 capture keeps
+  `Promotion: none`. Writer maintenance uses `capture.project_pending` and
+  per-event/per-target checkpoints so queued or partially completed projections
+  can be retried without duplicating completed targets.
+- Paper pages remain centered on the paper itself. Project/manuscript extension
+  questions and the user's broader research directions must be routed to inbox,
+  question, topic, or synthesis layers instead of shifting the paper page's
+  center of gravity.
+
 - RKF treats evidence as an upgrade boundary, not an entry gate. Paper drafts
   can start from metadata, abstract, partial full text, publisher HTML, or a
   user-provided PDF.
@@ -56,14 +74,14 @@ Last updated: 2026-07-01
   DOI injection is guarded: create/update source identity and paper backlinks
   only, while preserving source-grounded notes, reader ideas, and AI/agent notes
   as separate inbox sections until review.
-- RKF auto-connect should be implemented as a global personal skill plus a small
-  repo-side helper. Connected projects use Active/Aggressive hybrid capture:
-  source-like material is captured actively, valuable research discussion is
-  captured aggressively, and claim promotion remains conservative.
-- The repo-side `tools/rkf_auto_connect.py` helper builds and executes
-  structured `ActionRequest` objects for durable capture. Legacy command-array
-  builders and `inbox-command` / `hot-command` subcommands were removed; use
-  `inbox-request`, `hot-request`, `inbox-execute`, or `hot-execute` instead.
+- RKF auto-connect is a global personal skill plus a small request-only
+  repo-side helper. Its Active/Aggressive classifier runs only after explicit
+  session activation; it cannot persist ACTIVE state or bypass runtime guards.
+- v1 and v2 project markers mean available, never active. The installed global
+  skill must not call the legacy CLI for writes.
+- The repo-side `tools/rkf_auto_connect.py` helper builds `rkf.activate`,
+  `query.search`, and `capture.route` request payloads. Execution requires the
+  same live session-owned runtime; invoking the helper alone remains OFF.
 - Codex handoff/bootstrap prompts should request RKF app workflows, structured
   actions, or proposals. They should not instruct users or handoff agents to
   operate RKF through shell commands.
@@ -134,6 +152,9 @@ documented as valid for this repo include:
 ```bash
 python3 -m py_compile tools/rk.py rkf/*.py tools/public_safety_scan.py
 python3 -m unittest discover -s tests
+python3 tools/rk.py lint --mode all
+python3 tools/rk.py topic lint
+python3 tools/rk.py lint --mode graph-lint
 python3 tools/public_safety_scan.py
 ```
 
@@ -160,6 +181,11 @@ There is no `hot show` workflow; inspect `hot.md` directly.
   injection.
 - Trap: making every project duplicate RKF routing rules. Fix: use the global
   `rkf-auto-connect` skill and keep project markers small and public-safe.
+- Trap: assuming an enabled marker or a previous task keeps RKF active. Fix:
+  every new task starts OFF and requires the user to say `啟動 RKF`.
+- Trap: letting multiple Drive-synced computers project the same capture into
+  wiki files. Fix: keep immutable events as source of truth and allow only the
+  registered maintenance writer to materialize projections.
 - Trap: treating a project-local `RKF/hot.md` or `RKF/memory.md` as canonical
   RKF evidence. Fix: keep `RKF/` bridge files pointer-oriented and route
   durable capture through the central RKF Codex app/action flow.

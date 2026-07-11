@@ -1,0 +1,13 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://example.org/rkf/writer_registry.schema.json",
+  "title": "RKFWriterRegistry",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["schema", "machine_id", "assigned_at"],
+  "properties": {
+    "schema": {"const": "rkf-writer-registry-v1"},
+    "machine_id": {"type": "string", "pattern": "^[a-z0-9-]+$"},
+    "assigned_at": {"type": "string", "format": "date-time"}
+  }
+}

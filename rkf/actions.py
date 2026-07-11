@@ -8,6 +8,8 @@ building command strings.
 
 from __future__ import annotations
 
+import os
+import fcntl
 from collections import Counter
 from dataclasses import dataclass, field
 from pathlib import Path
@@ -36,6 +38,22 @@ from .core import (
     relative_workspace_path,
     render_workspace_status,
 )
+from .session import (
+    SessionMode,
+    SessionState,
+    activate_session,
+    deactivate_session,
+    new_session,
+    session_receipt,
+)
+from .retrieval import search_central_rkf
+from .capture import (
+    CaptureInput,
+    pending_projection_events,
+    projection_checkpoint,
+    record_projection_target,
+    route_capture,
+)
 
 
 @dataclass(frozen=True)
@@ -50,6 +68,26 @@ class ActionResult:
     status: str
     message: str
     payload: dict[str, Any] = field(default_factory=dict)
+
+
+CONTROL_ACTIONS = {"rkf.activate", "rkf.status", "rkf.deactivate"}
+WRITE_ACTIONS = {
+    "inbox.capture",
+    "hot.record",
+    "graph.export",
+    "index.generate",
+    "codex_handoff.generate",
+    "capture.route",
+    "capture.project_pending",
+}
+WRITER_ONLY_ACTIONS = {
+    "inbox.capture",
+    "hot.record",
+    "graph.export",
+    "index.generate",
+    "codex_handoff.generate",
+    "capture.project_pending",
+}
 
 
 def _workspace(workspace: Workspace | Path | None = None) -> Workspace:
@@ -160,6 +198,7 @@ def capture_inbox(
     agent_note: str = "",
     topic_id: str = "",
     inject: bool = True,
+    projection_event_id: str = "",
 ) -> ActionResult:
     ws = _workspace(workspace)
     payload = create_inbox_item(
@@ -173,6 +212,7 @@ def capture_inbox(
         agent_note=agent_note,
         topic_id=topic_id,
         inject=inject,
+        projection_event_id=projection_event_id,
     )
     return ActionResult(
         action="inbox.capture",
@@ -193,6 +233,8 @@ def record_hot(
     notes: str = "",
     refresh: bool = True,
     days: int = 30,
+    created: str = "",
+    projection_event_id: str = "",
 ) -> ActionResult:
     ws = _workspace(workspace)
     event = record_hot_query(
@@ -203,6 +245,8 @@ def record_hot(
         intent=intent,
         paper_leads=paper_leads or [],
         notes=notes,
+        created=created,
+        projection_event_id=projection_event_id,
     )
     hot_path = ""
     if refresh:
@@ -416,7 +460,7 @@ def snapshot_stats(
     )
 
 
-def execute_action_request(request: ActionRequest, *, workspace: Workspace | Path | None = None) -> ActionResult:
+def _dispatch_active_action(request: ActionRequest, *, workspace: Workspace) -> ActionResult:
     params = dict(request.params)
     if request.action == "inbox.capture":
         return capture_inbox(workspace=workspace, **params)
@@ -442,4 +486,297 @@ def execute_action_request(request: ActionRequest, *, workspace: Workspace | Pat
         return generate_codex_handoff(workspace=workspace, **params)
     if request.action == "stats.snapshot":
         return snapshot_stats(workspace=workspace, **params)
+    if request.action == "query.search":
+        payload = search_central_rkf(workspace, **params)
+        return ActionResult(
+            action="query.search",
+            status="ok",
+            message=f"found {payload['count']} governed RKF result(s)",
+            payload=payload,
+        )
     raise SystemExit(f"unsupported RKF action: {request.action}")
+
+
+class RKFActionRuntime:
+    """Session-owned action dispatcher for one Codex task."""
+
+    def __init__(
+        self,
+        *,
+        workspace: Workspace | Path | None = None,
+        project_root: Path | None = None,
+        session_id: str = "",
+    ) -> None:
+        self.workspace = _workspace(workspace)
+        self.project_root = project_root
+        self.session: SessionState = new_session(session_id)
+
+    def _materialize_targets(
+        self,
+        *,
+        event_id: str,
+        item: CaptureInput,
+        targets: list[str],
+        event_created: str,
+    ) -> tuple[list[dict[str, Any]], str, bool]:
+        lock_path = self.workspace.paths.sync_state / "projections" / f"{event_id}.lock"
+        lock_path.parent.mkdir(parents=True, exist_ok=True)
+        lock_fd = os.open(lock_path, os.O_CREAT | os.O_RDWR, 0o600)
+        try:
+            fcntl.flock(lock_fd, fcntl.LOCK_EX | fcntl.LOCK_NB)
+        except BlockingIOError:
+            os.close(lock_fd)
+            return [], "projection is already running", False
+        try:
+            return self._materialize_targets_locked(
+                event_id=event_id,
+                item=item,
+                targets=targets,
+                event_created=event_created,
+            )
+        finally:
+            fcntl.flock(lock_fd, fcntl.LOCK_UN)
+            os.close(lock_fd)
+
+    def _materialize_targets_locked(
+        self,
+        *,
+        event_id: str,
+        item: CaptureInput,
+        targets: list[str],
+        event_created: str,
+    ) -> tuple[list[dict[str, Any]], str, bool]:
+        completed = {
+            str(target)
+            for target in projection_checkpoint(self.workspace, event_id).get(
+                "completed_targets", []
+            )
+        }
+        projections: list[dict[str, Any]] = []
+        for target in sorted(set(targets) - completed):
+            try:
+                if target == "inbox":
+                    result = capture_inbox(
+                        workspace=self.workspace,
+                        title=item.title or item.text[:80],
+                        origin=item.origin,
+                        source_url=item.source_url,
+                        doi=item.doi,
+                        clip=item.text,
+                        reader_note=item.reader_note,
+                        agent_note=item.agent_note,
+                        topic_id=item.topic_id,
+                        inject=True,
+                        projection_event_id=event_id,
+                    )
+                elif target == "hot":
+                    result = record_hot(
+                        workspace=self.workspace,
+                        query=item.text,
+                        topic_id=item.topic_id,
+                        origin=item.origin,
+                        intent=item.intent,
+                        notes="",
+                        created=event_created,
+                        projection_event_id=event_id,
+                    )
+                else:
+                    return projections, f"unsupported projection target: {target}", False
+                record_projection_target(self.workspace, event_id, target)
+                projections.append(
+                    {
+                        "action": result.action,
+                        "status": result.status,
+                        "payload": result.payload,
+                    }
+                )
+                completed.add(target)
+            except (OSError, SystemExit) as error:
+                return projections, str(error), False
+        return projections, "", set(targets).issubset(completed)
+
+    def _project_pending(self) -> ActionResult:
+        events = pending_projection_events(self.workspace)
+        materialized = 0
+        projections: list[dict[str, Any]] = []
+        errors: list[dict[str, str]] = []
+        for event in events:
+            payload = event.get("payload", {})
+            item = CaptureInput(
+                text=str(payload.get("text", "")),
+                origin=str(event.get("origin", "")),
+                title=str(payload.get("title", "")),
+                doi=str(payload.get("doi", "")),
+                source_url=str(payload.get("source_url", "")),
+                authors=str(payload.get("authors", "")),
+                year=str(payload.get("year", "")),
+                intent=str(payload.get("intent", "research-discussion")),
+                reader_note=str(payload.get("reader_note", "")),
+                agent_note=str(payload.get("agent_note", "")),
+                topic_id=str(payload.get("topic_id", "")),
+            )
+            event_id = str(event.get("event_id", ""))
+            projected, error, done = self._materialize_targets(
+                event_id=event_id,
+                item=item,
+                targets=[str(target) for target in payload.get("targets", [])],
+                event_created=str(event.get("created", "")),
+            )
+            projections.extend(projected)
+            if done:
+                materialized += 1
+            elif error:
+                errors.append({"event_id": event_id, "error": error})
+        return ActionResult(
+            action="capture.project_pending",
+            status="partial" if errors else "ok",
+            message=(
+                f"materialized {materialized} pending capture event(s); "
+                "Promotion: none"
+            ),
+            payload={
+                "events_seen": len(events),
+                "events_materialized": materialized,
+                "projections": projections,
+                "errors": errors,
+                "promotion": "none",
+            },
+        )
+
+    def _capture_route(self, params: dict[str, Any]) -> ActionResult:
+        item = CaptureInput(**params)
+        try:
+            routed = route_capture(
+                self.workspace,
+                item,
+                machine_id=self.session.machine_id,
+            )
+        except SystemExit as error:
+            message = str(error)
+            not_triggered = "did not find a deterministic research trigger" in message
+            return ActionResult(
+                action="capture.route",
+                status="not-applicable" if not_triggered else "blocked",
+                message=message,
+                payload={
+                    "error_code": (
+                        "RKF_CAPTURE_NOT_TRIGGERED"
+                        if not_triggered
+                        else "RKF_CAPTURE_REJECTED"
+                    ),
+                    "promotion": "none",
+                },
+            )
+
+        projections: list[dict[str, Any]] = []
+        materialization = "not-needed" if not routed.materialize else "queued"
+        if routed.materialize and self.session.writer_role == "designated":
+            projections, projection_error, complete = self._materialize_targets(
+                event_id=routed.event_id,
+                item=item,
+                targets=routed.decision.targets,
+                event_created=routed.created,
+            )
+            if not complete:
+                return ActionResult(
+                    action="capture.route",
+                    status="partial",
+                    message=(
+                        f"captured event {routed.event_id}; projection queued after "
+                        "failure; Promotion: none"
+                    ),
+                    payload={
+                        "event_id": routed.event_id,
+                        "event_path": routed.event_path,
+                        "dedupe_status": routed.dedupe.status,
+                        "materialization": "queued",
+                        "projection_error": projection_error,
+                        "promotion": "none",
+                    },
+                )
+            materialization = "materialized"
+
+        payload = {
+            "event_id": routed.event_id,
+            "event_path": routed.event_path,
+            "capture_level": routed.decision.level,
+            "targets": routed.decision.targets,
+            "reasons": routed.decision.reasons,
+            "dedupe_status": routed.dedupe.status,
+            "matched_id": routed.dedupe.matched_id,
+            "materialization": materialization,
+            "projections": projections,
+            "promotion": "none",
+        }
+        return ActionResult(
+            action="capture.route",
+            status="ok",
+            message=f"captured event {routed.event_id}; Promotion: none",
+            payload=payload,
+        )
+
+    def execute(self, request: ActionRequest) -> ActionResult:
+        if request.action == "rkf.status":
+            return ActionResult(
+                action="rkf.status",
+                status="ok",
+                message=f"RKF is {self.session.mode.value}",
+                payload=session_receipt(self.session),
+            )
+        if request.action == "rkf.activate":
+            receipt = activate_session(
+                self.session,
+                self.workspace,
+                project_root=self.project_root,
+            )
+            status = "failed" if self.session.mode == SessionMode.OFF else "ok"
+            return ActionResult(
+                action="rkf.activate",
+                status=status,
+                message=f"RKF is {self.session.mode.value}",
+                payload=receipt,
+            )
+        if request.action == "rkf.deactivate":
+            receipt = deactivate_session(self.session)
+            return ActionResult(
+                action="rkf.deactivate",
+                status="ok",
+                message="RKF is OFF",
+                payload=receipt,
+            )
+        if self.session.mode == SessionMode.OFF:
+            return ActionResult(
+                action=request.action,
+                status="blocked",
+                message="RKF is not active; say 啟動 RKF first",
+                payload={"error_code": "RKF_NOT_ACTIVE", **session_receipt(self.session)},
+            )
+        if self.session.mode == SessionMode.ACTIVE_READ_ONLY and request.action in WRITE_ACTIONS:
+            return ActionResult(
+                action=request.action,
+                status="blocked",
+                message="RKF is active read-only",
+                payload={"error_code": "RKF_READ_ONLY", **session_receipt(self.session)},
+            )
+        if request.action == "capture.route":
+            return self._capture_route(dict(request.params))
+        if request.action in WRITER_ONLY_ACTIONS and self.session.writer_role != "designated":
+            return ActionResult(
+                action=request.action,
+                status="blocked",
+                message="This projection requires the maintenance writer",
+                payload={"error_code": "RKF_WRITER_REQUIRED", **session_receipt(self.session)},
+            )
+        if request.action == "capture.project_pending":
+            return self._project_pending()
+        return _dispatch_active_action(request, workspace=self.workspace)
+
+
+def execute_action_request(
+    request: ActionRequest,
+    *,
+    workspace: Workspace | Path | None = None,
+    runtime: RKFActionRuntime | None = None,
+) -> ActionResult:
+    active_runtime = runtime or RKFActionRuntime(workspace=workspace)
+    return active_runtime.execute(request)

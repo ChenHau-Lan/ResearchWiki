@@ -5,7 +5,7 @@ import tempfile
 import unittest
 from pathlib import Path
 
-from rkf.core import Workspace
+from rkf.core import Workspace, parse_toml_fallback
 from rkf.session import (
     SessionMode,
     activate_session,
@@ -51,6 +51,24 @@ class RKFSessionTests(unittest.TestCase):
         self.assertEqual(receipt["session_id"], "task-001")
         self.assertEqual(receipt["mode"], "OFF")
         self.assertNotIn(str(self.root), json.dumps(receipt))
+
+    def test_fallback_toml_parser_preserves_top_level_and_boolean_types(self) -> None:
+        parsed = parse_toml_fallback(
+            "version = 2\n\n"
+            "[rkf]\n"
+            "available = true\n"
+            'activation = "manual"\n'
+            "query_first = false\n"
+        )
+
+        self.assertEqual(parsed["version"], 2)
+        self.assertIs(parsed["rkf"]["available"], True)
+        self.assertEqual(parsed["rkf"]["activation"], "manual")
+        self.assertIs(parsed["rkf"]["query_first"], False)
+
+    def test_fallback_toml_parser_rejects_malformed_values(self) -> None:
+        with self.assertRaises(ValueError):
+            parse_toml_fallback("version = [broken\n")
 
     def test_v1_and_v2_markers_only_mean_available(self) -> None:
         (self.project / ".rkf-connect.toml").write_text(

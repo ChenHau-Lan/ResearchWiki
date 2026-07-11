@@ -8,6 +8,7 @@ trusted synthesis, citation, and publication.
 
 from __future__ import annotations
 
+import ast
 import json
 import os
 import re
@@ -314,23 +315,77 @@ def append_log(ws: "Workspace", action: str, message: str) -> None:
         handle.write(line)
 
 
+def _toml_line_without_comment(raw_line: str) -> str:
+    quote = ""
+    escaped = False
+    for index, character in enumerate(raw_line):
+        if escaped:
+            escaped = False
+            continue
+        if character == "\\" and quote == '"':
+            escaped = True
+            continue
+        if character in {'"', "'"}:
+            quote = "" if quote == character else character if not quote else quote
+            continue
+        if character == "#" and not quote:
+            return raw_line[:index].strip()
+    return raw_line.strip()
+
+
+def _parse_toml_fallback_value(raw_value: str) -> Any:
+    value = raw_value.strip()
+    if not value:
+        raise ValueError("empty TOML value")
+    if value == "true":
+        return True
+    if value == "false":
+        return False
+    if re.fullmatch(r"[+-]?\d+", value):
+        return int(value)
+    if re.fullmatch(r"[+-]?(?:\d+\.\d*|\d*\.\d+)", value):
+        return float(value)
+    if value[0] in {'"', "'", "[", "{"}:
+        try:
+            return ast.literal_eval(value)
+        except (SyntaxError, ValueError) as error:
+            raise ValueError(f"invalid TOML value: {value}") from error
+    return value
+
+
+def parse_toml_fallback(text: str) -> dict[str, Any]:
+    data: dict[str, Any] = {}
+    current: dict[str, Any] = data
+    for raw_line in text.splitlines():
+        line = _toml_line_without_comment(raw_line)
+        if not line:
+            continue
+        if line.startswith("["):
+            if not line.endswith("]") or line.startswith("[["):
+                raise ValueError(f"unsupported TOML section: {line}")
+            section_name = line[1:-1].strip()
+            if not section_name or "." in section_name:
+                raise ValueError(f"unsupported TOML section: {line}")
+            section = data.setdefault(section_name, {})
+            if not isinstance(section, dict):
+                raise ValueError(f"TOML section conflicts with value: {section_name}")
+            current = section
+            continue
+        if "=" not in line:
+            raise ValueError(f"invalid TOML assignment: {line}")
+        key, raw_value = line.split("=", 1)
+        key = key.strip()
+        if not key:
+            raise ValueError("empty TOML key")
+        current[key] = _parse_toml_fallback_value(raw_value)
+    return data
+
+
 def load_toml(path: Path) -> dict[str, Any]:
     if not path.exists():
         return {}
     if tomllib is None:
-        data: dict[str, Any] = {}
-        section: dict[str, Any] | None = None
-        for raw_line in path.read_text(encoding="utf-8").splitlines():
-            line = raw_line.split("#", 1)[0].strip()
-            if not line:
-                continue
-            if line.startswith("[") and line.endswith("]"):
-                section = data.setdefault(line.strip("[]"), {})
-                continue
-            if "=" in line and section is not None:
-                key, value = line.split("=", 1)
-                section[key.strip()] = value.strip().strip('"')
-        return data
+        return parse_toml_fallback(path.read_text(encoding="utf-8"))
     with path.open("rb") as handle:
         return tomllib.load(handle)
 

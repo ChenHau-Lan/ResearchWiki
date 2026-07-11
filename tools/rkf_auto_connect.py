@@ -22,12 +22,7 @@ if str(REPO_ROOT) not in sys.path:
 
 from rkf.actions import ActionRequest, ActionResult, RKFActionRuntime
 from rkf.capture import CaptureInput, classify_capture as classify_rkf_capture
-from rkf.core import Workspace
-
-try:
-    import tomllib
-except ModuleNotFoundError:  # pragma: no cover
-    tomllib = None
+from rkf.core import Workspace, load_toml
 
 
 DEFAULT_CONFIG = Path(os.environ.get("RKF_CONNECTOR_CONFIG", "~/.codex/rkf_connector.toml")).expanduser()
@@ -58,22 +53,7 @@ class BridgeFolderResult:
 def _load_toml(path: Path) -> dict[str, Any]:
     if not path.exists():
         raise SystemExit(f"RKF connector config not found: {path}")
-    if tomllib is not None:
-        with path.open("rb") as handle:
-            return tomllib.load(handle)
-    data: dict[str, Any] = {}
-    current: dict[str, Any] | None = None
-    for raw in path.read_text(encoding="utf-8").splitlines():
-        line = raw.split("#", 1)[0].strip()
-        if not line:
-            continue
-        if line.startswith("[") and line.endswith("]"):
-            current = data.setdefault(line.strip("[]"), {})
-            continue
-        if current is not None and "=" in line:
-            key, value = line.split("=", 1)
-            current[key.strip()] = value.strip().strip('"')
-    return data
+    return load_toml(path)
 
 
 def _expand_path(value: str) -> Path:

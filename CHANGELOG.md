@@ -9,6 +9,8 @@
   closes the session. Shared projections use a designated writer with
   `capture.project_pending` checkpoints, and every capture receipt states
   `Promotion: none`.
+- Keep project/workspace TOML parsing compatible with Python 3.9 by preserving
+  top-level values and typed booleans in the standard-library fallback parser.
 
 - Reframe RKF around active paper reading maturity: early paper drafts can begin
   from metadata, abstracts, partial full text, or user-provided PDFs, while

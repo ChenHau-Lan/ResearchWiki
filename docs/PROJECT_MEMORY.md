@@ -189,6 +189,12 @@ There is no `hot show` workflow; inspect `hot.md` directly.
 - Trap: treating a project-local `RKF/hot.md` or `RKF/memory.md` as canonical
   RKF evidence. Fix: keep `RKF/` bridge files pointer-oriented and route
   durable capture through the central RKF Codex app/action flow.
+- Trap: assuming `python3` resolves to the same runtime in the main checkout
+  and a temporary worktree. On this project it may resolve to Python 3.9 in the
+  main checkout and Python 3.13 in a temporary worktree. Fix: keep the
+  `tomllib` fallback covered by direct parser tests and verify marker/session
+  tests under both the default runtime and a Python 3.11+ runtime when runtime
+  routing changes.
 
 ## Documentation Map
 

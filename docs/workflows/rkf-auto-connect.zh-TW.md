@@ -1,22 +1,40 @@
 # RKF Auto-Connect Workflow
 
-這份文件說明如何在任何 Codex 專案連結 RKF 資料庫，讓研究相關搜尋、DOI/URL lead、網頁 clip、ChatGPT 片段與有價值研究討論自動回饋到 RKF。
+這份文件說明如何在任何 Codex 專案按需連結 RKF。新 task 預設 RKF OFF；只有使用者明確啟動後，研究搜尋、DOI/URL lead、網頁 clip、ChatGPT 片段與研究討論才會查詢或送入 RKF。
 
 ## 啟用方式
 
-在專案中對 agent 說：
+在每個新 task 中對 agent 說：
 
 ```text
-連結我的 RKF 資料庫
+啟動 RKF
 ```
 
-Agent 會使用全域 `rkf-auto-connect` skill，從 `$HOME/.codex/rkf_connector.toml` 找到 ResearchWiki checkout，再由 ResearchWiki 的 `rkf.workspace.toml` 解析 live `wiki_root`。
-repo-side helper 會產生 `rkf.actions.ActionRequest`，並可直接執行目前已支援的
-`inbox.capture` 與 `hot.record` action；不需要把 RKF CLI command 當主要整合介面。
+Agent 會使用全域 `rkf-auto-connect` skill 解析 ResearchWiki checkout，再由
+`rkf.workspace.toml` 找到 live storage。它只會把 `rkf.activate` request 交給目前
+task 的 session-owned runtime；preflight 不寫入任何 knowledge page。
 
-## 自動記錄政策
+狀態規則：
 
-RKF auto-connect 使用 Active/Aggressive hybrid policy。
+- `OFF`：所有 query/capture action 都被拒絕。
+- `ACTIVE`：可使用 `query.search` 與 `capture.route`；是否能投影由 writer registry 決定。
+- `ACTIVE_READ_ONLY`：可查詢，capture 只能排入 event queue 或被 guard 阻擋。
+- 新 task 不繼承前一個 task 的 ACTIVE 狀態。
+
+## 一般流程
+
+1. 新 task 預設 RKF OFF。
+2. 使用者說「啟動 RKF」。
+3. Agent 執行 `rkf.activate`，先回報 ACTIVE 或 ACTIVE_READ_ONLY 與 warning。
+4. 研究型請求先執行 `query.search`，再視不足處讀 project-local 資料。
+5. DOI、URL、paper lead 或可重用研究討論經 `capture.route` 進入 event queue。
+6. 回報 event ID、dedupe、queued/materialized 與 `Promotion: none`。
+7. 使用者說「停用 RKF」後執行 `rkf.deactivate`。
+
+## 啟動後的記錄政策
+
+啟動後，RKF 使用 Active/Aggressive hybrid classifier；它決定建議 capture 的內容，
+不代表 agent 可以在 OFF 狀態自動寫入。
 
 Active trigger 會自動記錄：
 
@@ -37,8 +55,9 @@ Aggressive research trigger 也會自動記錄：
 
 ## 寫入位置
 
-- 搜尋需求與反覆研究問題：`hot.md`
-- ChatGPT/web/project clip：`knowledge/inbox/`
+- 所有接受的 capture：先進 append-only `state/events/`
+- 搜尋需求與反覆研究問題：由 designated writer 投影到 `hot.md`
+- ChatGPT/web/project clip：由 designated writer 投影到 `knowledge/inbox/`
 - DOI/URL source identity：`state/sources/*.json`
 - DOI 相關 paper：guarded paper backlink
 - 清楚 target source 的閱讀問題或修正：`state/reading/*.json`
@@ -50,6 +69,8 @@ Aggressive research trigger 也會自動記錄：
 - 不保存整段私人 ChatGPT transcript。
 - 不保存 PDF、browser capture、private path、secret 或個資。
 - 不覆寫 project `AGENTS.md` 或既有 project memory。
+- 不把 project/manuscript 延伸問題塞回 paper page；paper page 只維持該篇文章本身的資料、證據、閱讀問題與理解狀態。
+- 不因 capture、query 或 agent 推理自動 promotion；receipt 必須顯示 `Promotion: none`。
 
 ## 專案範圍標記
 
@@ -57,12 +78,13 @@ Aggressive research trigger 也會自動記錄：
 
 ```toml
 [rkf_auto_connect]
-enabled = true
+enabled = false
 mode = "active-aggressive"
 config = "global"
 ```
 
-這個檔案不得存 private Drive path；真正的 RKF 路徑由全域 config 與 `rkf.workspace.toml` 解析。
+這個檔案只是 discovery/routing hint，不能讓新 task 變成 ACTIVE。它不得存 private
+Drive path；真正的 RKF 路徑由全域 config 與 `rkf.workspace.toml` 解析。
 
 也可以請 Codex 建立：
 
@@ -100,13 +122,24 @@ RKF/
 Bridge folder 不得保存 private path、PDF、全文、secret、個資或整段私人 transcript。
 其中任何內容都只是 operational index，不是 stable evidence。
 
+## 查詢與攝入
+
+啟動成功後：
+
+- 查詢以 `query.search` 為唯一 retrieval-first 入口。
+- 攝入以 `capture.route` 分類、去重，並先保留 immutable event。
+- External GPT 內容必須保留明確 provenance；RKF 不會監看外部 GPT 對話。
+- 非 designated writer 不直接改 inbox/hot/wiki，只排隊等待同步。
+
 ## 取消或暫停
 
 在目前 session 可直接說：
 
 ```text
-這個 thread 暫停 RKF auto-capture
+停用 RKF
 ```
+
+Agent 會呼叫 `rkf.deactivate`；目前 task 回到 OFF。
 
 專案層級則移除或停用 `.rkf-connect.toml`：
 
@@ -119,10 +152,10 @@ config = "global"
 
 ## 回報格式
 
-Agent 自動記錄後應簡短回報：
+Agent 記錄後應簡短回報：
 
 ```text
-已自動記錄到 RKF: inbox + hot-query；沒有 promote stable claim。
+已記錄 RKF event；projection: queued/created；Promotion: none。
 ```
 
 如果因 private path、全文過長或 project rule 被擋，agent 應改成 pending capture proposal。

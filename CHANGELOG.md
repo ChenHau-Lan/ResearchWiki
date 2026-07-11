@@ -2,6 +2,14 @@
 
 ## Unreleased
 
+- Add RKF 1.1 Phase 1 activation and closed-loop foundations: every new Codex
+  task starts OFF; `rkf.activate` performs read-only preflight;
+  `query.search` provides deterministic maturity-aware retrieval;
+  `capture.route` records deduplicated immutable events; `rkf.deactivate`
+  closes the session. Shared projections use a designated writer with
+  `capture.project_pending` checkpoints, and every capture receipt states
+  `Promotion: none`.
+
 - Reframe RKF around active paper reading maturity: early paper drafts can begin
   from metadata, abstracts, partial full text, or user-provided PDFs, while
   stable claims and trusted synthesis stay gated by locators, human feedback,

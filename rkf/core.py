@@ -98,7 +98,9 @@ SYNTHESIS_MATURITY = {"draft", "single-source", "multi-source", "human-reviewed"
 SOURCE_COVERAGE = {"unknown", "partial", "representative", "systematic"}
 LOCAL_PATH_PATTERNS = [
     re.compile("/" + r"Users/(?!\[\^)[^/\s]+"),
+    re.compile(r"/(?:home|private|Volumes)/[^\s]+", re.IGNORECASE),
     re.compile(r"C:\\Users\\", re.IGNORECASE),
+    re.compile(r"(?:file://|\\\\)[^\s]+", re.IGNORECASE),
 ]
 HOT_RECORDS_START = "<!-- RKF-HOT-RECORDS:START -->"
 HOT_RECORDS_END = "<!-- RKF-HOT-RECORDS:END -->"
@@ -337,6 +339,7 @@ def load_toml(path: Path) -> dict[str, Any]:
 class WorkspacePaths:
     root: Path
     wiki_root: Path
+    raw_root: Path
     critical_facts: Path
     index: Path
     log: Path
@@ -347,6 +350,8 @@ class WorkspacePaths:
     gates: Path
     reading: Path
     search_runs: Path
+    events: Path
+    sync_state: Path
     knowledge: Path
     governance: Path
     graph: Path
@@ -382,11 +387,13 @@ class Workspace:
 
     def _paths(self) -> WorkspacePaths:
         wiki_root = self._configured_path("storage", "wiki_root") or self.root
+        raw_root = self._configured_path("storage", "raw_root") or self.root / ".rkf_private" / "raw"
         state = wiki_root / "state"
         private_evidence = self._config_path("storage", "private_evidence_root", self.root / ".rkf_private" / "evidence")
         return WorkspacePaths(
             root=self.root,
             wiki_root=wiki_root,
+            raw_root=raw_root,
             critical_facts=wiki_root / "CRITICAL_FACTS.md",
             index=wiki_root / "index.md",
             log=wiki_root / "log.md",
@@ -397,6 +404,8 @@ class Workspace:
             gates=state / "gates",
             reading=state / "reading",
             search_runs=state / "search_runs",
+            events=state / "events",
+            sync_state=state / "sync",
             knowledge=wiki_root / "knowledge",
             governance=wiki_root / "governance",
             graph=wiki_root / "graph",
@@ -411,6 +420,8 @@ class Workspace:
             self.paths.gates,
             self.paths.reading,
             self.paths.search_runs,
+            self.paths.events,
+            self.paths.sync_state,
             self.paths.knowledge,
             self.paths.governance,
             self.paths.graph,
@@ -532,13 +543,19 @@ def append_reading_event(
     knowledge_path: str = "",
     public_safe: bool = True,
     details: dict[str, Any] | None = None,
+    idempotency_key: str = "",
 ) -> dict[str, Any]:
     assert_public_safe_hot_value(summary, field="reading_event", max_chars=HOT_NOTES_MAX_CHARS)
     ledger = load_reading_ledger(ws, source_id)
+    if idempotency_key and any(
+        event.get("idempotency_key") == idempotency_key
+        for event in ledger.get("events", [])
+        if isinstance(event, dict)
+    ):
+        return ledger
     if knowledge_path:
         ledger["knowledge_path"] = knowledge_path
-    ledger.setdefault("events", []).append(
-        {
+    event = {
             "created": datetime.now().isoformat(timespec="seconds"),
             "type": event_type,
             "actor": actor,
@@ -546,7 +563,9 @@ def append_reading_event(
             "public_safe": public_safe,
             "details": details or {},
         }
-    )
+    if idempotency_key:
+        event["idempotency_key"] = idempotency_key
+    ledger.setdefault("events", []).append(event)
     ledger["updated"] = today()
     write_json(ws.reading_ledger_path(source_id), ledger)
     append_log(ws, "reading-event", f"{source_id} {event_type} {summary[:80]}")
@@ -1025,7 +1044,13 @@ def render_inbox_body(
     )
 
 
-def guarded_inject_inbox_item(ws: Workspace, *, record: dict[str, Any], inbox_path: Path) -> dict[str, Any]:
+def guarded_inject_inbox_item(
+    ws: Workspace,
+    *,
+    record: dict[str, Any],
+    inbox_path: Path,
+    projection_event_id: str = "",
+) -> dict[str, Any]:
     paper_path = find_paper_page_for_source(ws, str(record["source_id"]))
     created = False
     if paper_path is None:
@@ -1045,6 +1070,13 @@ def guarded_inject_inbox_item(ws: Workspace, *, record: dict[str, Any], inbox_pa
         bullet = f"- Inbox backlink: {rel_inbox} captured {today()}; source identity only, not claim evidence."
         body = append_under_heading(body, "## Questions And Feedback", bullet)
         set_frontmatter(paper_path, meta, body)
+    reading_key = f"{projection_event_id}:inbox-injection" if projection_event_id else ""
+    ledger_before = load_reading_ledger(ws, str(record["source_id"]))
+    already_recorded = bool(reading_key) and any(
+        event.get("idempotency_key") == reading_key
+        for event in ledger_before.get("events", [])
+        if isinstance(event, dict)
+    )
     append_reading_event(
         ws,
         source_id=str(record["source_id"]),
@@ -1052,8 +1084,10 @@ def guarded_inject_inbox_item(ws: Workspace, *, record: dict[str, Any], inbox_pa
         summary=f"Inbox item linked to paper page as source identity/backlink only: {rel_inbox}.",
         knowledge_path=rel_paper,
         details={"inbox_path": rel_inbox, "created_paper": created},
+        idempotency_key=reading_key,
     )
-    append_log(ws, "inbox-inject", f"{record['source_id']} {rel_inbox} -> {rel_paper}")
+    if not already_recorded:
+        append_log(ws, "inbox-inject", f"{record['source_id']} {rel_inbox} -> {rel_paper}")
     return {"paper_path": rel_paper, "created_paper": created}
 
 
@@ -1069,6 +1103,7 @@ def create_inbox_item(
     agent_note: str = "",
     topic_id: str = "",
     inject: bool = True,
+    projection_event_id: str = "",
 ) -> dict[str, Any]:
     ws.ensure_base()
     title = title.strip()
@@ -1084,6 +1119,23 @@ def create_inbox_item(
         assert_public_safe_inbox_value(value, field=field, max_chars=max_chars)
     if origin == "chatgpt-web" and source_url and not CHATGPT_SHARE_RE.match(source_url.strip()):
         raise SystemExit("chatgpt-web source_url must be a https://chatgpt.com/share/... link or omitted")
+
+    deterministic_dest: Path | None = None
+    if projection_event_id:
+        event_slug = slugify(projection_event_id, 120)
+        if not event_slug:
+            raise SystemExit("inbox projection_event_id is invalid")
+        deterministic_dest = ws.paths.knowledge / "inbox" / f"{event_slug}.md"
+        if deterministic_dest.exists():
+            meta, _ = parse_frontmatter(read_text(deterministic_dest))
+            if meta.get("projection_complete") is True:
+                return {
+                    "path": relative_workspace_path(ws, deterministic_dest),
+                    "source_id": str(meta.get("source_id", "")),
+                    "doi": str(meta.get("doi", "")),
+                    "injection_status": str(meta.get("injection_status", "already-projected")),
+                    "paper_path": str(meta.get("paper_path", "")),
+                }
 
     explicit_doi = doi.strip()
     if explicit_doi:
@@ -1113,13 +1165,14 @@ def create_inbox_item(
         )
 
     base_slug = f"{today()}_{slugify(title, 60)}"
-    dest = ws.paths.knowledge / "inbox" / f"{base_slug}.md"
-    if dest.exists():
+    dest = deterministic_dest or ws.paths.knowledge / "inbox" / f"{base_slug}.md"
+    if deterministic_dest is None and dest.exists():
         dest = ws.paths.knowledge / "inbox" / f"{base_slug}_{now_stamp()}.md"
     source_id = str(record["source_id"]) if record else ""
     source_url = source_url.strip()
     injection_status = "skipped"
     paper_path = ""
+    projection_complete = not bool(projection_event_id)
 
     def write_item() -> None:
         meta = {
@@ -1134,6 +1187,9 @@ def create_inbox_item(
             "evidence_boundary": "inbox-only",
             "evidence_tier": "candidate",
             "claim_readiness": "not-ready",
+            "projection_event_id": projection_event_id,
+            "projection_complete": projection_complete,
+            "injection_status": injection_status,
             "topics": [topic_id] if topic_id else [],
             "created": today(),
             "updated": today(),
@@ -1154,13 +1210,20 @@ def create_inbox_item(
 
     write_item()
     if inject and record and normalized_doi:
-        injection = guarded_inject_inbox_item(ws, record=record, inbox_path=dest)
+        injection = guarded_inject_inbox_item(
+            ws,
+            record=record,
+            inbox_path=dest,
+            projection_event_id=projection_event_id,
+        )
         paper_path = str(injection["paper_path"])
         injection_status = "paper-created" if injection["created_paper"] else "paper-backlinked"
         write_item()
     elif record and normalized_doi:
         injection_status = "disabled"
         write_item()
+    projection_complete = True
+    write_item()
 
     rel_dest = relative_workspace_path(ws, dest)
     append_log(ws, "inbox-capture", f"{rel_dest} origin={origin} source_id={source_id or 'none'} injection={injection_status}")
@@ -1239,6 +1302,7 @@ def record_hot_query(
     paper_leads: list[str] | None = None,
     notes: str = "",
     created: str = "",
+    projection_event_id: str = "",
 ) -> dict[str, Any]:
     ws.ensure_base()
     assert_public_safe_hot_value(query, field="query", max_chars=HOT_QUERY_MAX_CHARS)
@@ -1253,7 +1317,8 @@ def record_hot_query(
     topic_ids, topic_fit = infer_hot_topics(ws, query, topic_id)
     event = {
         "schema": HOT_EVENT_SCHEMA,
-        "event_id": hot_event_id(
+        "event_id": projection_event_id
+        or hot_event_id(
             created=created,
             origin=origin,
             intent=intent,
@@ -1364,6 +1429,8 @@ def append_hot_record(ws: Workspace, event: dict[str, Any]) -> None:
     start = text.index(HOT_RECORDS_START) + len(HOT_RECORDS_START)
     end = text.index(HOT_RECORDS_END, start)
     existing = text[start:end].strip("\n")
+    if record_line in existing.splitlines():
+        return
     replacement = "\n" + (existing + "\n" if existing else "") + record_line + "\n"
     write_text(ws.paths.hot_md, text[:start] + replacement + text[end:])
 

@@ -4,7 +4,7 @@ import tempfile
 import unittest
 from pathlib import Path
 
-from rkf.actions import ActionRequest, execute_action_request
+from rkf.actions import ActionRequest, RKFActionRuntime, execute_action_request
 from rkf.core import Workspace, create_paper_note, create_source
 
 
@@ -12,10 +12,100 @@ class RKFActionsTests(unittest.TestCase):
     def setUp(self) -> None:
         self.tmp = tempfile.TemporaryDirectory()
         self.root = Path(self.tmp.name)
+        self.raw = self.root / "raw"
+        self.raw.mkdir()
+        (self.root / "rkf.workspace.toml").write_text(
+            "[storage]\n"
+            f'wiki_root = "{self.root.as_posix()}"\n'
+            f'raw_root = "{self.raw.as_posix()}"\n\n'
+            "[machine]\n"
+            'id = "machine-actions"\n'
+            "maintenance_writer = true\n\n"
+            "[knowledge]\n"
+            'schema_version = "rkf-v1"\n',
+            encoding="utf-8",
+        )
+        sync = self.root / "state" / "sync"
+        sync.mkdir(parents=True)
+        (sync / "maintenance-writer.json").write_text(
+            '{"schema":"rkf-writer-registry-v1","machine_id":"machine-actions",'
+            '"assigned_at":"2026-07-10T12:00:00Z"}\n',
+            encoding="utf-8",
+        )
         self.workspace = Workspace(self.root)
+        self.runtime = RKFActionRuntime(workspace=self.workspace, project_root=self.root)
+        activated = self.runtime.execute(ActionRequest(action="rkf.activate"))
+        self.assertEqual(activated.status, "ok")
 
     def tearDown(self) -> None:
         self.tmp.cleanup()
+
+    def test_new_runtime_blocks_all_non_control_actions_before_io(self) -> None:
+        runtime = RKFActionRuntime(workspace=self.workspace, project_root=self.root)
+        before = sorted(path.relative_to(self.root) for path in self.root.rglob("*") if path.is_file())
+
+        result = runtime.execute(ActionRequest(action="world.render"))
+
+        after = sorted(path.relative_to(self.root) for path in self.root.rglob("*") if path.is_file())
+        self.assertEqual(after, before)
+        self.assertEqual(result.status, "blocked")
+        self.assertEqual(result.payload["error_code"], "RKF_NOT_ACTIVE")
+
+    def test_activate_status_and_deactivate_share_one_runtime(self) -> None:
+        runtime = RKFActionRuntime(
+            workspace=self.workspace,
+            project_root=self.root,
+            session_id="task-actions",
+        )
+
+        activated = runtime.execute(ActionRequest(action="rkf.activate"))
+        status = runtime.execute(ActionRequest(action="rkf.status"))
+        deactivated = runtime.execute(ActionRequest(action="rkf.deactivate"))
+        blocked = runtime.execute(ActionRequest(action="world.render"))
+
+        self.assertEqual(activated.status, "ok")
+        self.assertEqual(status.payload["mode"], "ACTIVE")
+        self.assertEqual(deactivated.payload["mode"], "OFF")
+        self.assertEqual(blocked.payload["error_code"], "RKF_NOT_ACTIVE")
+
+    def test_read_only_session_blocks_writes_but_allows_reads(self) -> None:
+        (self.root / "paper.sync-conflict.md").write_text("conflict\n", encoding="utf-8")
+        runtime = RKFActionRuntime(workspace=self.workspace, project_root=self.root)
+        runtime.execute(ActionRequest(action="rkf.activate"))
+
+        read_result = runtime.execute(ActionRequest(action="world.render"))
+        write_result = runtime.execute(
+            ActionRequest(
+                action="hot.record",
+                params={"query": "paper search", "origin": "codex"},
+            )
+        )
+
+        self.assertEqual(read_result.status, "ok")
+        self.assertEqual(write_result.status, "blocked")
+        self.assertEqual(write_result.payload["error_code"], "RKF_READ_ONLY")
+
+    def test_query_search_is_available_only_after_activation(self) -> None:
+        self.seed_paper(doi="10.1234/query.action")
+        fresh = RKFActionRuntime(workspace=self.workspace, project_root=self.root)
+
+        blocked = fresh.execute(
+            ActionRequest(
+                action="query.search",
+                params={"query": "10.1234/query.action"},
+            )
+        )
+        fresh.execute(ActionRequest(action="rkf.activate"))
+        found = fresh.execute(
+            ActionRequest(
+                action="query.search",
+                params={"query": "10.1234/query.action"},
+            )
+        )
+
+        self.assertEqual(blocked.payload["error_code"], "RKF_NOT_ACTIVE")
+        self.assertEqual(found.status, "ok")
+        self.assertGreaterEqual(found.payload["count"], 1)
 
     def seed_paper(self, *, doi: str = "10.1234/report.action") -> str:
         record = create_source(
@@ -56,7 +146,7 @@ class RKFActionsTests(unittest.TestCase):
             },
         )
 
-        result = execute_action_request(request, workspace=self.workspace)
+        result = execute_action_request(request, runtime=self.runtime)
 
         self.assertEqual(result.action, "inbox.capture")
         self.assertEqual(result.status, "ok")
@@ -76,7 +166,7 @@ class RKFActionsTests(unittest.TestCase):
             },
         )
 
-        result = execute_action_request(request, workspace=self.workspace)
+        result = execute_action_request(request, runtime=self.runtime)
 
         self.assertEqual(result.action, "hot.record")
         self.assertEqual(result.status, "ok")
@@ -90,7 +180,7 @@ class RKFActionsTests(unittest.TestCase):
 
         world = execute_action_request(
             ActionRequest(action="world.render", params={"log_tail": 1}),
-            workspace=self.workspace,
+            runtime=self.runtime,
         )
         self.assertEqual(world.status, "ok")
         self.assertIn("RKF Workspace Status", world.payload["markdown"])
@@ -99,7 +189,7 @@ class RKFActionsTests(unittest.TestCase):
 
         queue = execute_action_request(
             ActionRequest(action="paper.queue", params={"limit": 5}),
-            workspace=self.workspace,
+            runtime=self.runtime,
         )
         self.assertEqual(queue.status, "ok")
         self.assertEqual(queue.payload["count"], 1)
@@ -107,7 +197,7 @@ class RKFActionsTests(unittest.TestCase):
 
         lint = execute_action_request(
             ActionRequest(action="lint.run", params={"mode": "all"}),
-            workspace=self.workspace,
+            runtime=self.runtime,
         )
         self.assertEqual(lint.status, "ok")
         self.assertTrue(lint.payload["passed"])
@@ -115,7 +205,7 @@ class RKFActionsTests(unittest.TestCase):
 
         graph = execute_action_request(
             ActionRequest(action="graph.export"),
-            workspace=self.workspace,
+            runtime=self.runtime,
         )
         self.assertEqual(graph.status, "ok")
         self.assertEqual(graph.payload["path"], "graph/research_graph.json")
@@ -124,7 +214,7 @@ class RKFActionsTests(unittest.TestCase):
 
         index = execute_action_request(
             ActionRequest(action="index.generate"),
-            workspace=self.workspace,
+            runtime=self.runtime,
         )
         self.assertEqual(index.status, "ok")
         self.assertEqual(index.payload["path"], "index.md")
@@ -132,7 +222,7 @@ class RKFActionsTests(unittest.TestCase):
 
         handoff = execute_action_request(
             ActionRequest(action="codex_handoff.generate"),
-            workspace=self.workspace,
+            runtime=self.runtime,
         )
         self.assertEqual(handoff.status, "ok")
         self.assertEqual(handoff.payload["path"], "prompts/codex_handoff_context.md")
@@ -144,7 +234,7 @@ class RKFActionsTests(unittest.TestCase):
 
         result = execute_action_request(
             ActionRequest(action="stats.snapshot", params={"paper_limit": 3}),
-            workspace=self.workspace,
+            runtime=self.runtime,
         )
 
         after_files = sorted(path.relative_to(self.root).as_posix() for path in self.root.rglob("*") if path.is_file())
@@ -169,7 +259,7 @@ class RKFActionsTests(unittest.TestCase):
                 action="graph.neighbors",
                 params={"node_id": paper_id, "direction": "both", "limit": 10},
             ),
-            workspace=self.workspace,
+            runtime=self.runtime,
         )
 
         self.assertEqual(result.action, "graph.neighbors")
@@ -198,7 +288,7 @@ class RKFActionsTests(unittest.TestCase):
                     "limit": 5,
                 },
             ),
-            workspace=self.workspace,
+            runtime=self.runtime,
         )
 
         self.assertEqual(result.action, "graph.paths")
@@ -217,7 +307,7 @@ class RKFActionsTests(unittest.TestCase):
 
         result = execute_action_request(
             ActionRequest(action="graph.page_context", params={"page_id": paper_id, "limit": 10}),
-            workspace=self.workspace,
+            runtime=self.runtime,
         )
 
         self.assertEqual(result.action, "graph.page_context")
@@ -232,7 +322,7 @@ class RKFActionsTests(unittest.TestCase):
     def test_graph_traversal_reports_missing_nodes(self) -> None:
         result = execute_action_request(
             ActionRequest(action="graph.neighbors", params={"node_id": "papers/missing"}),
-            workspace=self.workspace,
+            runtime=self.runtime,
         )
 
         self.assertEqual(result.action, "graph.neighbors")
@@ -247,7 +337,7 @@ class RKFActionsTests(unittest.TestCase):
                 action="graph.neighbors",
                 params={"node_id": "papers/doi_10_1234_graph_traversal", "direction": "sideways"},
             ),
-            workspace=self.workspace,
+            runtime=self.runtime,
         )
         self.assertEqual(bad_direction.status, "error")
         self.assertIn("direction must be one of", bad_direction.message)
@@ -261,7 +351,7 @@ class RKFActionsTests(unittest.TestCase):
                     "max_depth": 0,
                 },
             ),
-            workspace=self.workspace,
+            runtime=self.runtime,
         )
         self.assertEqual(bad_depth.status, "error")
         self.assertIn("max_depth must be greater than 0", bad_depth.message)

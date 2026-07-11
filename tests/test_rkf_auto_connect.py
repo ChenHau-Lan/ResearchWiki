@@ -48,6 +48,18 @@ class RKFAutoConnectTests(unittest.TestCase):
         self.assertEqual(config.researchwiki_root, self.researchwiki.resolve())
         self.assertEqual(config.mode, "active-aggressive")
 
+    def test_resolve_command_masks_private_paths(self) -> None:
+        stdout = io.StringIO()
+
+        with redirect_stdout(stdout):
+            status = auto.main(["resolve"])
+
+        payload = json.loads(stdout.getvalue())
+        self.assertEqual(status, 0)
+        self.assertEqual(payload["researchwiki"], "configured")
+        self.assertTrue(payload["workspace_config"])
+        self.assertNotIn(str(self.researchwiki), stdout.getvalue())
+
     def test_classify_active_doi_source_material(self) -> None:
         decision = auto.classify_capture(
             text="Find papers related to DOI 10.1234/example and summarize the source.",
@@ -123,63 +135,90 @@ class RKFAutoConnectTests(unittest.TestCase):
         self.assertEqual(config.researchwiki_root, self.researchwiki.resolve())
         self.assertFalse((self.researchwiki / "tools" / "rk.py").exists())
 
-    def test_build_inbox_request_uses_structured_action(self) -> None:
+    def test_build_requests_use_only_control_query_and_capture_actions(self) -> None:
         config = auto.load_connector_config()
-        request = auto.build_inbox_request(
+        activate = auto.build_activate_request(config=config)
+        query = auto.build_query_request(config=config, query="cloud papers")
+        capture = auto.build_capture_request(
             config=config,
-            title="ChatGPT note on aerosol paper",
+            title="Cloud paper lead",
+            text="Find DOI 10.1234/cloud.lead",
             origin="project:QUACS",
-            clip="Short source-grounded summary mentioning DOI 10.1234/example.",
-            reader_note="User idea goes here.",
-            doi="10.1234/example",
-            source_url="https://example.org/paper",
-            no_inject=False,
-        )
-
-        self.assertEqual(request.action, "inbox.capture")
-        self.assertEqual(request.params["doi"], "10.1234/example")
-        self.assertEqual(request.params["origin"], "project:QUACS")
-        self.assertNotIn("/" + "Users/", repr(request.params))
-
-    def test_build_hot_request_records_research_demand(self) -> None:
-        config = auto.load_connector_config()
-        request = auto.build_hot_request(
-            config=config,
-            query="recent aerosol-cloud parameterization papers",
-            origin="project:ResearchProject",
+            doi="10.1234/cloud.lead",
             intent="paper-search",
         )
 
-        self.assertEqual(request.action, "hot.record")
-        self.assertEqual(request.params["query"], "recent aerosol-cloud parameterization papers")
-        self.assertEqual(request.params["intent"], "paper-search")
+        self.assertEqual(activate.action, "rkf.activate")
+        self.assertEqual(query.action, "query.search")
+        self.assertEqual(capture.action, "capture.route")
+        self.assertEqual(capture.params["doi"], "10.1234/cloud.lead")
+        self.assertNotIn("/" + "Users/", repr(capture.params))
 
-    def test_execute_action_request_writes_to_configured_researchwiki_root(self) -> None:
+    def test_execute_action_request_is_blocked_without_shared_runtime(self) -> None:
         config = auto.load_connector_config()
-        request = auto.build_hot_request(
+        request = auto.build_capture_request(
             config=config,
-            query="recent aerosol-cloud parameterization papers",
-            origin="project:ResearchProject",
+            title="Blocked lead",
+            text="Find DOI 10.1234/blocked",
+            origin="project:Demo",
+            doi="10.1234/blocked",
             intent="paper-search",
+        )
+
+        before = sorted(
+            path.relative_to(self.researchwiki)
+            for path in self.researchwiki.rglob("*")
+            if path.is_file()
         )
 
         result = auto.execute_action_request(config=config, request=request)
 
-        self.assertEqual(result.status, "ok")
-        hot = (self.researchwiki / "hot.md").read_text(encoding="utf-8")
-        self.assertIn("recent aerosol-cloud parameterization papers", hot)
+        after = sorted(
+            path.relative_to(self.researchwiki)
+            for path in self.researchwiki.rglob("*")
+            if path.is_file()
+        )
+        self.assertEqual(after, before)
+        self.assertEqual(result.status, "blocked")
+        self.assertEqual(result.payload["error_code"], "RKF_NOT_ACTIVE")
 
-    def test_write_project_marker_is_public_safe(self) -> None:
+    def test_write_project_marker_uses_v2_manual_activation(self) -> None:
         project = self.root / "SomeProject"
         project.mkdir()
 
         marker = auto.write_project_marker(project, mode="active-aggressive")
+        policy = auto.read_project_marker(project)
 
         self.assertEqual(marker, project / ".rkf-connect.toml")
         text = marker.read_text(encoding="utf-8")
-        self.assertIn("enabled = true", text)
-        self.assertIn("mode = \"active-aggressive\"", text)
+        self.assertIn("version = 2", text)
+        self.assertIn("available = true", text)
+        self.assertIn('activation = "manual"', text)
+        self.assertNotIn("enabled = true", text)
+        self.assertTrue(policy["available"])
+        self.assertEqual(policy["activation"], "manual")
         self.assertNotIn(str(self.researchwiki), text)
+
+    def test_v1_marker_upgrade_requires_preview_and_explicit_apply(self) -> None:
+        project = self.root / "LegacyProject"
+        project.mkdir()
+        marker = project / ".rkf-connect.toml"
+        original = '[rkf_auto_connect]\nenabled = true\nmode = "active-aggressive"\n'
+        marker.write_text(original, encoding="utf-8")
+
+        preview = auto.preview_project_marker(project, mode="active-aggressive")
+
+        self.assertTrue(preview["would_change"])
+        self.assertEqual(preview["from_version"], 1)
+        self.assertEqual(marker.read_text(encoding="utf-8"), original)
+        with self.assertRaises(SystemExit):
+            auto.write_project_marker(project, mode="active-aggressive")
+        auto.write_project_marker(
+            project,
+            mode="active-aggressive",
+            approve_upgrade=True,
+        )
+        self.assertIn("version = 2", marker.read_text(encoding="utf-8"))
 
     def test_write_bridge_folder_creates_project_local_index_files(self) -> None:
         project = self.root / "SomeProject"
@@ -200,6 +239,12 @@ class RKFAutoConnectTests(unittest.TestCase):
             self.assertIn("project-local", text)
             self.assertIn("not stable evidence", text)
             self.assertNotIn(str(self.researchwiki), text)
+            self.assertNotIn("rk hot record", text)
+            self.assertNotIn("tools/rk.py", text)
+        readme = (project / "RKF" / "README.md").read_text(encoding="utf-8")
+        hot = (project / "RKF" / "hot.md").read_text(encoding="utf-8")
+        self.assertIn("starts with RKF OFF", readme)
+        self.assertIn("capture.route", hot)
 
     def test_write_bridge_folder_preserves_existing_files(self) -> None:
         project = self.root / "SomeProject"
@@ -225,16 +270,20 @@ class RKFAutoConnectTests(unittest.TestCase):
         self.assertIn(str(project / "RKF"), stdout.getvalue())
         self.assertTrue((project / "RKF" / "README.md").exists())
 
-    def test_hot_request_command_outputs_structured_action_json(self) -> None:
+    def test_capture_request_command_outputs_structured_action_json(self) -> None:
         stdout = io.StringIO()
 
         with redirect_stdout(stdout):
             status = auto.main(
                 [
-                    "hot-request",
-                    "recent aerosol-cloud parameterization papers",
+                    "capture-request",
+                    "Cloud paper lead",
+                    "--text",
+                    "Find DOI 10.1234/cloud.lead",
                     "--origin",
-                    "project:ResearchProject",
+                    "project:Demo",
+                    "--doi",
+                    "10.1234/cloud.lead",
                     "--intent",
                     "paper-search",
                 ]
@@ -242,28 +291,8 @@ class RKFAutoConnectTests(unittest.TestCase):
 
         self.assertEqual(status, 0)
         payload = json.loads(stdout.getvalue())
-        self.assertEqual(payload["action"], "hot.record")
-        self.assertEqual(payload["params"]["intent"], "paper-search")
-
-    def test_hot_execute_command_writes_without_legacy_cli(self) -> None:
-        stdout = io.StringIO()
-
-        with redirect_stdout(stdout):
-            status = auto.main(
-                [
-                    "hot-execute",
-                    "recent aerosol-cloud parameterization papers",
-                    "--origin",
-                    "project:ResearchProject",
-                    "--intent",
-                    "paper-search",
-                ]
-            )
-
-        self.assertEqual(status, 0)
-        self.assertIn("recorded hot query:", stdout.getvalue())
-        hot = (self.researchwiki / "hot.md").read_text(encoding="utf-8")
-        self.assertIn("recent aerosol-cloud parameterization papers", hot)
+        self.assertEqual(payload["action"], "capture.route")
+        self.assertEqual(payload["params"]["doi"], "10.1234/cloud.lead")
 
     def test_legacy_command_array_subcommands_are_removed(self) -> None:
         self.assertFalse(hasattr(auto, "build_inbox_command"))
@@ -271,6 +300,8 @@ class RKFAutoConnectTests(unittest.TestCase):
         for argv in (
             ["inbox-command", "Legacy", "--origin", "project:Legacy", "--clip", "note"],
             ["hot-command", "legacy hot query", "--origin", "project:Legacy"],
+            ["inbox-execute", "Legacy", "--origin", "project:Legacy", "--clip", "note"],
+            ["hot-execute", "legacy hot query", "--origin", "project:Legacy"],
         ):
             with self.assertRaises(SystemExit) as caught:
                 auto.main(argv)

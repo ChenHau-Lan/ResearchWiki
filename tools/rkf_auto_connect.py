@@ -20,7 +20,8 @@ REPO_ROOT = Path(__file__).resolve().parents[1]
 if str(REPO_ROOT) not in sys.path:
     sys.path.insert(0, str(REPO_ROOT))
 
-from rkf.actions import ActionRequest, ActionResult, execute_action_request as execute_rkf_action_request
+from rkf.actions import ActionRequest, ActionResult, RKFActionRuntime
+from rkf.capture import CaptureInput, classify_capture as classify_rkf_capture
 from rkf.core import Workspace
 
 try:
@@ -30,63 +31,6 @@ except ModuleNotFoundError:  # pragma: no cover
 
 
 DEFAULT_CONFIG = Path(os.environ.get("RKF_CONNECTOR_CONFIG", "~/.codex/rkf_connector.toml")).expanduser()
-PRIVATE_PATH_RE = re.compile(r"/" + r"Users/[^/\s]+|C:" + r"\\Users\\", re.IGNORECASE)
-DOI_RE = re.compile(r"10\.\d{4,9}/[-._;()/:A-Z0-9]+", re.IGNORECASE)
-ARXIV_RE = re.compile(r"\barxiv:\s*\d{4}\.\d{4,5}(?:v\d+)?|\barxiv\.org/abs/\d{4}\.\d{4,5}", re.IGNORECASE)
-PUBMED_RE = re.compile(r"\bPMID:\s*\d+\b|\bpubmed\b", re.IGNORECASE)
-URL_RE = re.compile(r"https?://[^\s)>\"]+")
-LONG_CAPTURE_LIMIT = 12000
-
-ACTIVE_TERMS = {
-    "paper",
-    "papers",
-    "doi",
-    "citation",
-    "reference",
-    "journal",
-    "conference",
-    "literature",
-    "source",
-    "web clip",
-    "dataset",
-    "arxiv",
-    "pubmed",
-}
-
-AGGRESSIVE_TERMS = {
-    "synthesis",
-    "literature review",
-    "method",
-    "experiment design",
-    "manuscript",
-    "proposal",
-    "hypothesis",
-    "claim",
-    "evidence",
-    "diagnostic",
-    "parameterization",
-    "calibration",
-    "interpretation",
-    "研究",
-    "文獻",
-    "方法",
-    "實驗",
-    "論文",
-    "投稿",
-    "假說",
-    "證據",
-    "綜整",
-}
-
-CODING_ONLY_TERMS = {
-    "css",
-    "button",
-    "padding",
-    "typescript",
-    "react component",
-    "build error",
-    "lint error",
-}
 
 
 @dataclass(frozen=True)
@@ -153,123 +97,129 @@ def load_connector_config(path: Path | None = None) -> ConnectorConfig:
     return ConnectorConfig(researchwiki_root=root, mode=str(mode), config_path=config_path)
 
 
-def _contains_any(text: str, terms: set[str]) -> bool:
-    lowered = text.lower()
-    return any(term in lowered for term in terms)
-
-
 def _summary(text: str) -> str:
     compact = re.sub(r"\s+", " ", text).strip()
     return compact[:220]
 
 
 def classify_capture(*, text: str, source_url: str = "", project_name: str = "") -> CaptureDecision:
-    haystack = f"{text}\n{source_url}\n{project_name}".strip()
-    reasons: list[str] = []
-    targets: list[str] = []
-    if PRIVATE_PATH_RE.search(haystack):
-        return CaptureDecision(level="blocked", targets=[], reasons=["private-path"], summary=_summary(text))
-    if len(haystack) > LONG_CAPTURE_LIMIT:
-        return CaptureDecision(level="blocked", targets=[], reasons=["too-long"], summary=_summary(text))
-    if not haystack:
-        return CaptureDecision(level="none", targets=[], reasons=[], summary="")
-
-    if DOI_RE.search(haystack):
-        reasons.append("doi")
-    if ARXIV_RE.search(haystack):
-        reasons.append("arxiv")
-    if PUBMED_RE.search(haystack):
-        reasons.append("pubmed")
-    if URL_RE.search(source_url) or URL_RE.search(text):
-        reasons.append("url")
-    if _contains_any(haystack, ACTIVE_TERMS):
-        reasons.append("source-like")
-    if _contains_any(haystack, AGGRESSIVE_TERMS):
-        reasons.append("research-discussion")
-
-    if "research-discussion" in reasons:
-        targets.append("inbox")
-        if any(reason in reasons for reason in ("doi", "arxiv", "pubmed", "source-like")):
-            targets.append("hot")
-        return CaptureDecision(level="aggressive", targets=sorted(set(targets)), reasons=sorted(set(reasons)), summary=_summary(text))
-
-    if reasons:
-        targets.append("inbox")
-        if any(reason in reasons for reason in ("doi", "arxiv", "pubmed", "source-like")):
-            targets.append("hot")
-        return CaptureDecision(level="active", targets=sorted(set(targets)), reasons=sorted(set(reasons)), summary=_summary(text))
-
-    if _contains_any(haystack, CODING_ONLY_TERMS):
-        return CaptureDecision(level="none", targets=[], reasons=["ordinary-coding"], summary=_summary(text))
-    return CaptureDecision(level="none", targets=[], reasons=[], summary=_summary(text))
-
-
-def build_inbox_request(
-    *,
-    config: ConnectorConfig,
-    title: str,
-    origin: str,
-    clip: str,
-    reader_note: str = "",
-    agent_note: str = "",
-    doi: str = "",
-    source_url: str = "",
-    topic_id: str = "",
-    no_inject: bool = False,
-) -> ActionRequest:
-    _ = config
-    return ActionRequest(
-        action="inbox.capture",
-        params={
-            "title": title,
-            "origin": origin,
-            "clip": clip,
-            "reader_note": reader_note,
-            "agent_note": agent_note,
-            "doi": doi,
-            "source_url": source_url,
-            "topic_id": topic_id,
-            "inject": not no_inject,
-        },
+    decision = classify_rkf_capture(
+        CaptureInput(
+            text=text,
+            origin=f"project:{project_name}" if project_name else "codex",
+            source_url=source_url,
+        )
+    )
+    return CaptureDecision(
+        level=decision.level,
+        targets=decision.targets,
+        reasons=decision.reasons,
+        summary=_summary(text),
     )
 
 
-def build_hot_request(
+def build_activate_request(*, config: ConnectorConfig) -> ActionRequest:
+    _ = config
+    return ActionRequest(action="rkf.activate")
+
+
+def build_query_request(
     *,
     config: ConnectorConfig,
     query: str,
+    limit: int = 10,
+) -> ActionRequest:
+    _ = config
+    return ActionRequest(action="query.search", params={"query": query, "limit": limit})
+
+
+def build_capture_request(
+    *,
+    config: ConnectorConfig,
+    title: str,
+    text: str,
     origin: str,
+    doi: str = "",
+    source_url: str = "",
+    authors: str = "",
+    year: str = "",
     intent: str = "research-discussion",
+    reader_note: str = "",
+    agent_note: str = "",
     topic_id: str = "",
-    notes: str = "",
 ) -> ActionRequest:
     _ = config
     return ActionRequest(
-        action="hot.record",
+        action="capture.route",
         params={
-            "query": query,
+            "title": title,
+            "text": text,
             "origin": origin,
+            "doi": doi,
+            "source_url": source_url,
+            "authors": authors,
+            "year": year,
             "intent": intent,
+            "reader_note": reader_note,
+            "agent_note": agent_note,
             "topic_id": topic_id,
-            "notes": notes,
         },
     )
 
 
-def execute_action_request(*, config: ConnectorConfig, request: ActionRequest) -> ActionResult:
-    return execute_rkf_action_request(request, workspace=Workspace(config.researchwiki_root))
+def execute_action_request(
+    *,
+    config: ConnectorConfig,
+    request: ActionRequest,
+    runtime: RKFActionRuntime | None = None,
+) -> ActionResult:
+    active_runtime = runtime or RKFActionRuntime(
+        workspace=Workspace(config.researchwiki_root)
+    )
+    return active_runtime.execute(request)
 
 
-def write_project_marker(project_root: Path, *, mode: str = "active-aggressive") -> Path:
+def render_project_marker(*, mode: str) -> str:
+    return (
+        "version = 2\n\n"
+        "[rkf]\n"
+        "available = true\n"
+        'activation = "manual"\n'
+        "query_first = true\n"
+        f'capture_mode = "{mode}"\n'
+    )
+
+
+def preview_project_marker(
+    project_root: Path,
+    *,
+    mode: str = "active-aggressive",
+) -> dict[str, Any]:
+    marker = project_root / ".rkf-connect.toml"
+    current = read_project_marker(project_root)
+    proposed = render_project_marker(mode=mode)
+    return {
+        "path": ".rkf-connect.toml",
+        "from_version": int(current["version"]),
+        "to_version": 2,
+        "would_change": not marker.exists()
+        or marker.read_text(encoding="utf-8") != proposed,
+        "proposed": proposed,
+    }
+
+
+def write_project_marker(
+    project_root: Path,
+    *,
+    mode: str = "active-aggressive",
+    approve_upgrade: bool = False,
+) -> Path:
     project_root.mkdir(parents=True, exist_ok=True)
     marker = project_root / ".rkf-connect.toml"
-    marker.write_text(
-        "[rkf_auto_connect]\n"
-        "enabled = true\n"
-        f"mode = \"{mode}\"\n"
-        "config = \"global\"\n",
-        encoding="utf-8",
-    )
+    current = read_project_marker(project_root)
+    if marker.exists() and int(current["version"]) < 2 and not approve_upgrade:
+        raise SystemExit("v1 marker upgrade requires preview and explicit approval")
+    marker.write_text(render_project_marker(mode=mode), encoding="utf-8")
     return marker
 
 
@@ -291,9 +241,11 @@ private transcripts here.
 
 ## Capture Mode
 
+- every new Codex task starts with RKF OFF
+- say `啟動 RKF` before central query or capture
 - mode: `{mode}`
-- source-like material goes to RKF inbox and, when useful, central `hot.md`
-- valuable research discussion can go to RKF inbox as reader/agent notes
+- activated research requests use `query.search` before project-local retrieval
+- reusable source/discussion material uses `capture.route`
 - stable claims still need locators, supported RKF pages, or human feedback
 
 ## Files
@@ -311,7 +263,7 @@ Scope: project-local demand queue for `{project_name}`; not stable evidence.
 
 Use this file for research questions, search strings, DOI leads, and recurring
 needs that should be routed to the central RKF `hot.md` through
-`rk hot record`.
+`capture.route` after RKF is activated in the current task.
 
 ## Candidate Questions
 
@@ -407,14 +359,39 @@ def write_bridge_folder(
 def read_project_marker(project_root: Path) -> dict[str, Any]:
     marker = project_root / ".rkf-connect.toml"
     if not marker.exists():
-        return {"enabled": False, "mode": ""}
+        return {
+            "version": 0,
+            "available": False,
+            "activation": "manual",
+            "query_first": True,
+            "capture_mode": "off",
+        }
     data = _load_toml(marker)
-    section = data.get("rkf_auto_connect", {}) if isinstance(data, dict) else {}
-    return section if isinstance(section, dict) else {"enabled": False, "mode": ""}
+    version = int(data.get("version", 1))
+    if version >= 2:
+        section = data.get("rkf", {})
+        return {
+            "version": version,
+            "available": bool(section.get("available", False)),
+            "activation": "manual",
+            "query_first": bool(section.get("query_first", True)),
+            "capture_mode": str(section.get("capture_mode", "active-aggressive")),
+        }
+    section = data.get("rkf_auto_connect", {})
+    return {
+        "version": 1,
+        "available": bool(section.get("enabled", False)),
+        "activation": "manual",
+        "query_first": True,
+        "capture_mode": str(section.get("mode", "active-aggressive")),
+    }
 
 
 def main(argv: list[str] | None = None) -> int:
-    parser = argparse.ArgumentParser(prog="rkf-auto-connect", description="Classify and route cross-project RKF captures")
+    parser = argparse.ArgumentParser(
+        prog="rkf-auto-connect",
+        description="Classify and route cross-project RKF captures",
+    )
     sub = parser.add_subparsers(dest="command", required=True)
 
     resolve = sub.add_parser("resolve")
@@ -428,60 +405,71 @@ def main(argv: list[str] | None = None) -> int:
     marker = sub.add_parser("mark-project")
     marker.add_argument("project_root")
     marker.add_argument("--mode", default="active-aggressive")
+    marker.add_argument("--apply-upgrade", action="store_true")
 
     bridge = sub.add_parser("bridge-folder")
     bridge.add_argument("project_root")
     bridge.add_argument("--mode", default="active-aggressive")
     bridge.add_argument("--project-name", default="")
 
-    inbox_request = sub.add_parser("inbox-request")
-    inbox_request.add_argument("title")
-    inbox_request.add_argument("--origin", required=True)
-    inbox_request.add_argument("--clip", required=True)
-    inbox_request.add_argument("--reader-note", default="")
-    inbox_request.add_argument("--agent-note", default="")
-    inbox_request.add_argument("--doi", default="")
-    inbox_request.add_argument("--source-url", default="")
-    inbox_request.add_argument("--topic-id", default="")
-    inbox_request.add_argument("--no-inject", action="store_true")
+    sub.add_parser("activate-request")
 
-    hot_request = sub.add_parser("hot-request")
-    hot_request.add_argument("query")
-    hot_request.add_argument("--origin", required=True)
-    hot_request.add_argument("--intent", default="research-discussion")
-    hot_request.add_argument("--topic-id", default="")
-    hot_request.add_argument("--notes", default="")
+    query_request = sub.add_parser("query-request")
+    query_request.add_argument("query")
+    query_request.add_argument("--limit", type=int, default=10)
 
-    inbox_execute = sub.add_parser("inbox-execute")
-    inbox_execute.add_argument("title")
-    inbox_execute.add_argument("--origin", required=True)
-    inbox_execute.add_argument("--clip", required=True)
-    inbox_execute.add_argument("--reader-note", default="")
-    inbox_execute.add_argument("--agent-note", default="")
-    inbox_execute.add_argument("--doi", default="")
-    inbox_execute.add_argument("--source-url", default="")
-    inbox_execute.add_argument("--topic-id", default="")
-    inbox_execute.add_argument("--no-inject", action="store_true")
-
-    hot_execute = sub.add_parser("hot-execute")
-    hot_execute.add_argument("query")
-    hot_execute.add_argument("--origin", required=True)
-    hot_execute.add_argument("--intent", default="research-discussion")
-    hot_execute.add_argument("--topic-id", default="")
-    hot_execute.add_argument("--notes", default="")
+    capture_request = sub.add_parser("capture-request")
+    capture_request.add_argument("title")
+    capture_request.add_argument("--text", required=True)
+    capture_request.add_argument("--origin", required=True)
+    capture_request.add_argument("--doi", default="")
+    capture_request.add_argument("--source-url", default="")
+    capture_request.add_argument("--authors", default="")
+    capture_request.add_argument("--year", default="")
+    capture_request.add_argument("--intent", default="research-discussion")
+    capture_request.add_argument("--reader-note", default="")
+    capture_request.add_argument("--agent-note", default="")
+    capture_request.add_argument("--topic-id", default="")
 
     args = parser.parse_args(argv)
     if args.command == "resolve":
-        config = load_connector_config(Path(args.config).expanduser() if args.config else None)
-        print(json.dumps({"researchwiki_root": str(config.researchwiki_root), "mode": config.mode}, ensure_ascii=False, indent=2))
+        config = load_connector_config(
+            Path(args.config).expanduser() if args.config else None
+        )
+        print(
+            json.dumps(
+                {
+                    "researchwiki": "configured",
+                    "workspace_config": True,
+                    "mode": config.mode,
+                },
+                ensure_ascii=False,
+                indent=2,
+            )
+        )
         return 0
     if args.command == "classify":
         decision = classify_capture(text=args.text, source_url=args.source_url, project_name=args.project_name)
         print(json.dumps(asdict(decision), ensure_ascii=False, indent=2))
         return 0
     if args.command == "mark-project":
-        path = write_project_marker(Path(args.project_root).expanduser().resolve(), mode=args.mode)
-        print(path)
+        project_root = Path(args.project_root).expanduser().resolve()
+        marker_path = project_root / ".rkf-connect.toml"
+        if marker_path.exists() and not args.apply_upgrade:
+            print(
+                json.dumps(
+                    preview_project_marker(project_root, mode=args.mode),
+                    ensure_ascii=False,
+                    indent=2,
+                )
+            )
+            return 0
+        path = write_project_marker(
+            project_root,
+            mode=args.mode,
+            approve_upgrade=args.apply_upgrade,
+        )
+        print(path.name)
         return 0
     if args.command == "bridge-folder":
         result = write_bridge_folder(
@@ -498,41 +486,39 @@ def main(argv: list[str] | None = None) -> int:
         return 0
 
     config = load_connector_config()
-    if args.command in {"inbox-request", "inbox-execute"}:
-        request = build_inbox_request(
-            config=config,
-            title=args.title,
-            origin=args.origin,
-            clip=args.clip,
-            reader_note=args.reader_note,
-            agent_note=args.agent_note,
-            doi=args.doi,
-            source_url=args.source_url,
-            topic_id=args.topic_id,
-            no_inject=args.no_inject,
+    if args.command == "activate-request":
+        print(
+            json.dumps(
+                asdict(build_activate_request(config=config)),
+                ensure_ascii=False,
+                indent=2,
+            )
         )
-        if args.command == "inbox-request":
-            print(json.dumps(asdict(request), ensure_ascii=False, indent=2))
-            return 0
-        result = execute_action_request(config=config, request=request)
-        print(result.message)
-        if result.payload.get("source_id"):
-            print(f"source_id: {result.payload['source_id']}")
         return 0
-    if args.command in {"hot-request", "hot-execute"}:
-        request = build_hot_request(
+    if args.command == "query-request":
+        request = build_query_request(
             config=config,
             query=args.query,
-            origin=args.origin,
-            intent=args.intent,
-            topic_id=args.topic_id,
-            notes=args.notes,
+            limit=args.limit,
         )
-        if args.command == "hot-request":
-            print(json.dumps(asdict(request), ensure_ascii=False, indent=2))
-            return 0
-        result = execute_action_request(config=config, request=request)
-        print(result.message)
+        print(json.dumps(asdict(request), ensure_ascii=False, indent=2))
+        return 0
+    if args.command == "capture-request":
+        request = build_capture_request(
+            config=config,
+            title=args.title,
+            text=args.text,
+            origin=args.origin,
+            doi=args.doi,
+            source_url=args.source_url,
+            authors=args.authors,
+            year=args.year,
+            intent=args.intent,
+            reader_note=args.reader_note,
+            agent_note=args.agent_note,
+            topic_id=args.topic_id,
+        )
+        print(json.dumps(asdict(request), ensure_ascii=False, indent=2))
         return 0
     raise SystemExit(f"unsupported command: {args.command}")
 

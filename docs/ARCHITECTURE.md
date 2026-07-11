@@ -20,7 +20,9 @@ graph export, ARS handoff proposals, and optional shared-database connections.
 | Knowledge Objects | Maintain paper, question, concept, claim, topic, synthesis, overview, meeting, seminar pages | concise Markdown only |
 | Research Graph | Export typed source/evidence/wiki/topic edges and maturity metadata | generated public-safe graph |
 | Hot Query Layer | Track recent public-safe research questions and paper-search demand | single retrieval file: `hot.md` |
-| Action Runtime | Execute Codex app workflow requests without routing through the CLI parser, including read/report actions and read-only graph traversal | `rkf/actions.py`, structured request/result only |
+| Session Activation | Keep every new Codex task OFF until the user explicitly activates RKF; preflight storage and writer state before retrieval or capture | `rkf.activate`, `rkf.status`, `rkf.deactivate` |
+| Action Runtime | Execute guarded Codex app requests without routing through the CLI parser, including deterministic retrieval and event-first capture | `query.search`, `capture.route`, structured request/result only |
+| Operational Events | Preserve capture intent before any derived inbox/hot/wiki projection | append-only `state/events/`; single designated projection writer |
 | L0-L3 World Context | Rebuild session context from identity, critical facts, active reading, synthesis, graph links, and validation state | Codex app capsule, public-safe |
 | Critical Facts | Store short public-safe facts with temporal metadata for future agents | `CRITICAL_FACTS.md` |
 | Priority Evolve | Rewrite low-risk existing pages with visible AI Integration Notes and maturity-aware blockers | governed page update |
@@ -34,6 +36,18 @@ graph export, ARS handoff proposals, and optional shared-database connections.
 | Connect | Manage experimental shared RAW/wiki folders and Codex handoff access boundaries | connection plans only; no private paths |
 
 ## Knowledge Flow
+
+The session lifecycle is `new Codex task -> OFF -> rkf.activate -> ACTIVE or
+ACTIVE_READ_ONLY -> query.search / capture.route -> rkf.deactivate`. Activation
+is session-owned and never persists into the next task.
+
+```text
+new Codex task -> OFF
+啟動 RKF -> read-only preflight -> ACTIVE | ACTIVE_READ_ONLY
+research request -> query.search -> central governed result cards -> project-local fallback
+reusable source/discussion -> capture.route -> immutable event -> writer projection
+停用 RKF -> OFF
+```
 
 ```mermaid
 flowchart TD
@@ -91,6 +105,19 @@ flowchart TD
   are durable artifacts. New integrations should call `rkf.actions` structured
   requests; the legacy CLI is only an internal shim for agents, tests, and
   maintenance.
+- Every new Codex task starts RKF OFF. `rkf.activate` performs a read-only
+  preflight and enables the session-owned runtime; `rkf.deactivate` returns it
+  to OFF. A project marker may provide routing hints, but cannot activate RKF.
+- `query.search` is the deterministic retrieval-first entry point. It returns
+  maturity and evidence-boundary cards; an answer is not a wiki page.
+- `capture.route` classifies material, deduplicates it, and records an immutable
+  event before any projection. Capture receipts always state `Promotion: none`.
+- `inbox.capture` and `hot.record` are writer-side projection actions, not
+  normal cross-project entrypoints.
+- Only the registered maintenance writer may turn events into derived
+  inbox/hot/wiki files. Other computers queue events or operate read-only. The
+  writer uses `capture.project_pending` with per-target checkpoints to fold
+  queued or partially projected events exactly once.
 - Search candidates are not stable claim evidence.
 - ARS outputs are not evidence by themselves; they may become reading feedback
   or save/review proposals.
@@ -135,7 +162,11 @@ desktop research folder, then link those folders into each local RKF project.
 
 ## Runtime Surfaces
 
-- `rkf.actions`: structured Codex app action API. It covers
+- `rkf.actions`: session-owned structured Codex app action API. A new
+  `RKFActionRuntime` starts OFF; `rkf.activate`, `rkf.status`, and
+  `rkf.deactivate` control only that runtime instance. It provides
+  `query.search`, `capture.route`, and writer-only `capture.project_pending`,
+  then retains guarded support for
   `inbox.capture`, `hot.record`, report/read actions (`world.render`,
   `paper.queue`, `lint.run`, `graph.export`, `index.generate`,
   `codex_handoff.generate`), and `stats.snapshot` for compact health review.
@@ -145,9 +176,10 @@ desktop research folder, then link those folders into each local RKF project.
   graph built by `build_research_graph(ws)` and do not write
   `graph/research_graph.json`; explicit `graph.export` remains the generated-file
   route.
-- `tools/rkf_auto_connect.py`: connector helper that classifies cross-project
-  material, builds `ActionRequest` objects, and can execute those requests
-  directly against the configured ResearchWiki root.
+- `tools/rkf_auto_connect.py`: request-only connector helper that classifies
+  cross-project material and builds `rkf.activate`, `query.search`, and
+  `capture.route` requests. It cannot create an active session or bypass the
+  runtime guard by itself.
 - `tools/rk.py` / `rkf/cli.py`: legacy/dev shim kept for compatibility,
   repeatable maintenance, and existing tests. New app workflows should not add
   user-facing command syntax here first.

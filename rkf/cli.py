@@ -7,28 +7,40 @@ import json
 import sys
 from pathlib import Path
 
+from .actions import capture_inbox as action_capture_inbox
+from .actions import export_graph_action as action_export_graph
+from .actions import generate_codex_handoff as action_generate_codex_handoff
+from .actions import generate_index as action_generate_index
+from .actions import queue_papers as action_queue_papers
+from .actions import record_hot as action_record_hot
+from .actions import render_world as action_render_world
+from .actions import run_lint as action_run_lint
 from .core import (
     Workspace,
     add_topic,
     append_log,
     approved_pdf_acquisition,
+    challenge_page,
     create_paper_note,
     create_source,
-    external_sandbox_capsule,
-    export_graph,
-    generate_wiki_index,
+    emerge_patterns,
+    evolve_page,
     infer_evidence_tier,
-    lint_knowledge_pages,
-    lint_public_safety,
     lint_topics,
     parse_frontmatter,
+    paper_queue,
+    propose_propagation,
+    reconcile_workspace,
     read_json,
     record_hot_query,
+    render_paper_nudge,
     relative_workspace_path,
     refresh_hot_markdown,
     slugify,
     today,
+    update_paper_maturity,
     verify_pdf,
+    write_emergent_synthesis,
     write_acquisition_checkpoint,
     write_json,
 )
@@ -87,6 +99,30 @@ def cmd_discover(args: argparse.Namespace) -> int:
     return 0
 
 
+def cmd_inbox_capture(args: argparse.Namespace) -> int:
+    ws = Workspace()
+    action = action_capture_inbox(
+        workspace=ws,
+        title=args.title,
+        origin=args.origin,
+        source_url=args.source_url or "",
+        doi=args.doi or "",
+        clip=args.clip or "",
+        reader_note=args.reader_note or "",
+        agent_note=args.agent_note or "",
+        topic_id=args.topic_id or "",
+        inject=not args.no_inject,
+    )
+    result = action.payload
+    print(f"wrote inbox item: {result['path']}")
+    if result["source_id"]:
+        print(f"source_id: {result['source_id']}")
+    print(f"doi_injection: {result['injection_status']}")
+    if result["paper_path"]:
+        print(f"paper_path: {result['paper_path']}")
+    return 0
+
+
 def _load_or_capture(ws: Workspace, value: str) -> dict[str, object]:
     path = ws.source_path(value)
     if path.exists():
@@ -99,15 +135,20 @@ def cmd_acquire(args: argparse.Namespace) -> int:
     ws = Workspace()
     record = _load_or_capture(ws, args.source)
     route = args.pdf or args.url or "candidate route not supplied"
-    if not args.approve:
+    if args.checkpoint:
         path = write_acquisition_checkpoint(ws, record, route=route, screenshot=args.screenshot or "")
-        print(f"checkpoint required: {relative_workspace_path(ws, path)}")
+        print(f"legacy checkpoint written: {relative_workspace_path(ws, path)}")
         print("status: pdf_checkpoint_required")
         return 0
     if not args.pdf:
-        raise SystemExit("approved acquisition currently requires --pdf")
+        record["fulltext_status"] = "needs-user-pdf"
+        record["reading_state"] = "metadata-only"
+        ws.save_source(record)
+        print(f"source needs user-provided full text: {record['source_id']}")
+        print("status: needs_user_pdf")
+        return 0
     artifact = approved_pdf_acquisition(ws, record, Path(args.pdf).expanduser().resolve())
-    print(f"stored PDF evidence artifact: {artifact['evidence_id']}")
+    print(f"stored user-provided PDF artifact: {artifact['evidence_id']}")
     print("status: pdf_downloaded")
     return 0
 
@@ -141,6 +182,68 @@ def cmd_distill(args: argparse.Namespace) -> int:
     record = ws.load_source(args.source_id)
     path = create_paper_note(ws, record, slug=args.slug or "")
     print(f"wrote knowledge page: {relative_workspace_path(ws, path)}")
+    return 0
+
+
+def cmd_paper_status(args: argparse.Namespace) -> int:
+    ws = Workspace()
+    items = paper_queue(ws)
+    if args.source_id:
+        items = [item for item in items if item["source_id"] == args.source_id]
+    if not items:
+        print("paper queue: empty")
+        return 0
+    for item in items:
+        print(f"{item['source_id']}\taction={item['action']}\tpriority={item['priority']}\tpath={item.get('path', '')}")
+        print(f"  reasons: {'; '.join(item['reasons'])}")
+    return 0
+
+
+def cmd_paper_feedback(args: argparse.Namespace) -> int:
+    ws = Workspace()
+    path = update_paper_maturity(
+        ws,
+        args.source_id,
+        reading_state=args.reading_state or "",
+        fulltext_status=args.fulltext_status or "",
+        human_feedback_level=args.level,
+        understanding_confidence=args.confidence or "",
+        claim_readiness=args.claim_readiness or "",
+        note=args.note,
+        actor="human",
+    )
+    print(f"updated paper maturity: {relative_workspace_path(ws, path)}")
+    return 0
+
+
+def cmd_paper_queue(args: argparse.Namespace) -> int:
+    ws = Workspace()
+    result = action_queue_papers(workspace=ws, limit=args.limit)
+    items = result.payload["items"]
+    if not items:
+        print("paper queue is empty")
+        return 0
+    for item in items:
+        print(f"- {item['source_id']}\taction={item['action']}\tpriority={item['priority']}\tpath={item.get('path', '')}")
+        print(f"  reasons: {'; '.join(item['reasons'])}")
+    return 0
+
+
+def cmd_paper_next(args: argparse.Namespace) -> int:
+    ws = Workspace()
+    items = paper_queue(ws)
+    if not items:
+        print("paper queue: empty")
+        return 0
+    item = items[0]
+    print(f"{item['source_id']}\taction={item['action']}\tpriority={item['priority']}\tpath={item.get('path', '')}")
+    print(f"reasons: {'; '.join(item['reasons'])}")
+    return 0
+
+
+def cmd_paper_nudge(args: argparse.Namespace) -> int:
+    ws = Workspace()
+    print(render_paper_nudge(ws, limit=args.limit), end="")
     return 0
 
 
@@ -212,7 +315,17 @@ def cmd_save(args: argparse.Namespace) -> int:
     slug = slugify(args.slug or args.title)
     folder = args.object_type.replace("-", "_")
     path = ws.paths.knowledge / folder / f"{slug}.md"
+    update = bool(getattr(args, "update", False))
+    if path.exists() and not update:
+        raise SystemExit(
+            f"knowledge object already exists: {relative_workspace_path(ws, path)}; "
+            "refusing to overwrite without --update"
+        )
     body = args.body or "TBD"
+    created = today()
+    if path.exists():
+        existing_meta, _ = parse_frontmatter(path.read_text(encoding="utf-8", errors="replace"))
+        created = str(existing_meta.get("created", created))
     text = (
         "---\n"
         f"type: {args.object_type}\n"
@@ -221,7 +334,16 @@ def cmd_save(args: argparse.Namespace) -> int:
         "topics: []\n"
         "evidence_boundary: review-blocker\n"
         "evidence_tier: review-blocker\n"
-        f"created: {today()}\n"
+        + (
+            "synthesis_maturity: draft\n"
+            "source_coverage: unknown\n"
+            "human_feedback_level: none\n"
+            "claim_readiness: not-ready\n"
+            f"last_synthesis_interaction: {today()}\n"
+            if args.object_type == "synthesis"
+            else ""
+        )
+        + f"created: {created}\n"
         f"updated: {today()}\n"
         "sources: []\n"
         "---\n\n"
@@ -229,12 +351,15 @@ def cmd_save(args: argparse.Namespace) -> int:
     )
     path.parent.mkdir(parents=True, exist_ok=True)
     path.write_text(text, encoding="utf-8")
-    append_log(ws, "save", f"{args.object_type} {relative_workspace_path(ws, path)}")
-    print(f"saved knowledge object: {relative_workspace_path(ws, path)}")
+    action = "update" if update else "save"
+    append_log(ws, action, f"{args.object_type} {relative_workspace_path(ws, path)}")
+    print(f"{action}d knowledge object: {relative_workspace_path(ws, path)}")
     return 0
 
 
 def cmd_synthesize(args: argparse.Namespace) -> int:
+    if args.title == "auto":
+        raise SystemExit("automatic synthesis alias was removed; use emerge")
     args.object_type = "synthesis"
     return cmd_save(args)
 
@@ -251,16 +376,9 @@ def cmd_review(args: argparse.Namespace) -> int:
 
 
 def cmd_lint(args: argparse.Namespace) -> int:
-    if args.mode not in LINT_MODES:
-        raise SystemExit(f"unknown lint mode: {args.mode}")
     ws = Workspace()
-    errors: list[str] = []
-    if args.mode in {"all", "structure-lint", "evidence-lint"}:
-        errors.extend(lint_knowledge_pages(ws))
-    if args.mode in {"all", "structure-lint"}:
-        errors.extend(lint_topics(ws))
-    if args.mode == "public-safety-lint":
-        errors.extend(lint_public_safety(ws))
+    result = action_run_lint(workspace=ws, mode=args.mode)
+    errors = result.payload["errors"]
     if errors:
         print(f"rkf {args.mode} failed:")
         for error in errors:
@@ -273,19 +391,117 @@ def cmd_lint(args: argparse.Namespace) -> int:
     return 0
 
 
+def cmd_propagate(args: argparse.Namespace) -> int:
+    ws = Workspace()
+    proposal = propose_propagation(ws, args.target, write=args.write)
+    print(f"propagation target: {proposal['target']}")
+    print(f"affected pages: {len(proposal['affected_pages'])}")
+    for item in proposal["affected_pages"]:
+        print(f"- {item['path']}\treasons={'; '.join(item['reasons'])}")
+    blockers = proposal.get("blockers", [])
+    if blockers:
+        print("review blockers:")
+        for blocker in blockers:
+            print(f"- {blocker}")
+    if proposal.get("proposal_path"):
+        print(f"wrote: {proposal['proposal_path']}")
+    else:
+        print("rule: preview/audit fallback; rerun with --write to create a review gate")
+    return 0
+
+
+def cmd_evolve(args: argparse.Namespace) -> int:
+    ws = Workspace()
+    result = evolve_page(
+        ws,
+        args.target,
+        note=args.note,
+        input_source=args.source,
+        priority=args.priority,
+        blocker=args.blocker or "",
+        write=not args.dry_run,
+    )
+    print(f"evolve target: {result['path']}")
+    print(f"priority: {result['priority']}")
+    print(f"ai_integrated: {str(result['ai_integrated']).lower()}")
+    print(f"wrote: {str(result['wrote']).lower()}")
+    blockers = result.get("blockers", [])
+    if blockers:
+        print("blockers:")
+        for blocker in blockers:
+            print(f"- {blocker}")
+    return 0
+
+
+def cmd_reconcile(args: argparse.Namespace) -> int:
+    ws = Workspace()
+    result = reconcile_workspace(ws, topic_id=args.topic_id or "", write=not args.dry_run, limit=args.limit)
+    print(f"contradictions: {len(result['pairs'])}")
+    for pair in result["pairs"]:
+        topics = ",".join(pair["topics"]) or "untriaged"
+        print(f"- {pair['left']} <> {pair['right']}\treason={pair['reason']}\ttopics={topics}")
+    print(f"ai_integrated_pages: {len(result['updated_pages'])}")
+    for path in result["updated_pages"]:
+        print(f"- {path}")
+    print(f"wrote: {str(result['wrote']).lower()}")
+    return 0
+
+
+def cmd_challenge(args: argparse.Namespace) -> int:
+    ws = Workspace()
+    result = challenge_page(ws, args.target, limit=args.limit)
+    print(f"challenge target: {result['target']}")
+    print(f"strongest counterpoints: {len(result['counterpoints'])}")
+    for item in result["counterpoints"]:
+        topics = ",".join(item["topics"]) or "untriaged"
+        print(f"- {item['path']}\treason={item['reason']}\ttopics={topics}\tsummary={item['summary']}")
+    print("missing evidence:")
+    if result["missing_evidence"]:
+        for item in result["missing_evidence"]:
+            print(f"- {item}")
+    else:
+        print("- No deterministic missing-evidence hints.")
+    print("maturity downgrade suggestions:")
+    for item in result["maturity_suggestions"]:
+        print(f"- {item}")
+    return 0
+
+
+def cmd_emerge(args: argparse.Namespace) -> int:
+    ws = Workspace()
+    patterns = emerge_patterns(ws, topic_id=args.topic_id or "", limit=args.limit)
+    print(f"emergent patterns: {len(patterns)}")
+    for pattern in patterns:
+        print(f"- {pattern['kind']}\tmaturity={pattern['maturity']}\tcoverage={pattern['source_coverage']}\t{pattern['summary']}")
+        print(f"  next_action: {pattern['next_action']}")
+    if args.write:
+        path = write_emergent_synthesis(ws, patterns=patterns, topic_id=args.topic_id or "")
+        print(f"wrote: {path}")
+    else:
+        print("rule: low-maturity synthesis preview; rerun with --write to save")
+    return 0
+
+
 def cmd_graph(args: argparse.Namespace) -> int:
     ws = Workspace()
-    graph = export_graph(ws)
-    print(f"graph nodes: {len(graph['nodes'])}")
-    print(f"graph edges: {len(graph['edges'])}")
-    print(f"wrote: {relative_workspace_path(ws, ws.paths.graph / 'research_graph.json')}")
+    result = action_export_graph(workspace=ws)
+    print(f"graph nodes: {result.payload['node_count']}")
+    print(f"graph edges: {result.payload['edge_count']}")
+    print(f"wrote: {result.payload['path']}")
+    return 0
+
+
+def cmd_status(args: argparse.Namespace) -> int:
+    ws = Workspace()
+    result = action_render_world(workspace=ws, log_tail=args.log_tail)
+    print(result.payload["markdown"], end="")
     return 0
 
 
 def cmd_index(args: argparse.Namespace) -> int:
     ws = Workspace()
-    path = generate_wiki_index(ws)
-    print(f"wrote: {relative_workspace_path(ws, path)}")
+    result = action_generate_index(workspace=ws)
+    print(f"wrote: {result.payload['path']}")
     return 0
 
 
@@ -306,8 +522,8 @@ def cmd_log(args: argparse.Namespace) -> int:
 
 def cmd_hot_record(args: argparse.Namespace) -> int:
     ws = Workspace()
-    event = record_hot_query(
-        ws,
+    action = action_record_hot(
+        workspace=ws,
         query=args.query,
         topic_id=args.topic_id or "",
         origin=args.origin,
@@ -315,7 +531,7 @@ def cmd_hot_record(args: argparse.Namespace) -> int:
         paper_leads=args.paper_lead or [],
         notes=args.notes or "",
     )
-    refresh_hot_markdown(ws)
+    event = action.payload["event"]
     print(f"recorded hot query: {event['event_id']}")
     print(f"topics: {','.join(event.get('topic_ids', [])) or 'unknown'}")
     return 0
@@ -328,21 +544,10 @@ def cmd_hot_refresh(args: argparse.Namespace) -> int:
     return 0
 
 
-def cmd_export(args: argparse.Namespace) -> int:
-    if args.export_type == "graph":
-        return cmd_graph(args)
-    if args.export_type == "external-sandbox":
-        ws = Workspace()
-        path = external_sandbox_capsule(ws)
-        print(f"wrote: {relative_workspace_path(ws, path)}")
-        return 0
-    raise SystemExit(f"unknown export type: {args.export_type}")
-
-
-def cmd_prompt_external_sandbox(args: argparse.Namespace) -> int:
+def cmd_prompt_codex_handoff(args: argparse.Namespace) -> int:
     ws = Workspace()
-    path = external_sandbox_capsule(ws)
-    print(f"wrote: {relative_workspace_path(ws, path)}")
+    result = action_generate_codex_handoff(workspace=ws)
+    print(f"wrote: {result.payload['path']}")
     return 0
 
 
@@ -358,22 +563,41 @@ def build_parser() -> argparse.ArgumentParser:
     capture.add_argument("--note")
     capture.set_defaults(func=cmd_capture)
 
-    discover = sub.add_parser("discover", help="Stage a discovery run; candidates are not evidence")
+    discover = sub.add_parser("discover", help="Stage a discovery run; candidates need reading before they can support claims")
     discover.add_argument("query")
     discover.add_argument("--topic-id")
     discover.set_defaults(func=cmd_discover)
 
-    acquire = sub.add_parser("acquire", help="Stage or approve PDF evidence acquisition")
+    inbox = sub.add_parser("inbox", help="Capture conversations, web clips, DOI leads, and ideas into the RKF inbox")
+    inbox_sub = inbox.add_subparsers(dest="inbox_command", required=True)
+    inbox_capture = inbox_sub.add_parser("capture", help="Write a source-aware inbox item and optionally inject DOI metadata")
+    inbox_capture.add_argument("title")
+    inbox_capture.add_argument(
+        "--origin",
+        choices=["chatgpt-web", "chatgpt-export", "web-clipper", "browser", "doi", "local", "codex", "other"],
+        default="codex",
+    )
+    inbox_capture.add_argument("--source-url", help="Original URL or ChatGPT shared link")
+    inbox_capture.add_argument("--doi", help="DOI to link or inject into SourceRecord/paper page")
+    inbox_capture.add_argument("--clip", help="Short public-safe excerpt or conversation snippet")
+    inbox_capture.add_argument("--reader-note", help="User interpretation, idea, or project relation")
+    inbox_capture.add_argument("--agent-note", help="AI/agent note that still needs human review")
+    inbox_capture.add_argument("--topic-id")
+    inbox_capture.add_argument("--no-inject", action="store_true", help="Do not create/link DOI SourceRecord and paper draft backlink")
+    inbox_capture.set_defaults(func=cmd_inbox_capture)
+
+    acquire = sub.add_parser("acquire", help="Record user-provided full text or legacy route review")
     acquire.add_argument("source")
     acquire.add_argument("--pdf")
     acquire.add_argument("--url")
     acquire.add_argument("--screenshot")
-    acquire.add_argument("--approve", action="store_true")
+    acquire.add_argument("--approve", action="store_true", help="Accepted for legacy compatibility; PDF storage no longer requires it")
+    acquire.add_argument("--checkpoint", action="store_true", help="Write a legacy route-review checkpoint instead of storing a PDF")
     acquire.set_defaults(func=cmd_acquire)
 
-    verify_pdf_parser = sub.add_parser("verify-pdf", help="Mark approved PDF evidence as QCed for wiki distillation")
+    verify_pdf_parser = sub.add_parser("verify-pdf", help="Mark a PDF as checked and update paper reading maturity")
     verify_pdf_parser.add_argument("source_id")
-    verify_pdf_parser.add_argument("--locator", help="Page/section/quote locator checked during PDF QC")
+    verify_pdf_parser.add_argument("--locator", help="Page/section/quote locator checked during PDF or visual review")
     verify_pdf_parser.add_argument("--note")
     verify_pdf_parser.add_argument("--qc-status", choices=["codex_qc_done", "human_qc_done"], default="codex_qc_done")
     verify_pdf_parser.set_defaults(func=cmd_verify_pdf)
@@ -382,11 +606,49 @@ def build_parser() -> argparse.ArgumentParser:
     read.add_argument("source_id")
     read.set_defaults(func=cmd_read)
 
-    distill = sub.add_parser("distill", help="Create a knowledge object from verified evidence")
+    distill = sub.add_parser("distill", help="Create or update a paper reading draft")
     distill.add_argument("distill_type", choices=["paper"])
     distill.add_argument("source_id")
     distill.add_argument("--slug")
     distill.set_defaults(func=cmd_distill)
+
+    paper = sub.add_parser("paper", help="Paper reading maturity and active queue")
+    paper_sub = paper.add_subparsers(dest="paper_command", required=True)
+    paper_status = paper_sub.add_parser("status", help="Show queued status for papers")
+    paper_status.add_argument("source_id", nargs="?")
+    paper_status.set_defaults(func=cmd_paper_status)
+    paper_feedback = paper_sub.add_parser("feedback", help="Record human feedback and update maturity")
+    paper_feedback.add_argument("source_id")
+    paper_feedback.add_argument("--level", choices=["none", "skimmed", "discussed", "annotated", "trusted"], default="discussed")
+    paper_feedback.add_argument("--note", required=True)
+    paper_feedback.add_argument("--reading-state", choices=["metadata-only", "abstract-read", "skimmed", "partial-fulltext", "fulltext-read", "full-read", "human-reviewed", "mixed"])
+    paper_feedback.add_argument(
+        "--fulltext-status",
+        choices=[
+            "unknown",
+            "needs-user-pdf",
+            "user-pdf-provided",
+            "publisher-html",
+            "publisher-pdf",
+            "open-access-pdf",
+            "partial-only",
+            "fulltext-read",
+            "unavailable",
+            "blocked",
+            "not-applicable",
+        ],
+    )
+    paper_feedback.add_argument("--confidence", choices=["low", "medium", "high", "mixed"])
+    paper_feedback.add_argument("--claim-readiness", choices=["not-ready", "locator-needed", "claim-ready", "synthesis-ready"])
+    paper_feedback.set_defaults(func=cmd_paper_feedback)
+    paper_queue_parser = paper_sub.add_parser("queue", help="List active paper reading nudges")
+    paper_queue_parser.add_argument("--limit", type=int, default=20)
+    paper_queue_parser.set_defaults(func=cmd_paper_queue)
+    paper_next = paper_sub.add_parser("next", help="Show the highest-priority paper nudge")
+    paper_next.set_defaults(func=cmd_paper_next)
+    paper_nudge = paper_sub.add_parser("nudge", help="Render scheduled paper nudge output")
+    paper_nudge.add_argument("--limit", type=int, default=10)
+    paper_nudge.set_defaults(func=cmd_paper_nudge)
 
     topic = sub.add_parser("topic", help="Topic governance")
     topic_sub = topic.add_subparsers(dest="topic_command", required=True)
@@ -415,12 +677,17 @@ def build_parser() -> argparse.ArgumentParser:
     save.add_argument("title")
     save.add_argument("--slug")
     save.add_argument("--body")
+    save.add_argument("--update", action="store_true", help="Intentionally replace an existing object with the same slug")
     save.set_defaults(func=cmd_save)
 
     synthesize = sub.add_parser("synthesize", help="Create a draft synthesis object")
     synthesize.add_argument("title")
     synthesize.add_argument("--slug")
     synthesize.add_argument("--body")
+    synthesize.add_argument("--update", action="store_true", help="Intentionally replace an existing synthesis with the same slug")
+    synthesize.add_argument("--write", action="store_true", help=argparse.SUPPRESS)
+    synthesize.add_argument("--topic-id", help=argparse.SUPPRESS)
+    synthesize.add_argument("--limit", type=int, default=8, help=argparse.SUPPRESS)
     synthesize.set_defaults(func=cmd_synthesize)
 
     review = sub.add_parser("review", help="List pending gates and review items")
@@ -430,8 +697,43 @@ def build_parser() -> argparse.ArgumentParser:
     lint.add_argument("--mode", choices=sorted(LINT_MODES), default="all")
     lint.set_defaults(func=cmd_lint)
 
+    evolve = sub.add_parser("evolve", help="Directly integrate low-risk page updates with an AI Integration Note")
+    evolve.add_argument("target", help="Knowledge page path to rewrite")
+    evolve.add_argument("--note", required=True, help="Public-safe reason for the integration")
+    evolve.add_argument("--source", default="codex", help="Public-safe input source label")
+    evolve.add_argument("--priority", choices=["low", "medium", "high"], default="low")
+    evolve.add_argument("--blocker", help="Explicit blocker to leave on the page")
+    evolve.add_argument("--dry-run", action="store_true", help="Render decision without writing the page")
+    evolve.set_defaults(func=cmd_evolve)
+
+    reconcile = sub.add_parser("reconcile", help="Find contradictions and write AI-marked blockers for review")
+    reconcile.add_argument("--topic-id", help="Limit reconciliation scan to a topic")
+    reconcile.add_argument("--limit", type=int, default=10)
+    reconcile.add_argument("--dry-run", action="store_true", help="Report contradictions without writing blockers")
+    reconcile.set_defaults(func=cmd_reconcile)
+
+    challenge = sub.add_parser("challenge", help="Use RKF knowledge to challenge a page without creating stable claims")
+    challenge.add_argument("target", help="Knowledge page path to challenge")
+    challenge.add_argument("--limit", type=int, default=5)
+    challenge.set_defaults(func=cmd_challenge)
+
+    emerge = sub.add_parser("emerge", help="Find unnamed patterns and optionally save low-maturity synthesis")
+    emerge.add_argument("--topic-id", help="Limit emergence to a topic")
+    emerge.add_argument("--limit", type=int, default=8)
+    emerge.add_argument("--write", action="store_true", help="Save a low-maturity synthesis draft")
+    emerge.set_defaults(func=cmd_emerge)
+
+    propagate = sub.add_parser("propagate", help="Generate affected-page propagation preview/audit review")
+    propagate.add_argument("target", help="Source ID or knowledge page path to review for propagation")
+    propagate.add_argument("--write", action="store_true", help="Write a propagation gate under state/gates")
+    propagate.set_defaults(func=cmd_propagate)
+
     graph = sub.add_parser("graph", help="Export the research graph")
     graph.set_defaults(func=cmd_graph)
+
+    world = sub.add_parser("world", help="Alias for the RKF L0-L3 workspace context capsule")
+    world.add_argument("--log-tail", type=int, default=5)
+    world.set_defaults(func=cmd_status)
 
     index = sub.add_parser("index", help="Generate the compact LLM wiki index")
     index.set_defaults(func=cmd_index)
@@ -447,7 +749,7 @@ def build_parser() -> argparse.ArgumentParser:
     hot_record = hot_sub.add_parser("record", help="Record a public-safe hot query event")
     hot_record.add_argument("query")
     hot_record.add_argument("--topic-id")
-    hot_record.add_argument("--origin", choices=["local", "external-sandbox"], default="local")
+    hot_record.add_argument("--origin", choices=["local", "codex-handoff"], default="local")
     hot_record.add_argument(
         "--intent",
         choices=["query", "discover", "paper-search", "proposal"],
@@ -460,14 +762,10 @@ def build_parser() -> argparse.ArgumentParser:
     hot_refresh.add_argument("--days", type=int, default=30)
     hot_refresh.set_defaults(func=cmd_hot_refresh)
 
-    export = sub.add_parser("export", help="Export graph or external sandbox capsule")
-    export.add_argument("export_type", choices=["graph", "external-sandbox"])
-    export.set_defaults(func=cmd_export)
-
     prompt = sub.add_parser("prompt", help="Prompt helpers")
     prompt_sub = prompt.add_subparsers(dest="prompt_command", required=True)
-    external = prompt_sub.add_parser("external-sandbox")
-    external.set_defaults(func=cmd_prompt_external_sandbox)
+    handoff = prompt_sub.add_parser("codex-handoff")
+    handoff.set_defaults(func=cmd_prompt_codex_handoff)
 
     return parser
 

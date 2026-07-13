@@ -1,0 +1,32 @@
+# Reference profile for a portable single-machine RKF workspace.
+#
+# Recommended: run `python3 tools/bootstrap_rkf.py` and then repeat with
+# `--apply`. Do not copy this file as a writer-ready setup: bootstrap also
+# creates the matching opaque machine ID and writer registry. Storage paths
+# resolve from the checkout root; writer_registry resolves from wiki_root.
+
+[storage]
+wiki_root = ".rkf_data/wiki"
+raw_root = ".rkf_data/raw"
+private_evidence_root = ".rkf_private/evidence"
+
+[machine]
+# This placeholder is intentionally not a registered writer identity.
+id = "machine-change-me"
+maintenance_writer = false
+
+[sync]
+writer_registry = "state/sync/maintenance-writer.json"
+atomic_writes = true
+conflict_detection = true
+aggregate_cadence_hours = 24
+
+[gates]
+require_pdf_checkpoint = true
+require_pdf_qc = true
+require_claim_support = true
+require_synthesis_review = true
+
+[knowledge]
+schema_version = "rkf-v1.1"
+default_review_cadence = "monthly"

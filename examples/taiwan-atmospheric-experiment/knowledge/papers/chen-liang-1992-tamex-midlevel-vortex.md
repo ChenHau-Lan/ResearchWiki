@@ -4,6 +4,13 @@ status: draft
 source_id: doi_10_2151_jmsj1965_70_1_25
 source_status: peer-reviewed
 reading_status: full-read
+reading_state: fulltext-read
+fulltext_status: fulltext-read
+human_feedback_level: discussed
+understanding_confidence: medium
+claim_readiness: claim-ready
+last_reading_interaction: 2026-05-24
+reading_ledger: examples/taiwan-atmospheric-experiment/state/reading/doi_10_2151_jmsj1965_70_1_25.json
 review_stage: ai-extracted
 evidence_boundary: pdf-evidence
 evidence_ids:
@@ -21,7 +28,7 @@ updated: 2026-05-24
 - DOI: `10.2151/jmsj1965.70.1_25`
 - Journal: Journal of the Meteorological Society of Japan
 - Experiment: Taiwan Area Mesoscale Experiment (TAMEX), June 1987
-- Evidence status: QCed publisher PDF
+- Evidence status: checked publisher PDF
 
 ## PDF Locators
 

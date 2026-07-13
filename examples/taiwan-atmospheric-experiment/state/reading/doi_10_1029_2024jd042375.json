@@ -1,0 +1,20 @@
+{
+  "schema": "rkf-reading-ledger-v1",
+  "source_id": "doi_10_1029_2024jd042375",
+  "knowledge_path": "examples/taiwan-atmospheric-experiment/knowledge/papers/miao-et-al-2025-tahope-iop2-convective-cell-merger.md",
+  "events": [
+    {
+      "created": "2026-05-24",
+      "type": "reading-update",
+      "actor": "codex",
+      "summary": "Example paper read from a checked open full-text route; locators recorded for TAHOPE/PRECIP IOP2 storm microphysics.",
+      "public_safe": true,
+      "details": {
+        "reading_state": "fulltext-read",
+        "claim_readiness": "claim-ready"
+      }
+    }
+  ],
+  "created": "2026-05-24",
+  "updated": "2026-05-24"
+}

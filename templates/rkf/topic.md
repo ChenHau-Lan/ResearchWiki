@@ -27,4 +27,11 @@ sources: []
 
 ## Candidate Backlog Review
 
+## Future Agent Retrieval Brief
+
+- Read this page when:
+- Trust level:
+- Current gaps:
+- Next best action:
+
 ## Review Cadence

@@ -1,13 +1,14 @@
 """Core runtime helpers for the Research Knowledge Framework.
 
-RKF keeps research memory governed: candidates become source records, reviewed
-reading artifacts can support paper pages, and durable knowledge stays in wiki
-objects with evidence boundaries. Temporary PDF or OCR extraction may help an
-agent read, but it is not a persisted knowledge layer.
+RKF keeps research memory active and governed: source records can become early
+paper drafts, reading maturity records show how well the user and agents
+understand a source, and evidence boundaries still control stable claims,
+trusted synthesis, citation, and publication.
 """
 
 from __future__ import annotations
 
+import ast
 import json
 import os
 import re
@@ -32,6 +33,11 @@ SOURCE_STATUSES = {
     "new",
     "metadata_ok",
     "candidate_found",
+    "paper_draft",
+    "needs_user_pdf",
+    "fulltext_available",
+    "reading_in_progress",
+    "reading_mature",
     "pdf_checkpoint_required",
     "pdf_downloaded",
     "pdf_qc_needed",
@@ -42,6 +48,7 @@ SOURCE_STATUSES = {
 }
 
 KNOWLEDGE_TYPES = {
+    "inbox",
     "paper",
     "question",
     "concept",
@@ -55,10 +62,59 @@ KNOWLEDGE_TYPES = {
 }
 
 PDF_QC_DONE = {"codex_qc_done", "human_qc_done"}
-PAPER_READING_STATUSES = {"full-read", "first-pass-pdf-qc", "ocr-qc", "visual-qc"}
+PAPER_READING_STATUSES = {
+    "metadata-only",
+    "abstract-read",
+    "skimmed",
+    "partial-fulltext",
+    "fulltext-available",
+    "first-pass-pdf-qc",
+    "ocr-qc",
+    "visual-qc",
+    "fulltext-read",
+    "full-read",
+    "human-reviewed",
+    "synthesis-ready",
+    "reproduced",
+    "mixed",
+    "blocked",
+}
+FULLTEXT_STATUSES = {
+    "unknown",
+    "needs-user-pdf",
+    "user-pdf-provided",
+    "publisher-html",
+    "publisher-pdf",
+    "open-access-pdf",
+    "partial-only",
+    "fulltext-read",
+    "unavailable",
+    "blocked",
+    "not-applicable",
+}
+HUMAN_FEEDBACK_LEVELS = {"none", "skimmed", "discussed", "annotated", "trusted"}
+UNDERSTANDING_CONFIDENCES = {"low", "medium", "high", "mixed"}
+CLAIM_READINESS = {"not-ready", "locator-needed", "claim-ready", "synthesis-ready"}
+PAPER_RELATION_TYPES = {"uses-paper", "compares-paper", "extends-from-paper", "discusses-paper"}
+PAPER_V11_SECTIONS = (
+    "Source Identity",
+    "Reading Maturity",
+    "Research Question",
+    "Methods And Data",
+    "Main Findings",
+    "Evidence And Locators",
+    "Limitations And Boundaries",
+    "Questions About This Paper",
+    "Future Agent Retrieval Brief",
+    "Intrinsic Links",
+)
+SYNTHESIS_MATURITY = {"draft", "single-source", "multi-source", "human-reviewed", "publication-ready"}
+SOURCE_COVERAGE = {"unknown", "partial", "representative", "systematic"}
 LOCAL_PATH_PATTERNS = [
     re.compile("/" + r"Users/(?!\[\^)[^/\s]+"),
+    re.compile(r"/(?:home|private|Volumes)/[^\s]+", re.IGNORECASE),
     re.compile(r"C:\\Users\\", re.IGNORECASE),
+    re.compile(r"(?:file://|\\\\)[^\s]+", re.IGNORECASE),
 ]
 HOT_RECORDS_START = "<!-- RKF-HOT-RECORDS:START -->"
 HOT_RECORDS_END = "<!-- RKF-HOT-RECORDS:END -->"
@@ -68,6 +124,10 @@ HOT_EVENT_SCHEMA = "rkf-hot-query-event-v1"
 HOT_QUERY_MAX_CHARS = 500
 HOT_NOTES_MAX_CHARS = 1000
 HOT_DEFAULT_WINDOW_DAYS = 30
+INBOX_TITLE_MAX_CHARS = 220
+INBOX_CLIP_MAX_CHARS = 5000
+INBOX_NOTE_MAX_CHARS = 2000
+CHATGPT_SHARE_RE = re.compile(r"^https://chatgpt\.com/share/[A-Za-z0-9_-]+/?$", re.IGNORECASE)
 HOT_RECORD_RE = re.compile(
     r"^-\s*(?P<date>\d{4}-\d{2}-\d{2})\s*\|\s*origin=(?P<origin>[^|]+)\|\s*topic=(?P<topic>[^|]+)\|\s*intent=(?P<intent>[^|]+)\|\s*query=\"(?P<query>[^\"]*)\"(?:\s*\|\s*leads=\"(?P<leads>[^\"]*)\")?(?:\s*\|\s*notes=\"(?P<notes>[^\"]*)\")?\s*$"
 )
@@ -137,6 +197,15 @@ def parse_frontmatter(text: str) -> tuple[dict[str, Any], str]:
     meta: dict[str, Any] = {}
     lines = raw.splitlines()
     index = 0
+
+    def parse_scalar(value: str) -> Any:
+        if value == "[]":
+            return []
+        if value in {"true", "false"}:
+            return value == "true"
+        return value.strip('"')
+
+    mapping_item_re = re.compile(r"^(?P<key>[A-Za-z_][A-Za-z0-9_-]*):\s*(?P<value>.*)$")
     while index < len(lines):
         line = lines[index]
         if ":" not in line or line.startswith(" "):
@@ -145,26 +214,45 @@ def parse_frontmatter(text: str) -> tuple[dict[str, Any], str]:
         key, value = line.split(":", 1)
         value = value.strip()
         if value == "":
-            items: list[str] = []
+            items: list[Any] = []
             lookahead = index + 1
-            while lookahead < len(lines) and lines[lookahead].startswith("  - "):
-                items.append(lines[lookahead][4:].strip())
-                lookahead += 1
+            if lookahead < len(lines) and lines[lookahead].startswith("  - "):
+                first_item = lines[lookahead][4:].strip()
+                first_match = mapping_item_re.match(first_item)
+                if first_match and key.strip() == "paper_relations":
+                    while lookahead < len(lines) and lines[lookahead].startswith("  - "):
+                        mapping_match = mapping_item_re.match(lines[lookahead][4:].strip())
+                        if not mapping_match:
+                            break
+                        item: dict[str, Any] = {
+                            mapping_match.group("key"): parse_scalar(mapping_match.group("value").strip())
+                        }
+                        lookahead += 1
+                        while lookahead < len(lines) and lines[lookahead].startswith("    "):
+                            nested_match = mapping_item_re.match(lines[lookahead].strip())
+                            if not nested_match:
+                                break
+                            item[nested_match.group("key")] = parse_scalar(nested_match.group("value").strip())
+                            lookahead += 1
+                        items.append(item)
+                else:
+                    while lookahead < len(lines) and lines[lookahead].startswith("  - "):
+                        items.append(lines[lookahead][4:].strip())
+                        lookahead += 1
             meta[key.strip()] = items
             index = lookahead
             continue
-        if value == "[]":
-            parsed: Any = []
-        elif value in {"true", "false"}:
-            parsed = value == "true"
-        else:
-            parsed = value.strip('"')
-        meta[key.strip()] = parsed
+        meta[key.strip()] = parse_scalar(value)
         index += 1
     return meta, body
 
 
 def frontmatter(meta: dict[str, Any]) -> str:
+    def render_scalar(value: Any) -> str:
+        if isinstance(value, bool):
+            return "true" if value else "false"
+        return str(value)
+
     lines = ["---"]
     for key, value in meta.items():
         if isinstance(value, list):
@@ -173,7 +261,17 @@ def frontmatter(meta: dict[str, Any]) -> str:
             else:
                 lines.append(f"{key}:")
                 for item in value:
-                    lines.append(f"  - {item}")
+                    if isinstance(item, dict):
+                        pairs = list(item.items())
+                        if not pairs:
+                            lines.append("  - {}")
+                        else:
+                            first_key, first_value = pairs[0]
+                            lines.append(f"  - {first_key}: {render_scalar(first_value)}")
+                            for nested_key, nested_value in pairs[1:]:
+                                lines.append(f"    {nested_key}: {render_scalar(nested_value)}")
+                    else:
+                        lines.append(f"  - {render_scalar(item)}")
         elif isinstance(value, bool):
             lines.append(f"{key}: {'true' if value else 'false'}")
         else:
@@ -201,6 +299,17 @@ def first_summary_line(body: str) -> str:
     return ""
 
 
+def knowledge_page_records(ws: "Workspace") -> list[tuple[Path, dict[str, Any], str]]:
+    records: list[tuple[Path, dict[str, Any], str]] = []
+    if not ws.paths.knowledge.exists():
+        return records
+    for path in sorted(ws.paths.knowledge.rglob("*.md")):
+        meta, body = parse_frontmatter(read_text(path))
+        if meta:
+            records.append((path, meta, body))
+    return records
+
+
 def infer_evidence_tier(meta: dict[str, Any], body: str = "") -> str:
     explicit = str(meta.get("evidence_tier", "")).strip()
     if explicit:
@@ -208,17 +317,23 @@ def infer_evidence_tier(meta: dict[str, Any], body: str = "") -> str:
     page_type = str(meta.get("type", ""))
     boundary = str(meta.get("evidence_boundary", "")).lower()
     reading = str(meta.get("reading_status", "")).lower()
+    claim_readiness = str(meta.get("claim_readiness", "")).lower()
+    human_feedback = str(meta.get("human_feedback_level", "")).lower()
     text = body.lower()
     if "review-blocker" in boundary:
         return "review-blocker"
     if page_type == "paper":
-        if reading == "full-read" and meta.get("evidence_ids"):
+        if claim_readiness in {"claim-ready", "synthesis-ready"}:
+            return "claim-ready"
+        if human_feedback in {"annotated", "trusted"} and reading in {"fulltext-read", "full-read", "human-reviewed"}:
+            return "human-matured"
+        if reading in {"fulltext-read", "full-read", "human-reviewed"} and meta.get("evidence_ids"):
             return "locator-backed"
         if reading in {"first-pass-pdf-qc", "ocr-qc", "visual-qc"} and meta.get("evidence_ids"):
             return "pdf-qc-stub"
-        if "metadata" in text or "abstract" in text:
+        if reading in {"metadata-only", "abstract-read"} or "metadata" in text or "abstract" in text:
             return "metadata-only"
-        return "candidate"
+        return "reading-draft"
     if "metadata" in boundary or "abstract" in boundary:
         return "mixed"
     if "pdf-evidence" in boundary or meta.get("evidence_ids"):
@@ -226,6 +341,10 @@ def infer_evidence_tier(meta: dict[str, Any], body: str = "") -> str:
     if "candidate" in boundary:
         return "candidate"
     return "review-blocker"
+
+
+def set_frontmatter(path: Path, meta: dict[str, Any], body: str) -> None:
+    write_text(path, frontmatter(meta) + body)
 
 
 def relative_workspace_path(ws: "Workspace", path: Path) -> str:
@@ -247,23 +366,77 @@ def append_log(ws: "Workspace", action: str, message: str) -> None:
         handle.write(line)
 
 
+def _toml_line_without_comment(raw_line: str) -> str:
+    quote = ""
+    escaped = False
+    for index, character in enumerate(raw_line):
+        if escaped:
+            escaped = False
+            continue
+        if character == "\\" and quote == '"':
+            escaped = True
+            continue
+        if character in {'"', "'"}:
+            quote = "" if quote == character else character if not quote else quote
+            continue
+        if character == "#" and not quote:
+            return raw_line[:index].strip()
+    return raw_line.strip()
+
+
+def _parse_toml_fallback_value(raw_value: str) -> Any:
+    value = raw_value.strip()
+    if not value:
+        raise ValueError("empty TOML value")
+    if value == "true":
+        return True
+    if value == "false":
+        return False
+    if re.fullmatch(r"[+-]?\d+", value):
+        return int(value)
+    if re.fullmatch(r"[+-]?(?:\d+\.\d*|\d*\.\d+)", value):
+        return float(value)
+    if value[0] in {'"', "'", "[", "{"}:
+        try:
+            return ast.literal_eval(value)
+        except (SyntaxError, ValueError) as error:
+            raise ValueError(f"invalid TOML value: {value}") from error
+    return value
+
+
+def parse_toml_fallback(text: str) -> dict[str, Any]:
+    data: dict[str, Any] = {}
+    current: dict[str, Any] = data
+    for raw_line in text.splitlines():
+        line = _toml_line_without_comment(raw_line)
+        if not line:
+            continue
+        if line.startswith("["):
+            if not line.endswith("]") or line.startswith("[["):
+                raise ValueError(f"unsupported TOML section: {line}")
+            section_name = line[1:-1].strip()
+            if not section_name or "." in section_name:
+                raise ValueError(f"unsupported TOML section: {line}")
+            section = data.setdefault(section_name, {})
+            if not isinstance(section, dict):
+                raise ValueError(f"TOML section conflicts with value: {section_name}")
+            current = section
+            continue
+        if "=" not in line:
+            raise ValueError(f"invalid TOML assignment: {line}")
+        key, raw_value = line.split("=", 1)
+        key = key.strip()
+        if not key:
+            raise ValueError("empty TOML key")
+        current[key] = _parse_toml_fallback_value(raw_value)
+    return data
+
+
 def load_toml(path: Path) -> dict[str, Any]:
     if not path.exists():
         return {}
     if tomllib is None:
-        data: dict[str, Any] = {}
-        section: dict[str, Any] | None = None
-        for raw_line in path.read_text(encoding="utf-8").splitlines():
-            line = raw_line.split("#", 1)[0].strip()
-            if not line:
-                continue
-            if line.startswith("[") and line.endswith("]"):
-                section = data.setdefault(line.strip("[]"), {})
-                continue
-            if "=" in line and section is not None:
-                key, value = line.split("=", 1)
-                section[key.strip()] = value.strip().strip('"')
-        return data
+        return parse_toml_fallback(path.read_text(encoding="utf-8"))
     with path.open("rb") as handle:
         return tomllib.load(handle)
 
@@ -272,6 +445,8 @@ def load_toml(path: Path) -> dict[str, Any]:
 class WorkspacePaths:
     root: Path
     wiki_root: Path
+    raw_root: Path
+    critical_facts: Path
     index: Path
     log: Path
     hot_md: Path
@@ -279,7 +454,10 @@ class WorkspacePaths:
     sources: Path
     evidence_index: Path
     gates: Path
+    reading: Path
     search_runs: Path
+    events: Path
+    sync_state: Path
     knowledge: Path
     governance: Path
     graph: Path
@@ -291,7 +469,12 @@ class Workspace:
     """Path and persistence boundary for an RKF workspace."""
 
     def __init__(self, root: Path | None = None) -> None:
-        self.root = Path(os.environ.get("RKF_ROOT", root or Path(__file__).resolve().parents[1])).resolve()
+        selected_root = (
+            root
+            if root is not None
+            else Path(os.environ.get("RKF_ROOT", Path(__file__).resolve().parents[1]))
+        )
+        self.root = Path(selected_root).resolve()
         self.config = self._load_config()
         self.paths = self._paths()
 
@@ -310,16 +493,22 @@ class Workspace:
         section_value = self.config.get(section, {}) if isinstance(self.config, dict) else {}
         value = section_value.get(key) if isinstance(section_value, dict) else None
         if isinstance(value, str) and value.strip():
-            return Path(os.path.expandvars(os.path.expanduser(value))).resolve()
+            configured = Path(os.path.expandvars(os.path.expanduser(value)))
+            if not configured.is_absolute():
+                configured = self.root / configured
+            return configured.resolve()
         return None
 
     def _paths(self) -> WorkspacePaths:
         wiki_root = self._configured_path("storage", "wiki_root") or self.root
+        raw_root = self._configured_path("storage", "raw_root") or self.root / ".rkf_private" / "raw"
         state = wiki_root / "state"
         private_evidence = self._config_path("storage", "private_evidence_root", self.root / ".rkf_private" / "evidence")
         return WorkspacePaths(
             root=self.root,
             wiki_root=wiki_root,
+            raw_root=raw_root,
+            critical_facts=wiki_root / "CRITICAL_FACTS.md",
             index=wiki_root / "index.md",
             log=wiki_root / "log.md",
             hot_md=wiki_root / "hot.md",
@@ -327,7 +516,10 @@ class Workspace:
             sources=state / "sources",
             evidence_index=state / "evidence",
             gates=state / "gates",
+            reading=state / "reading",
             search_runs=state / "search_runs",
+            events=state / "events",
+            sync_state=state / "sync",
             knowledge=wiki_root / "knowledge",
             governance=wiki_root / "governance",
             graph=wiki_root / "graph",
@@ -340,7 +532,10 @@ class Workspace:
             self.paths.sources,
             self.paths.evidence_index,
             self.paths.gates,
+            self.paths.reading,
             self.paths.search_runs,
+            self.paths.events,
+            self.paths.sync_state,
             self.paths.knowledge,
             self.paths.governance,
             self.paths.graph,
@@ -353,6 +548,9 @@ class Workspace:
 
     def evidence_path(self, evidence_id: str) -> Path:
         return self.paths.evidence_index / f"{evidence_id}.json"
+
+    def reading_ledger_path(self, source_id: str) -> Path:
+        return self.paths.reading / f"{source_id}.json"
 
     def load_source(self, source_id: str) -> dict[str, Any]:
         path = self.source_path(source_id)
@@ -403,6 +601,8 @@ def create_source(ws: Workspace, *, kind: str, value: str, title: str = "", topi
             "normalized_doi": extract_doi(value),
             "title": title,
             "status": "new",
+            "reading_state": "metadata-only",
+            "fulltext_status": "needs-user-pdf",
             "topic_ids": [],
             "gates": [],
             "evidence_ids": [],
@@ -427,6 +627,147 @@ def set_source_status(ws: Workspace, record: dict[str, Any], status: str) -> dic
     record["status"] = status
     ws.save_source(record)
     return record
+
+
+def default_reading_ledger_ref(source_id: str) -> str:
+    return f"state/reading/{source_id}.json"
+
+
+def load_reading_ledger(ws: Workspace, source_id: str) -> dict[str, Any]:
+    path = ws.reading_ledger_path(source_id)
+    if not path.exists():
+        return {
+            "schema": "rkf-reading-ledger-v1",
+            "source_id": source_id,
+            "knowledge_path": "",
+            "events": [],
+            "created": today(),
+            "updated": today(),
+        }
+    return read_json(path)
+
+
+def append_reading_event(
+    ws: Workspace,
+    *,
+    source_id: str,
+    event_type: str,
+    summary: str,
+    actor: str = "codex",
+    knowledge_path: str = "",
+    public_safe: bool = True,
+    details: dict[str, Any] | None = None,
+    idempotency_key: str = "",
+) -> dict[str, Any]:
+    assert_public_safe_hot_value(summary, field="reading_event", max_chars=HOT_NOTES_MAX_CHARS)
+    ledger = load_reading_ledger(ws, source_id)
+    if idempotency_key and any(
+        event.get("idempotency_key") == idempotency_key
+        for event in ledger.get("events", [])
+        if isinstance(event, dict)
+    ):
+        return ledger
+    if knowledge_path:
+        ledger["knowledge_path"] = knowledge_path
+    event = {
+            "created": datetime.now().isoformat(timespec="seconds"),
+            "type": event_type,
+            "actor": actor,
+            "summary": summary.strip(),
+            "public_safe": public_safe,
+            "details": details or {},
+        }
+    if idempotency_key:
+        event["idempotency_key"] = idempotency_key
+    ledger.setdefault("events", []).append(event)
+    ledger["updated"] = today()
+    write_json(ws.reading_ledger_path(source_id), ledger)
+    append_log(ws, "reading-event", f"{source_id} {event_type} {summary[:80]}")
+    return ledger
+
+
+def find_paper_page_for_source(ws: Workspace, source_id: str) -> Path | None:
+    for path, meta, _ in knowledge_page_records(ws):
+        if meta.get("type") == "paper" and meta.get("source_id") == source_id:
+            return path
+    return None
+
+
+def maturity_defaults_for_paper(record: dict[str, Any], artifact: dict[str, Any] | None) -> dict[str, str]:
+    if artifact and artifact.get("status") == "pdf_qc_done":
+        reading_state = "fulltext-read"
+        fulltext_status = "fulltext-read"
+        claim_readiness = "claim-ready" if artifact.get("locators") else "locator-needed"
+        understanding_confidence = "medium"
+    elif artifact:
+        reading_state = "partial-fulltext"
+        fulltext_status = "user-pdf-provided"
+        claim_readiness = "locator-needed"
+        understanding_confidence = "low"
+    else:
+        status = str(record.get("status", ""))
+        reading_state = "abstract-read" if status == "abstract_only" else "metadata-only"
+        fulltext_status = "needs-user-pdf"
+        claim_readiness = "not-ready"
+        understanding_confidence = "low"
+    return {
+        "reading_state": reading_state,
+        "fulltext_status": fulltext_status,
+        "human_feedback_level": "none",
+        "understanding_confidence": understanding_confidence,
+        "claim_readiness": claim_readiness,
+        "last_reading_interaction": today(),
+        "reading_ledger": default_reading_ledger_ref(str(record["source_id"])),
+    }
+
+
+def update_paper_maturity(
+    ws: Workspace,
+    source_id: str,
+    *,
+    reading_state: str = "",
+    fulltext_status: str = "",
+    human_feedback_level: str = "",
+    understanding_confidence: str = "",
+    claim_readiness: str = "",
+    note: str = "",
+    actor: str = "codex",
+) -> Path:
+    path = find_paper_page_for_source(ws, source_id)
+    if path is None:
+        raise SystemExit(f"paper page not found for source: {source_id}")
+    meta, body = parse_frontmatter(read_text(path))
+    if reading_state:
+        meta["reading_state"] = reading_state
+        meta["reading_status"] = reading_state
+    if fulltext_status:
+        meta["fulltext_status"] = fulltext_status
+    if human_feedback_level:
+        meta["human_feedback_level"] = human_feedback_level
+    if understanding_confidence:
+        meta["understanding_confidence"] = understanding_confidence
+    if claim_readiness:
+        meta["claim_readiness"] = claim_readiness
+    meta["last_reading_interaction"] = today()
+    meta["updated"] = today()
+    set_frontmatter(path, meta, body)
+    if note:
+        append_reading_event(
+            ws,
+            source_id=source_id,
+            event_type="human-feedback" if actor == "human" else "reading-update",
+            actor=actor,
+            summary=note,
+            knowledge_path=relative_workspace_path(ws, path),
+            details={
+                "reading_state": meta.get("reading_state", ""),
+                "fulltext_status": meta.get("fulltext_status", ""),
+                "human_feedback_level": meta.get("human_feedback_level", ""),
+                "understanding_confidence": meta.get("understanding_confidence", ""),
+                "claim_readiness": meta.get("claim_readiness", ""),
+            },
+        )
+    return path
 
 
 def write_acquisition_checkpoint(ws: Workspace, record: dict[str, Any], *, route: str, screenshot: str = "") -> Path:
@@ -483,7 +824,19 @@ def approved_pdf_acquisition(ws: Workspace, record: dict[str, Any], pdf_path: Pa
     ws.save_evidence(artifact)
     if evidence_id not in record.setdefault("evidence_ids", []):
         record["evidence_ids"].append(evidence_id)
+    record["fulltext_status"] = "user-pdf-provided"
+    record["reading_state"] = "partial-fulltext"
     set_source_status(ws, record, "pdf_downloaded")
+    paper_path = find_paper_page_for_source(ws, str(record["source_id"]))
+    if paper_path is not None:
+        update_paper_maturity(
+            ws,
+            str(record["source_id"]),
+            reading_state="partial-fulltext",
+            fulltext_status="user-pdf-provided",
+            claim_readiness="locator-needed",
+            note="User-provided PDF stored; reading maturity updated through the normal full-text path.",
+        )
     append_log(ws, "acquire", f"{record['source_id']} stored {evidence_id}")
     return artifact
 
@@ -501,7 +854,7 @@ def pdf_artifact(ws: Workspace, record: dict[str, Any]) -> dict[str, Any] | None
 
 def verify_pdf(ws: Workspace, record: dict[str, Any], *, locator: str = "", note: str = "", qc_status: str = "codex_qc_done") -> dict[str, Any]:
     if qc_status not in PDF_QC_DONE:
-        raise SystemExit(f"invalid PDF QC status: {qc_status}")
+        raise SystemExit(f"invalid PDF review status: {qc_status}")
     artifact = pdf_artifact(ws, record)
     if artifact is None:
         raise SystemExit("refusing PDF verification: no approved PDF evidence")
@@ -513,7 +866,20 @@ def verify_pdf(ws: Workspace, record: dict[str, Any], *, locator: str = "", note
     if note:
         artifact.setdefault("qc_notes", []).append({"date": today(), "note": note})
     ws.save_evidence(artifact)
+    record["fulltext_status"] = "fulltext-read"
+    record["reading_state"] = "fulltext-read"
     set_source_status(ws, record, "pdf_qc_done")
+    paper_path = find_paper_page_for_source(ws, str(record["source_id"]))
+    if paper_path is not None:
+        update_paper_maturity(
+            ws,
+            str(record["source_id"]),
+            reading_state="fulltext-read",
+            fulltext_status="fulltext-read",
+            claim_readiness="claim-ready" if locator else "locator-needed",
+            understanding_confidence="medium",
+            note=note or locator or "Full text identity and readability were checked.",
+        )
     append_log(ws, "verify-pdf", f"{record['source_id']} qc_status={qc_status}")
     return artifact
 
@@ -527,52 +893,98 @@ def qced_pdf_artifact(ws: Workspace, record: dict[str, Any]) -> dict[str, Any] |
 
 def create_paper_note(ws: Workspace, record: dict[str, Any], *, slug: str = "") -> Path:
     artifact = qced_pdf_artifact(ws, record)
-    if record.get("status") != "pdf_qc_done" or artifact is None:
-        raise SystemExit("refusing paper distill: source has no QCed PDF evidence")
+    if artifact is None:
+        artifact = pdf_artifact(ws, record)
     title = record.get("title") or record["source_id"].replace("_", " ").title()
     page_slug = slugify(slug or record["source_id"])
     dest = ws.paths.knowledge / "papers" / f"{page_slug}.md"
+    maturity = maturity_defaults_for_paper(record, artifact)
+    evidence_ids = [artifact["evidence_id"]] if artifact else []
+    boundary = "pdf-evidence" if artifact and artifact.get("status") == "pdf_qc_done" else "review-blocker"
+    evidence_tier = infer_evidence_tier(
+        {
+            "type": "paper",
+            "reading_status": maturity["reading_state"],
+            "claim_readiness": maturity["claim_readiness"],
+            "human_feedback_level": maturity["human_feedback_level"],
+            "evidence_ids": evidence_ids,
+            "evidence_boundary": boundary,
+        }
+    )
     meta = {
+        "schema": "rkf-paper-v1.1",
         "type": "paper",
         "status": "draft",
         "source_id": record["source_id"],
-        "source_status": "peer-reviewed",
-        "reading_status": "full-read",
+        "source_status": "paper_draft",
+        "reading_status": maturity["reading_state"],
+        "reading_state": maturity["reading_state"],
+        "fulltext_status": maturity["fulltext_status"],
+        "human_feedback_level": maturity["human_feedback_level"],
+        "understanding_confidence": maturity["understanding_confidence"],
+        "claim_readiness": maturity["claim_readiness"],
+        "last_reading_interaction": maturity["last_reading_interaction"],
+        "reading_ledger": maturity["reading_ledger"],
         "review_stage": "ai-extracted",
-        "evidence_boundary": "pdf-evidence",
-        "evidence_tier": "locator-backed" if artifact.get("locators") else "pdf-qc-stub",
-        "evidence_ids": [artifact["evidence_id"]],
+        "evidence_boundary": boundary,
+        "evidence_tier": evidence_tier,
+        "evidence_ids": evidence_ids,
         "topics": record.get("topic_ids", []),
         "created": today(),
         "updated": today(),
     }
-    locators = artifact.get("locators", [])
-    locator_lines = "\n".join(f"- {item}" for item in locators) if locators else "- TBD while reading PDF"
+    locators = artifact.get("locators", []) if artifact else []
+    locator_lines = "\n".join(f"- Locator: {item}" for item in locators) if locators else "- Locator: not recorded yet"
+    evidence_line = f"- PDF Evidence: {artifact['evidence_id']}" if artifact else "- PDF Evidence: not provided yet"
+    evidence_status = "Checked PDF" if artifact and artifact.get("status") == "pdf_qc_done" else "Reading draft; evidence boundary not promoted"
     body = (
         f"# {title}\n\n"
         "## Source Identity\n\n"
         f"- Source ID: {record['source_id']}\n"
         f"- DOI: {record.get('normalized_doi', '')}\n"
-        f"- PDF Evidence: {artifact['evidence_id']}\n"
-        "- Evidence status: QCed PDF\n\n"
-        "## PDF Locators\n\n"
-        f"{locator_lines}\n\n"
-        "## Reading Notes\n\n"
-        "- Research question:\n"
-        "- Method:\n"
-        "- Key findings:\n"
-        "- Limitations:\n\n"
-        "## Claims To Promote\n\n"
-        "- Claim:\n"
-        "  - PDF locator:\n"
-        "  - Caveat:\n\n"
-        "## Graph Links\n\n"
-        "- Topics:\n"
-        "- Concepts:\n"
-        "- Questions:\n"
+        "- Authors / journal / year: not recorded yet\n"
+        f"- Source record: state/sources/{record['source_id']}.json\n"
+        f"{evidence_line}\n"
+        f"- Evidence status: {evidence_status}\n\n"
+        "## Reading Maturity\n\n"
+        f"- Reading state: {maturity['reading_state']}\n"
+        f"- Full text status: {maturity['fulltext_status']}\n"
+        f"- Human feedback level: {maturity['human_feedback_level']}\n"
+        f"- Understanding confidence: {maturity['understanding_confidence']}\n"
+        f"- Claim readiness: {maturity['claim_readiness']}\n"
+        f"- Reading ledger: {maturity['reading_ledger']}\n\n"
+        "## Research Question\n\n"
+        "- Not recorded yet.\n\n"
+        "## Methods And Data\n\n"
+        "- Not recorded yet.\n\n"
+        "## Main Findings\n\n"
+        "- Not recorded yet.\n\n"
+        "## Evidence And Locators\n\n"
+        f"{locator_lines}\n"
+        "- What the source explicitly supports:\n"
+        "- What it does not support:\n\n"
+        "## Limitations And Boundaries\n\n"
+        f"- Evidence boundary: {boundary}\n"
+        "- Author-stated and reader-verified limits: not recorded yet.\n\n"
+        "## Questions About This Paper\n\n"
+        "- Not recorded yet.\n\n"
+        "## Future Agent Retrieval Brief\n\n"
+        "- Read this page when:\n"
+        "- Trust level:\n"
+        "- Current gaps:\n"
+        "- Next best action:\n\n"
+        "## Intrinsic Links\n\n"
+        "- Topics, concepts, methods, datasets, and subject links intrinsic to this paper: not recorded yet.\n"
     )
     write_text(dest, frontmatter(meta) + body)
-    set_source_status(ws, record, "wiki_done")
+    set_source_status(ws, record, "wiki_done" if artifact and artifact.get("status") == "pdf_qc_done" else "paper_draft")
+    append_reading_event(
+        ws,
+        source_id=str(record["source_id"]),
+        event_type="paper-draft-created",
+        summary=f"Paper draft created with reading_state={maturity['reading_state']} and fulltext_status={maturity['fulltext_status']}.",
+        knowledge_path=relative_workspace_path(ws, dest),
+    )
     append_log(ws, "distill-paper", f"{record['source_id']} -> {relative_workspace_path(ws, dest)}")
     return dest
 
@@ -648,6 +1060,284 @@ def assert_public_safe_hot_value(value: str, *, field: str, max_chars: int) -> N
             raise SystemExit(f"hot query {field} contains a local/private path")
 
 
+def assert_public_safe_inbox_value(value: str, *, field: str, max_chars: int) -> None:
+    if len(value) > max_chars:
+        raise SystemExit(f"inbox {field} is too long; store a short excerpt or summary instead")
+    for pattern in LOCAL_PATH_PATTERNS:
+        if pattern.search(value):
+            raise SystemExit(f"inbox {field} contains a local/private path")
+
+
+def markdown_quote(value: str, *, empty: str) -> str:
+    value = value.strip()
+    if not value:
+        return empty
+    return "\n".join(f"> {line}" if line else ">" for line in value.splitlines())
+
+
+def append_under_heading(body: str, heading: str, bullet: str) -> str:
+    if bullet in body:
+        return body
+    lines = body.rstrip("\n").splitlines()
+    try:
+        heading_index = next(index for index, line in enumerate(lines) if line.strip() == heading)
+    except StopIteration:
+        return body.rstrip() + f"\n\n{heading}\n\n{bullet}\n"
+    insert_at = len(lines)
+    for index in range(heading_index + 1, len(lines)):
+        if lines[index].startswith("## "):
+            insert_at = index
+            break
+    if insert_at > 0 and lines[insert_at - 1].strip():
+        lines.insert(insert_at, "")
+        insert_at += 1
+    lines.insert(insert_at, bullet)
+    lines.insert(insert_at + 1, "")
+    return "\n".join(lines).rstrip() + "\n"
+
+
+def render_inbox_body(
+    *,
+    title: str,
+    origin: str,
+    source_url: str,
+    doi: str,
+    source_id: str,
+    clip: str,
+    reader_note: str,
+    agent_note: str,
+    injection_status: str,
+    paper_path: str,
+) -> str:
+    chatgpt_warning = ""
+    if origin == "chatgpt-web":
+        chatgpt_warning = (
+            "- ChatGPT shared-link note: store only non-sensitive excerpts here; shared links are accessible to anyone with the URL.\n"
+        )
+    return (
+        f"# {title}\n\n"
+        "## Capture Metadata\n\n"
+        f"- Origin: {origin}\n"
+        f"- Source URL: {source_url or 'not recorded'}\n"
+        f"- DOI: {doi or 'not recorded'}\n"
+        f"- SourceRecord: {source_id or 'not created'}\n"
+        f"- Captured: {today()}\n"
+        f"- DOI injection: {injection_status}\n"
+        f"- Paper path: {paper_path or 'not linked'}\n"
+        "- Evidence boundary: inbox-only; this item is not stable claim evidence.\n"
+        f"{chatgpt_warning}\n"
+        "## Raw Clip Or Excerpt\n\n"
+        f"{markdown_quote(clip, empty='- No raw clip stored. Add only short, public-safe excerpts or a source-grounded summary.')}\n\n"
+        "## Source-Grounded Notes\n\n"
+        "- What the source explicitly says:\n"
+        "- What is uncertain or unverified:\n"
+        "- Citation or locator needed:\n\n"
+        "## Reader Notes\n\n"
+        f"{reader_note.strip() or '- My idea / project relation:'}\n\n"
+        "## AI/Agent Notes\n\n"
+        f"{agent_note.strip() or '- Needs human check:'}\n\n"
+        "## Promotion Targets\n\n"
+        "- Suggested target: paper / question / concept / claim / synthesis / none\n"
+        "- DOI injection: source identity and backlink only; no claim promotion.\n"
+        "- Claim promotion: blocked until locator-backed evidence, supported RKF page, or annotated/trusted feedback exists.\n\n"
+        "## Future Agent Retrieval Brief\n\n"
+        "- Read this page when: reviewing captured conversations, web clips, or DOI leads before promotion.\n"
+        "- Trust level: inbox-only; use as a source-aware prompt, not evidence.\n"
+        "- Current gaps: verify source identity, locator, and relevance before promotion.\n"
+        "- Next best action: classify into paper/question/concept/claim/synthesis or leave in inbox.\n"
+    )
+
+
+def guarded_inject_inbox_item(
+    ws: Workspace,
+    *,
+    record: dict[str, Any],
+    inbox_path: Path,
+    projection_event_id: str = "",
+) -> dict[str, Any]:
+    paper_path = find_paper_page_for_source(ws, str(record["source_id"]))
+    created = False
+    if paper_path is None:
+        paper_path = create_paper_note(ws, record)
+        created = True
+    rel_inbox = relative_workspace_path(ws, inbox_path)
+    rel_paper = relative_workspace_path(ws, paper_path)
+    meta, body = parse_frontmatter(read_text(paper_path))
+    if meta:
+        inbox_items = meta.get("inbox_items", [])
+        if not isinstance(inbox_items, list):
+            inbox_items = [str(inbox_items)]
+        if rel_inbox not in inbox_items:
+            inbox_items.append(rel_inbox)
+        meta["inbox_items"] = inbox_items
+        meta["updated"] = today()
+        set_frontmatter(paper_path, meta, body)
+    reading_key = f"{projection_event_id}:inbox-injection" if projection_event_id else ""
+    ledger_before = load_reading_ledger(ws, str(record["source_id"]))
+    already_recorded = bool(reading_key) and any(
+        event.get("idempotency_key") == reading_key
+        for event in ledger_before.get("events", [])
+        if isinstance(event, dict)
+    )
+    append_reading_event(
+        ws,
+        source_id=str(record["source_id"]),
+        event_type="inbox-injection",
+        summary=f"Inbox item linked to paper page as source identity/backlink only: {rel_inbox}.",
+        knowledge_path=rel_paper,
+        details={"inbox_path": rel_inbox, "created_paper": created},
+        idempotency_key=reading_key,
+    )
+    if not already_recorded:
+        append_log(ws, "inbox-inject", f"{record['source_id']} {rel_inbox} -> {rel_paper}")
+    return {"paper_path": rel_paper, "created_paper": created}
+
+
+def create_inbox_item(
+    ws: Workspace,
+    *,
+    title: str,
+    origin: str,
+    source_url: str = "",
+    doi: str = "",
+    clip: str = "",
+    reader_note: str = "",
+    agent_note: str = "",
+    topic_id: str = "",
+    inject: bool = True,
+    projection_event_id: str = "",
+) -> dict[str, Any]:
+    ws.ensure_base()
+    title = title.strip()
+    if not title:
+        raise SystemExit("inbox title cannot be empty")
+    for field, value, max_chars in (
+        ("title", title, INBOX_TITLE_MAX_CHARS),
+        ("source_url", source_url, INBOX_NOTE_MAX_CHARS),
+        ("clip", clip, INBOX_CLIP_MAX_CHARS),
+        ("reader_note", reader_note, INBOX_NOTE_MAX_CHARS),
+        ("agent_note", agent_note, INBOX_NOTE_MAX_CHARS),
+    ):
+        assert_public_safe_inbox_value(value, field=field, max_chars=max_chars)
+    if origin == "chatgpt-web" and source_url and not CHATGPT_SHARE_RE.match(source_url.strip()):
+        raise SystemExit("chatgpt-web source_url must be a https://chatgpt.com/share/... link or omitted")
+
+    deterministic_dest: Path | None = None
+    if projection_event_id:
+        event_slug = slugify(projection_event_id, 120)
+        if not event_slug:
+            raise SystemExit("inbox projection_event_id is invalid")
+        deterministic_dest = ws.paths.knowledge / "inbox" / f"{event_slug}.md"
+        if deterministic_dest.exists():
+            meta, _ = parse_frontmatter(read_text(deterministic_dest))
+            if meta.get("projection_complete") is True:
+                return {
+                    "path": relative_workspace_path(ws, deterministic_dest),
+                    "source_id": str(meta.get("source_id", "")),
+                    "doi": str(meta.get("doi", "")),
+                    "injection_status": str(meta.get("injection_status", "already-projected")),
+                    "paper_path": str(meta.get("paper_path", "")),
+                }
+
+    explicit_doi = doi.strip()
+    if explicit_doi:
+        normalized_doi = extract_doi(explicit_doi)
+        if not normalized_doi:
+            raise SystemExit("inbox doi must look like a DOI, e.g. 10.1234/example")
+    else:
+        normalized_doi = extract_doi("\n".join([source_url, title, clip]))
+    record: dict[str, Any] | None = None
+    if normalized_doi:
+        record = create_source(
+            ws,
+            kind="doi",
+            value=normalized_doi,
+            title=title,
+            topic_id=topic_id,
+            note="Captured via RKF inbox; inbox notes remain candidates until reviewed.",
+        )
+    elif source_url.strip():
+        record = create_source(
+            ws,
+            kind="url",
+            value=source_url.strip(),
+            title=title,
+            topic_id=topic_id,
+            note="Captured via RKF inbox; web clip remains a candidate until reviewed.",
+        )
+
+    base_slug = f"{today()}_{slugify(title, 60)}"
+    dest = deterministic_dest or ws.paths.knowledge / "inbox" / f"{base_slug}.md"
+    if deterministic_dest is None and dest.exists():
+        dest = ws.paths.knowledge / "inbox" / f"{base_slug}_{now_stamp()}.md"
+    source_id = str(record["source_id"]) if record else ""
+    source_url = source_url.strip()
+    injection_status = "skipped"
+    paper_path = ""
+    projection_complete = not bool(projection_event_id)
+
+    def write_item() -> None:
+        meta = {
+            "type": "inbox",
+            "status": "captured",
+            "capture_origin": origin,
+            "source_url": source_url,
+            "doi": normalized_doi,
+            "source_id": source_id,
+            "paper_path": paper_path,
+            "review_stage": "inbox-review",
+            "evidence_boundary": "inbox-only",
+            "evidence_tier": "candidate",
+            "claim_readiness": "not-ready",
+            "projection_event_id": projection_event_id,
+            "projection_complete": projection_complete,
+            "injection_status": injection_status,
+            "topics": [topic_id] if topic_id else [],
+            "created": today(),
+            "updated": today(),
+        }
+        body = render_inbox_body(
+            title=title,
+            origin=origin,
+            source_url=source_url,
+            doi=normalized_doi,
+            source_id=source_id,
+            clip=clip,
+            reader_note=reader_note,
+            agent_note=agent_note,
+            injection_status=injection_status,
+            paper_path=paper_path,
+        )
+        write_text(dest, frontmatter(meta) + body)
+
+    write_item()
+    if inject and record and normalized_doi:
+        injection = guarded_inject_inbox_item(
+            ws,
+            record=record,
+            inbox_path=dest,
+            projection_event_id=projection_event_id,
+        )
+        paper_path = str(injection["paper_path"])
+        injection_status = "paper-created" if injection["created_paper"] else "paper-backlinked"
+        write_item()
+    elif record and normalized_doi:
+        injection_status = "disabled"
+        write_item()
+    projection_complete = True
+    write_item()
+
+    rel_dest = relative_workspace_path(ws, dest)
+    append_log(ws, "inbox-capture", f"{rel_dest} origin={origin} source_id={source_id or 'none'} injection={injection_status}")
+    return {
+        "path": rel_dest,
+        "source_id": source_id,
+        "doi": normalized_doi,
+        "injection_status": injection_status,
+        "paper_path": paper_path,
+    }
+
+
 def hot_event_id(*, created: str, origin: str, intent: str, normalized_query: str, topic_ids: list[str]) -> str:
     payload = json.dumps(
         {
@@ -714,6 +1404,7 @@ def record_hot_query(
     paper_leads: list[str] | None = None,
     notes: str = "",
     created: str = "",
+    projection_event_id: str = "",
 ) -> dict[str, Any]:
     ws.ensure_base()
     assert_public_safe_hot_value(query, field="query", max_chars=HOT_QUERY_MAX_CHARS)
@@ -728,7 +1419,8 @@ def record_hot_query(
     topic_ids, topic_fit = infer_hot_topics(ws, query, topic_id)
     event = {
         "schema": HOT_EVENT_SCHEMA,
-        "event_id": hot_event_id(
+        "event_id": projection_event_id
+        or hot_event_id(
             created=created,
             origin=origin,
             intent=intent,
@@ -839,6 +1531,8 @@ def append_hot_record(ws: Workspace, event: dict[str, Any]) -> None:
     start = text.index(HOT_RECORDS_START) + len(HOT_RECORDS_START)
     end = text.index(HOT_RECORDS_END, start)
     existing = text[start:end].strip("\n")
+    if record_line in existing.splitlines():
+        return
     replacement = "\n" + (existing + "\n" if existing else "") + record_line + "\n"
     write_text(ws.paths.hot_md, text[:start] + replacement + text[end:])
 
@@ -868,6 +1562,100 @@ def _format_counter(counter: Counter[str], *, empty: str) -> list[str]:
     if not counter:
         return [f"- {empty}"]
     return [f"- {name}: {count}" for name, count in counter.most_common()]
+
+
+def _critical_fact_lines(ws: Workspace, *, limit: int = 8) -> list[str]:
+    if not ws.paths.critical_facts.exists():
+        return ["- No CRITICAL_FACTS.md found."]
+    facts: list[str] = []
+    for line in read_text(ws.paths.critical_facts).splitlines():
+        stripped = line.strip()
+        if not stripped or stripped.startswith("#") or stripped.startswith("<!--"):
+            continue
+        if stripped.startswith("- "):
+            facts.append(stripped)
+        if len(facts) >= limit:
+            break
+    return facts or ["- CRITICAL_FACTS.md has no active fact lines."]
+
+
+def _hot_query_lines(ws: Workspace, *, limit: int = 6) -> list[str]:
+    events = recent_hot_events(ws) if ws.paths.hot_md.exists() else []
+    if not events:
+        return ["- No hot-query events in the active window."]
+    lines: list[str] = []
+    for event in events[-limit:]:
+        query = str(event.get("query") or event.get("normalized_query") or "").strip()
+        if not query:
+            continue
+        topics = ", ".join(str(item) for item in event.get("topic_ids", []) if str(item).strip()) or "untriaged"
+        intent = str(event.get("intent", "query"))
+        lines.append(f"- {query} | intent={intent} | topics={topics}")
+    return lines or ["- No hot-query events in the active window."]
+
+
+def _recent_reading_event_lines(ws: Workspace, *, limit: int = 6) -> list[str]:
+    if not ws.paths.reading.exists():
+        return ["- No reading ledger events found."]
+    events: list[tuple[str, str]] = []
+    for path in sorted(ws.paths.reading.glob("*.json")):
+        if path.parent.name == "fulltext_routes":
+            continue
+        try:
+            ledger = read_json(path)
+        except (OSError, json.JSONDecodeError):
+            continue
+        source_id = str(ledger.get("source_id") or path.stem)
+        for event in ledger.get("events", []):
+            if not isinstance(event, dict):
+                continue
+            created = str(event.get("created") or event.get("observed_at") or "")
+            event_type = str(event.get("type") or "reading-update")
+            summary = str(event.get("summary") or event.get("note") or "").strip()
+            if summary:
+                events.append((created, f"- {created or 'unknown-date'} {source_id} {event_type}: {summary}"))
+    events.sort(key=lambda item: item[0], reverse=True)
+    return [line for _, line in events[:limit]] or ["- No reading ledger events found."]
+
+
+def _active_blocker_lines(ws: Workspace, *, limit: int = 8) -> list[str]:
+    blockers: list[str] = []
+    for path, meta, text in knowledge_page_records(ws):
+        readiness = str(meta.get("claim_readiness", "")).strip()
+        fulltext_status = str(meta.get("fulltext_status", "")).strip()
+        if fulltext_status in {"needs-user-pdf", "blocked", "unavailable"}:
+            blockers.append(f"- {relative_workspace_path(ws, path)}: fulltext_status={fulltext_status}")
+        if readiness in {"not-ready", "locator-needed"}:
+            blockers.append(f"- {relative_workspace_path(ws, path)}: claim_readiness={readiness}")
+        for line in text.splitlines():
+            lowered = line.lower()
+            if "blocker" in lowered and line.strip().startswith(("-", "*")):
+                blockers.append(f"- {relative_workspace_path(ws, path)}: {line.strip().lstrip('-* ').strip()}")
+                break
+        if len(blockers) >= limit:
+            break
+    return blockers[:limit] or ["- No active blockers detected in frontmatter or blocker bullets."]
+
+
+def _claim_readiness_lines(ws: Workspace) -> list[str]:
+    readiness = Counter(
+        str(meta.get("claim_readiness", "unknown"))
+        for _, meta, _ in knowledge_page_records(ws)
+        if meta.get("type") in {"paper", "claim", "synthesis"}
+    )
+    return _format_counter(readiness, empty="No paper, claim, or synthesis readiness fields.")
+
+
+def _contradiction_hint_lines(ws: Workspace, *, limit: int = 6) -> list[str]:
+    hints: list[str] = []
+    patterns = ("contradict", "conflict", "disagree", "in tension", "blocker")
+    for path, meta, text in knowledge_page_records(ws):
+        haystack = f"{meta}\n{text}".lower()
+        if any(pattern in haystack for pattern in patterns):
+            hints.append(f"- {relative_workspace_path(ws, path)}")
+        if len(hints) >= limit:
+            break
+    return hints or ["- No contradiction hints detected by keyword scan."]
 
 
 def render_hot_markdown(ws: Workspace, *, days: int = HOT_DEFAULT_WINDOW_DAYS) -> str:
@@ -968,11 +1756,22 @@ def generate_wiki_index(ws: Workspace) -> Path:
             review_stage = meta.get("review_stage", "unknown") if meta else "unknown"
             boundary = meta.get("evidence_boundary", "") if meta else ""
             tier = infer_evidence_tier(meta, body) if meta else "review-blocker"
+            maturity_bits: list[str] = []
+            if page_type == "paper":
+                maturity_bits.append(f"reading={meta.get('reading_state', meta.get('reading_status', 'unknown'))}")
+                maturity_bits.append(f"fulltext={meta.get('fulltext_status', 'unknown')}")
+                maturity_bits.append(f"human={meta.get('human_feedback_level', 'unknown')}")
+                maturity_bits.append(f"claim={meta.get('claim_readiness', 'unknown')}")
+            if page_type == "synthesis":
+                maturity_bits.append(f"maturity={meta.get('synthesis_maturity', 'unknown')}")
+                maturity_bits.append(f"coverage={meta.get('source_coverage', 'unknown')}")
+                maturity_bits.append(f"claim={meta.get('claim_readiness', 'unknown')}")
+            maturity = f"; {'; '.join(maturity_bits)}" if maturity_bits else ""
             summary = first_summary_line(body)
             suffix = f" - {summary}" if summary else ""
             lines.append(
                 f"- [{title}]({rel}): type={page_type}; status={status}; review={review_stage}; "
-                f"evidence={boundary or 'unspecified'}; tier={tier}; topics={topics or 'none'}{suffix}"
+                f"evidence={boundary or 'unspecified'}; tier={tier}; topics={topics or 'none'}{maturity}{suffix}"
             )
             page_count += 1
     if page_count == 0:
@@ -991,6 +1790,30 @@ def generate_wiki_index(ws: Workspace) -> Path:
     write_text(ws.paths.index, "\n".join(lines).rstrip() + "\n")
     append_log(ws, "index", f"generated {relative_workspace_path(ws, ws.paths.index)} with {page_count} knowledge pages")
     return ws.paths.index
+
+
+def _source_records(ws: Workspace) -> dict[str, dict[str, Any]]:
+    records: dict[str, dict[str, Any]] = {}
+    if not ws.paths.sources.exists():
+        return records
+    for path in sorted(ws.paths.sources.glob("*.json")):
+        record = read_json(path)
+        source_id = str(record.get("source_id", ""))
+        if source_id:
+            records[source_id] = record
+    return records
+
+
+def _evidence_records(ws: Workspace) -> dict[str, dict[str, Any]]:
+    records: dict[str, dict[str, Any]] = {}
+    if not ws.paths.evidence_index.exists():
+        return records
+    for path in sorted(ws.paths.evidence_index.glob("*.json")):
+        record = read_json(path)
+        evidence_id = str(record.get("evidence_id", ""))
+        if evidence_id:
+            records[evidence_id] = record
+    return records
 
 
 def lint_topics(ws: Workspace) -> list[str]:
@@ -1017,13 +1840,96 @@ def lint_topics(ws: Workspace) -> list[str]:
     return errors
 
 
+def lint_graph_links(ws: Workspace) -> list[str]:
+    errors: list[str] = []
+    sources = _source_records(ws)
+    evidence = _evidence_records(ws)
+    topics = {str(topic.get("topic_id", "")) for topic in ws.load_topics() if str(topic.get("topic_id", "")).strip()}
+    check_topics = bool(topics)
+
+    for source_id, record in sources.items():
+        for evidence_id in record.get("evidence_ids", []):
+            if str(evidence_id) not in evidence:
+                errors.append(f"{source_id}: missing evidence artifact {evidence_id}")
+        if check_topics:
+            for topic_id in record.get("topic_ids", []):
+                if str(topic_id) not in topics:
+                    errors.append(f"{source_id}: unknown topic {topic_id}")
+
+    for evidence_id, artifact in evidence.items():
+        source_id = str(artifact.get("source_id", ""))
+        if source_id and source_id not in sources:
+            errors.append(f"{evidence_id}: missing source record {source_id}")
+
+    records = knowledge_page_records(ws)
+    paper_ids = {
+        path.relative_to(ws.paths.knowledge).with_suffix("").as_posix()
+        for path, meta, _ in records
+        if meta.get("type") == "paper"
+    }
+    for path, meta, body in records:
+        rel = relative_workspace_path(ws, path)
+        source_id = str(meta.get("source_id", ""))
+        if source_id and source_id not in sources:
+            errors.append(f"{rel}: missing source record {source_id}")
+        for evidence_id in meta.get("evidence_ids", []):
+            if str(evidence_id) not in evidence:
+                errors.append(f"{rel}: missing evidence artifact {evidence_id}")
+        if check_topics:
+            for topic_id in meta.get("topics", []):
+                if str(topic_id) not in topics:
+                    errors.append(f"{rel}: unknown topic {topic_id}")
+        relations = meta.get("paper_relations", [])
+        if relations and not isinstance(relations, list):
+            errors.append(f"{rel}: paper_relations must be a list")
+            continue
+        for relation in relations:
+            if not isinstance(relation, dict):
+                errors.append(f"{rel}: paper relation must be a mapping")
+                continue
+            paper_id = str(relation.get("paper_id", ""))
+            relation_type = str(relation.get("relation", ""))
+            if relation_type not in PAPER_RELATION_TYPES:
+                errors.append(f"{rel}: unknown paper relation {relation_type!r}")
+            if paper_id not in paper_ids:
+                errors.append(f"{rel}: missing paper relation target {paper_id}")
+                continue
+            target_path = ws.paths.knowledge / f"{paper_id}.md"
+            body_link = os.path.relpath(target_path, start=path.parent).replace(os.sep, "/")
+            if not re.search(r"\]\(" + re.escape(body_link) + r"(?:#[^)]+)?\)", body):
+                errors.append(f"{rel}: paper relation missing body link to {paper_id}")
+    return errors
+
+
+def lint_ars_handoff(ws: Workspace) -> list[str]:
+    errors: list[str] = []
+    proposal_boundaries = {"ars-proposal", "review-blocker"}
+    for path, meta, body in knowledge_page_records(ws):
+        rel = relative_workspace_path(ws, path)
+        page_type = str(meta.get("type", ""))
+        boundary = str(meta.get("evidence_boundary", ""))
+        status = str(meta.get("status", ""))
+        evidence_tier = str(meta.get("evidence_tier", ""))
+        has_ars_marker = "source_from_ars" in meta or "source_from_ars:" in body
+
+        if page_type == "paper" and boundary == "ars-proposal":
+            errors.append(f"{rel}: paper pages cannot use ARS output as evidence")
+        if has_ars_marker and boundary not in proposal_boundaries:
+            errors.append(f"{rel}: ARS-derived material must use ars-proposal or review-blocker boundary")
+        if boundary == "ars-proposal" and status == "reviewed":
+            errors.append(f"{rel}: ARS proposal cannot be reviewed without evidence promotion")
+        if boundary == "ars-proposal" and evidence_tier and evidence_tier != "review-blocker":
+            errors.append(f"{rel}: ARS proposal must not claim evidence tier {evidence_tier}")
+    return errors
+
+
 def lint_knowledge_pages(ws: Workspace) -> list[str]:
     errors: list[str] = []
     if not ws.paths.knowledge.exists():
         return errors
     for path in ws.paths.knowledge.rglob("*.md"):
         text = read_text(path)
-        meta, _ = parse_frontmatter(text)
+        meta, body = parse_frontmatter(text)
         rel = relative_workspace_path(ws, path)
         if not meta:
             errors.append(f"{rel}: missing YAML frontmatter")
@@ -1038,13 +1944,825 @@ def lint_knowledge_pages(ws: Workspace) -> list[str]:
             reading_status = str(meta.get("reading_status", ""))
             if reading_status not in PAPER_READING_STATUSES:
                 errors.append(f"{rel}: invalid paper reading_status {reading_status!r}")
-            if reading_status != "full-read" and meta.get("status") not in {"draft", "review"}:
+            if reading_status not in {"full-read", "fulltext-read", "human-reviewed"} and meta.get("status") not in {"draft", "review", "needs-verification"}:
                 errors.append(f"{rel}: non-full-read paper pages must stay draft or review")
-            if meta.get("evidence_boundary") != "pdf-evidence":
-                errors.append(f"{rel}: paper page must use pdf-evidence boundary")
-            if not meta.get("evidence_ids"):
-                errors.append(f"{rel}: paper page missing PDF evidence id")
+            maturity_keys = {
+                "reading_state",
+                "fulltext_status",
+                "human_feedback_level",
+                "understanding_confidence",
+                "claim_readiness",
+                "reading_ledger",
+            }
+            legacy_paper = not any(meta.get(key) for key in maturity_keys)
+            for key, allowed in (
+                ("reading_state", PAPER_READING_STATUSES),
+                ("fulltext_status", FULLTEXT_STATUSES),
+                ("human_feedback_level", HUMAN_FEEDBACK_LEVELS),
+                ("understanding_confidence", UNDERSTANDING_CONFIDENCES),
+                ("claim_readiness", CLAIM_READINESS),
+            ):
+                value = str(meta.get(key, ""))
+                if value and value not in allowed:
+                    errors.append(f"{rel}: invalid {key} {value!r}")
+                if not value and not legacy_paper:
+                    errors.append(f"{rel}: missing {key}")
+            if not meta.get("reading_ledger") and not legacy_paper:
+                errors.append(f"{rel}: paper page missing reading_ledger")
+            claim_readiness = str(meta.get("claim_readiness", ""))
+            if claim_readiness in {"claim-ready", "synthesis-ready"}:
+                has_support = bool(meta.get("evidence_ids")) or str(meta.get("human_feedback_level", "")) in {"annotated", "trusted"}
+                if not has_support:
+                    errors.append(f"{rel}: claim-ready paper needs evidence id or strong human feedback")
+            if meta.get("schema") == "rkf-paper-v1.1":
+                if meta.get("reading_state") != meta.get("reading_status"):
+                    errors.append(f"{rel}: reading_status must equal reading_state")
+                for heading in PAPER_V11_SECTIONS:
+                    if f"## {heading}" not in body:
+                        errors.append(f"{rel}: missing canonical paper section {heading}")
+        if page_type == "synthesis":
+            for key, allowed in (
+                ("synthesis_maturity", SYNTHESIS_MATURITY),
+                ("source_coverage", SOURCE_COVERAGE),
+                ("human_feedback_level", HUMAN_FEEDBACK_LEVELS),
+                ("claim_readiness", CLAIM_READINESS),
+            ):
+                value = str(meta.get(key, ""))
+                if value and value not in allowed:
+                    errors.append(f"{rel}: invalid {key} {value!r}")
+        stable_ai_integrated = bool(meta.get("ai_integrated")) and (
+            str(meta.get("status", "")) == "reviewed"
+            or str(meta.get("claim_readiness", "")) in {"claim-ready", "synthesis-ready"}
+            or str(meta.get("synthesis_maturity", "")) in {"human-reviewed", "publication-ready"}
+        )
+        if stable_ai_integrated:
+            if "## AI Integration Note" not in text:
+                errors.append(f"{rel}: AI-integrated stable content missing AI Integration Note")
+            for key in ("observed_at", "valid_from"):
+                if not meta.get(key):
+                    errors.append(f"{rel}: AI-integrated stable content missing {key}")
     return errors
+
+
+def _resolve_knowledge_path(ws: Workspace, target: str) -> Path | None:
+    raw = Path(target).expanduser()
+    candidates: list[Path] = []
+    if raw.is_absolute():
+        candidates.append(raw)
+    else:
+        candidates.extend(
+            [
+                ws.paths.wiki_root / raw,
+                ws.root / raw,
+                ws.paths.knowledge / raw,
+            ]
+        )
+        if raw.suffix != ".md":
+            candidates.extend(
+                [
+                    ws.paths.wiki_root / f"{target}.md",
+                    ws.root / f"{target}.md",
+                    ws.paths.knowledge / f"{target}.md",
+                ]
+            )
+    for candidate in candidates:
+        if candidate.exists() and candidate.is_file():
+            return candidate.resolve()
+    return None
+
+
+def _target_words(title: str, body: str) -> set[str]:
+    words = set(re.findall(r"[a-z0-9][a-z0-9-]{3,}", f"{title} {first_summary_line(body)}".lower()))
+    return {word.strip("-") for word in words if len(word.strip("-")) >= 4}
+
+
+def propose_propagation(ws: Workspace, target: str, *, write: bool = False) -> dict[str, Any]:
+    ws.ensure_base()
+    sources = _source_records(ws)
+    evidence = _evidence_records(ws)
+    target_id = target
+    target_kind = "unknown"
+    target_title = target
+    target_topics: set[str] = set()
+    target_evidence: set[str] = set()
+    target_source = ""
+    target_terms: set[str] = set()
+    target_boundary = ""
+    target_tier = ""
+    target_path: Path | None = None
+
+    if target in sources:
+        record = sources[target]
+        target_kind = "source"
+        target_id = target
+        target_title = str(record.get("title") or record.get("value") or target)
+        target_topics = {str(item) for item in record.get("topic_ids", []) if str(item).strip()}
+        target_evidence = {str(item) for item in record.get("evidence_ids", []) if str(item).strip()}
+        target_source = target
+    else:
+        target_path = _resolve_knowledge_path(ws, target)
+        if target_path is None:
+            raise SystemExit(f"propagation target not found: {target}")
+        meta, body = parse_frontmatter(read_text(target_path))
+        if not meta:
+            raise SystemExit(f"propagation target has no frontmatter: {target}")
+        target_kind = str(meta.get("type", "knowledge"))
+        target_id = relative_workspace_path(ws, target_path)
+        target_title = first_heading(body, target_path.stem.replace("_", " ").replace("-", " ").title())
+        target_topics = {str(item) for item in meta.get("topics", []) if str(item).strip()}
+        target_evidence = {str(item) for item in meta.get("evidence_ids", []) if str(item).strip()}
+        target_source = str(meta.get("source_id", ""))
+        target_terms = _target_words(target_title, body)
+        target_boundary = str(meta.get("evidence_boundary", ""))
+        target_tier = infer_evidence_tier(meta, body)
+
+    impacts: list[dict[str, Any]] = []
+    for path, meta, body in knowledge_page_records(ws):
+        if target_path is not None and path.resolve() == target_path:
+            continue
+        reasons: list[str] = []
+        page_topics = {str(item) for item in meta.get("topics", []) if str(item).strip()}
+        shared_topics = sorted(target_topics & page_topics)
+        if shared_topics:
+            reasons.append("shared topics: " + ", ".join(shared_topics))
+        page_evidence = {str(item) for item in meta.get("evidence_ids", []) if str(item).strip()}
+        shared_evidence = sorted(target_evidence & page_evidence)
+        if shared_evidence:
+            reasons.append("shared evidence: " + ", ".join(shared_evidence))
+        page_source = str(meta.get("source_id", ""))
+        if target_source and page_source == target_source:
+            reasons.append(f"same source: {target_source}")
+        page_terms = _target_words(first_heading(body, path.stem), body)
+        shared_terms = sorted(target_terms & page_terms)
+        if len(shared_terms) >= 2:
+            reasons.append("term overlap: " + ", ".join(shared_terms[:5]))
+        if reasons:
+            impacts.append(
+                {
+                    "path": relative_workspace_path(ws, path),
+                    "type": meta.get("type", "knowledge"),
+                    "reasons": reasons,
+                    "recommendation": "review-before-update",
+                }
+            )
+
+    blockers: list[str] = []
+    if target_kind != "source" and target_boundary in {"ars-proposal", "review-blocker"}:
+        blockers.append(f"target boundary is {target_boundary}; do not promote without evidence review")
+    if target_kind != "source" and target_tier == "review-blocker":
+        blockers.append("target evidence tier is review-blocker")
+    if target_kind == "source" and target_source in sources and not sources[target_source].get("evidence_ids"):
+        blockers.append("source has no evidence artifacts yet")
+
+    proposal = {
+        "schema": "rkf-propagation-proposal-v1",
+        "created": today(),
+        "target": target_id,
+        "target_type": target_kind,
+        "affected_pages": impacts,
+        "blockers": blockers,
+        "rule": "manual preview/audit fallback; use evolve for maturity-aware low-risk integration",
+    }
+    if write:
+        proposal_path = ws.paths.gates / "propagation" / f"{slugify(target_id, 48)}_{now_stamp()}.md"
+        lines = [
+            "# Propagation Review Proposal",
+            "",
+            f"- Target: {target_id}",
+            f"- Target type: {target_kind}",
+            f"- Created: {today()}",
+            "- Rule: manual preview/audit fallback; use evolve for maturity-aware low-risk integration",
+            "",
+            "## Affected Pages",
+            "",
+        ]
+        if impacts:
+            for item in impacts:
+                lines.append(f"- {item['path']} ({item['type']}): {'; '.join(item['reasons'])}")
+        else:
+            lines.append("- No affected pages found.")
+        lines.extend(["", "## Review Blockers", ""])
+        if blockers:
+            lines.extend(f"- {item}" for item in blockers)
+        else:
+            lines.append("- No deterministic blockers found.")
+        write_text(proposal_path, "\n".join(lines) + "\n")
+        proposal["proposal_path"] = relative_workspace_path(ws, proposal_path)
+    append_log(ws, "propagate", f"{target_id} affected={len(impacts)} proposal={proposal['proposal_path']}")
+    return proposal
+
+
+def _replace_or_append_section(body: str, heading: str, content: str) -> str:
+    heading_line = f"## {heading}"
+    pattern = re.compile(rf"(^## {re.escape(heading)}\n)(.*?)(?=^## |\Z)", re.DOTALL | re.MULTILINE)
+    replacement = f"{heading_line}\n\n{content.strip()}\n\n"
+    if pattern.search(body):
+        return pattern.sub(replacement, body).rstrip() + "\n"
+    return body.rstrip() + "\n\n" + replacement
+
+
+def _ensure_future_agent_brief(body: str, *, trust_level: str, gaps: str, next_action: str) -> str:
+    if re.search(r"^## Future Agent Retrieval Brief\b", body, flags=re.MULTILINE):
+        return body
+    content = (
+        "- Read this page when: future agents need the current maturity-aware interpretation for this object.\n"
+        f"- Trust level: {trust_level}\n"
+        f"- Current gaps: {gaps}\n"
+        f"- Next best action: {next_action}"
+    )
+    return _replace_or_append_section(body, "Future Agent Retrieval Brief", content)
+
+
+def evolve_page(
+    ws: Workspace,
+    target: str,
+    *,
+    note: str,
+    input_source: str = "codex",
+    priority: str = "low",
+    blocker: str = "",
+    write: bool = True,
+) -> dict[str, Any]:
+    ws.ensure_base()
+    if priority not in {"low", "medium", "high"}:
+        raise SystemExit(f"unsupported evolve priority: {priority}")
+    for field, value in (("evolve note", note), ("input source", input_source), ("blocker", blocker)):
+        if value:
+            assert_public_safe_hot_value(value, field=field, max_chars=HOT_NOTES_MAX_CHARS)
+    path = _resolve_knowledge_path(ws, target)
+    if path is None:
+        raise SystemExit(f"evolve target not found: {target}")
+    text = read_text(path)
+    meta, body = parse_frontmatter(text)
+    if not meta:
+        raise SystemExit(f"evolve target has no frontmatter: {target}")
+
+    page_type = str(meta.get("type", "knowledge"))
+    risk_blockers: list[str] = []
+    if priority == "high":
+        risk_blockers.append(blocker or "High-risk stable claim, source conflict, publication-ready synthesis, or delete/merge choice requires human review.")
+    if page_type == "claim" and priority != "low":
+        risk_blockers.append("Claim-like content remains not-ready until locator, human feedback, or explicit blocker is reviewed.")
+    if page_type == "synthesis" and priority == "high":
+        meta["synthesis_maturity"] = "draft"
+        meta["source_coverage"] = str(meta.get("source_coverage") or "unknown")
+
+    meta["ai_integrated"] = True
+    meta["ai_integration_priority"] = priority
+    meta["last_ai_integration"] = today()
+    meta["updated"] = today()
+    if page_type in {"paper", "claim", "synthesis"} and priority == "high":
+        meta["claim_readiness"] = "not-ready"
+    elif page_type == "synthesis":
+        meta.setdefault("synthesis_maturity", "draft")
+        meta.setdefault("source_coverage", "unknown")
+        meta.setdefault("claim_readiness", "not-ready")
+
+    remaining_blocker = "; ".join(dict.fromkeys(risk_blockers)) if risk_blockers else blocker
+    if not remaining_blocker:
+        remaining_blocker = "none for low-risk integration; stable claims still need normal evidence boundary."
+    note_content = (
+        "- ai_integrated: true\n"
+        f"- integrated_at: {today()}\n"
+        f"- priority: {priority}\n"
+        f"- reason: {note.strip()}\n"
+        f"- input_source: {input_source.strip()}\n"
+        f"- remaining_blocker: {remaining_blocker}"
+    )
+    body = _ensure_future_agent_brief(
+        body,
+        trust_level="low maturity until human review or locator support is added" if priority != "low" else "low-risk operational update",
+        gaps=remaining_blocker,
+        next_action="review blockers before promoting stable claims" if risk_blockers else "continue normal reading maturity updates",
+    )
+    body = _replace_or_append_section(body, "AI Integration Note", note_content)
+
+    updated_text = frontmatter(meta) + body.rstrip() + "\n"
+    rel = relative_workspace_path(ws, path)
+    if write:
+        write_text(path, updated_text)
+        append_log(ws, "evolve", f"{rel} priority={priority} ai_integrated=true")
+    return {
+        "path": rel,
+        "priority": priority,
+        "ai_integrated": True,
+        "blockers": risk_blockers,
+        "wrote": write,
+    }
+
+
+STANCE_PATTERNS = {
+    "increase": re.compile(r"\b(increase|increases|increased|increasing|higher|strengthen|strengthens|enhance|enhances)\b", re.IGNORECASE),
+    "decrease": re.compile(r"\b(decrease|decreases|decreased|decreasing|lower|reduce|reduces|weaken|weakens|suppress|suppresses)\b", re.IGNORECASE),
+    "support": re.compile(r"\b(support|supports|supported|consistent with|confirms)\b", re.IGNORECASE),
+    "oppose": re.compile(r"\b(oppose|opposes|contradict|contradicts|conflict|conflicts|inconsistent with)\b", re.IGNORECASE),
+}
+
+
+def _stance_set(text: str) -> set[str]:
+    return {name for name, pattern in STANCE_PATTERNS.items() if pattern.search(text)}
+
+
+def _stances_conflict(left: set[str], right: set[str]) -> bool:
+    return bool(
+        ({"increase", "decrease"} <= (left | right) and left != right)
+        or ({"support", "oppose"} <= (left | right) and left != right)
+    )
+
+
+def _page_summary(path: Path, meta: dict[str, Any], body: str) -> dict[str, Any]:
+    return {
+        "path": path,
+        "rel": "",
+        "title": first_heading(body, path.stem.replace("_", " ").replace("-", " ").title()),
+        "type": str(meta.get("type", "knowledge")),
+        "topics": {str(item) for item in meta.get("topics", []) if str(item).strip()},
+        "stances": _stance_set(body),
+        "body": body,
+    }
+
+
+def contradiction_pairs(ws: Workspace, *, topic_id: str = "", limit: int = 20) -> list[dict[str, Any]]:
+    pages: list[dict[str, Any]] = []
+    for path, meta, body in knowledge_page_records(ws):
+        page_type = str(meta.get("type", ""))
+        if page_type not in {"claim", "synthesis", "concept", "paper", "topic"}:
+            continue
+        summary = _page_summary(path, meta, body)
+        summary["rel"] = relative_workspace_path(ws, path)
+        if topic_id and topic_id not in summary["topics"]:
+            continue
+        if summary["stances"] or "conflicts_with" in body or "contradiction" in body.lower():
+            pages.append(summary)
+
+    pairs: list[dict[str, Any]] = []
+    for index, left in enumerate(pages):
+        for right in pages[index + 1 :]:
+            shared_topics = sorted(left["topics"] & right["topics"])
+            explicit_conflict = right["rel"] in left["body"] or left["rel"] in right["body"]
+            if not shared_topics and not explicit_conflict:
+                continue
+            if not explicit_conflict and not _stances_conflict(left["stances"], right["stances"]):
+                continue
+            reason = "explicit conflicts_with marker" if explicit_conflict else "opposing stance keywords"
+            pairs.append(
+                {
+                    "left": left["rel"],
+                    "right": right["rel"],
+                    "topics": shared_topics,
+                    "reason": reason,
+                    "left_stances": sorted(left["stances"]),
+                    "right_stances": sorted(right["stances"]),
+                }
+            )
+            if len(pairs) >= limit:
+                return pairs
+    return pairs
+
+
+def reconcile_workspace(
+    ws: Workspace,
+    *,
+    topic_id: str = "",
+    write: bool = True,
+    limit: int = 10,
+) -> dict[str, Any]:
+    pairs = contradiction_pairs(ws, topic_id=topic_id, limit=limit)
+    updated: list[str] = []
+    if write:
+        for pair in pairs:
+            for target, other in ((pair["left"], pair["right"]), (pair["right"], pair["left"])):
+                result = evolve_page(
+                    ws,
+                    target,
+                    note=f"Reconcile detected contradiction with {other}.",
+                    input_source="rkf-reconcile",
+                    priority="high",
+                    blocker=f"Contradiction with {other}; requires human review before stable synthesis or claim promotion.",
+                    write=True,
+                )
+                updated.append(str(result["path"]))
+    return {
+        "pairs": pairs,
+        "updated_pages": sorted(set(updated)),
+        "wrote": write,
+    }
+
+
+def challenge_page(ws: Workspace, target: str, *, limit: int = 5) -> dict[str, Any]:
+    path = _resolve_knowledge_path(ws, target)
+    if path is None:
+        raise SystemExit(f"challenge target not found: {target}")
+    meta, body = parse_frontmatter(read_text(path))
+    if not meta:
+        raise SystemExit(f"challenge target has no frontmatter: {target}")
+    rel = relative_workspace_path(ws, path)
+    topics = {str(item) for item in meta.get("topics", []) if str(item).strip()}
+    target_stances = _stance_set(body)
+    counterpoints: list[dict[str, Any]] = []
+    for other_path, other_meta, other_body in knowledge_page_records(ws):
+        if other_path.resolve() == path.resolve():
+            continue
+        other_topics = {str(item) for item in other_meta.get("topics", []) if str(item).strip()}
+        shared_topics = sorted(topics & other_topics)
+        other_stances = _stance_set(other_body)
+        if shared_topics and _stances_conflict(target_stances, other_stances):
+            counterpoints.append(
+                {
+                    "path": relative_workspace_path(ws, other_path),
+                    "reason": "opposing stance keywords",
+                    "topics": shared_topics,
+                    "summary": first_summary_line(other_body) or first_heading(other_body, other_path.stem),
+                }
+            )
+        elif shared_topics and ("Counter Evidence" in other_body or "Caveats" in other_body):
+            counterpoints.append(
+                {
+                    "path": relative_workspace_path(ws, other_path),
+                    "reason": "same-topic counter/caveat section",
+                    "topics": shared_topics,
+                    "summary": first_summary_line(other_body) or first_heading(other_body, other_path.stem),
+                }
+            )
+        if len(counterpoints) >= limit:
+            break
+    missing: list[str] = []
+    if not meta.get("evidence_ids"):
+        missing.append("No evidence_ids in target frontmatter.")
+    if not meta.get("observed_at") or not meta.get("valid_from"):
+        missing.append("Temporal metadata is incomplete.")
+    if str(meta.get("claim_readiness", "")) in {"claim-ready", "synthesis-ready"} and not meta.get("evidence_ids"):
+        missing.append("Claim-ready state lacks locator/evidence id in this page.")
+    return {
+        "target": rel,
+        "counterpoints": counterpoints,
+        "missing_evidence": missing,
+        "maturity_suggestions": [
+            "Keep challenge output as critique, not a stable claim.",
+            "Downgrade to not-ready or locator-needed if counterpoints are unresolved.",
+        ],
+    }
+
+
+def emerge_patterns(ws: Workspace, *, topic_id: str = "", limit: int = 8) -> list[dict[str, str]]:
+    patterns: list[dict[str, str]] = []
+    for item in paper_queue(ws):
+        if topic_id:
+            source = _source_records(ws).get(str(item["source_id"]), {})
+            source_topics = {str(value) for value in source.get("topic_ids", [])}
+            if topic_id not in source_topics:
+                continue
+        patterns.append(
+            {
+                "kind": "reading-queue",
+                "maturity": "low",
+                "summary": f"{item['source_id']} needs {item['action']} before stronger synthesis.",
+                "source_coverage": "partial",
+                "next_action": "; ".join(str(reason) for reason in item.get("reasons", [])) or "review reading state",
+            }
+        )
+        if len(patterns) >= limit:
+            return patterns
+
+    hot_counts: Counter[str] = Counter()
+    for event in recent_hot_events(ws) if ws.paths.hot_md.exists() else []:
+        topics = [str(value) for value in event.get("topic_ids", []) if str(value).strip()]
+        if topic_id and topic_id not in topics:
+            continue
+        query = str(event.get("normalized_query") or event.get("query") or "").strip()
+        if query:
+            hot_counts[query] += 1
+    for query, count in hot_counts.most_common(limit - len(patterns)):
+        patterns.append(
+            {
+                "kind": "hot-query",
+                "maturity": "low",
+                "summary": f"Repeated demand signal ({count}): {query}",
+                "source_coverage": "unknown",
+                "next_action": "map to topic, papers, or synthesis review",
+            }
+        )
+        if len(patterns) >= limit:
+            return patterns
+
+    for topic in ws.load_topics():
+        current_topic = str(topic.get("topic_id", ""))
+        if topic_id and current_topic != topic_id:
+            continue
+        patterns.append(
+            {
+                "kind": "topic-gap",
+                "maturity": "low",
+                "summary": f"Topic {current_topic or 'unknown'} may need pattern review: {topic.get('name', current_topic)}",
+                "source_coverage": "unknown",
+                "next_action": "review topic drift, stale synthesis, and reading queue",
+            }
+        )
+        if len(patterns) >= limit:
+            break
+    return patterns
+
+
+def write_emergent_synthesis(
+    ws: Workspace,
+    *,
+    patterns: list[dict[str, str]],
+    topic_id: str = "",
+) -> str:
+    ws.ensure_base()
+    slug_base = "emergent_patterns"
+    if topic_id:
+        slug_base += "_" + slugify(topic_id)
+    slug_base += "_" + today().replace("-", "_")
+    path = ws.paths.knowledge / "synthesis" / f"{slug_base}.md"
+    if path.exists():
+        path = ws.paths.knowledge / "synthesis" / f"{slug_base}_{now_stamp()}.md"
+    topics = [topic_id] if topic_id else []
+    pattern_lines = ["## Emerging Patterns", ""]
+    if patterns:
+        for pattern in patterns:
+            pattern_lines.append(
+                f"- kind={pattern['kind']} | maturity={pattern['maturity']} | coverage={pattern['source_coverage']} | {pattern['summary']}"
+            )
+            pattern_lines.append(f"  - next_action: {pattern['next_action']}")
+    else:
+        pattern_lines.append("- No deterministic pattern found.")
+    body = "\n".join(
+        [
+            f"# Emergent Patterns {today()}",
+            "",
+            "This synthesis draft is AI-generated from existing RKF operational signals. It is not a stable claim.",
+            "",
+            *pattern_lines,
+            "",
+            "## AI Integration Note",
+            "",
+            "- ai_integrated: true",
+            f"- integrated_at: {today()}",
+            "- priority: low",
+            "- reason: Emergent pattern synthesis from RKF reading queue, hot queries, and topic state.",
+            "- input_source: rkf-emerge",
+            "- remaining_blocker: Needs human review, locators, and source coverage before trusted synthesis.",
+            "",
+            "## Future Agent Retrieval Brief",
+            "",
+            "- Read this page when: looking for unnamed patterns or synthesis gaps from active RKF state.",
+            "- Trust level: low maturity generated pattern draft.",
+            "- Current gaps: source coverage is partial or unknown.",
+            "- Next best action: review the listed papers/topics and promote only locator-supported claims.",
+        ]
+    )
+    text = (
+        "---\n"
+        "type: synthesis\n"
+        "status: draft\n"
+        "review_stage: ai-extracted\n"
+        "evidence_boundary: review-blocker\n"
+        "evidence_tier: review-blocker\n"
+        "synthesis_maturity: draft\n"
+        "source_coverage: partial\n"
+        "human_feedback_level: none\n"
+        "claim_readiness: not-ready\n"
+        f"last_synthesis_interaction: {today()}\n"
+        f"observed_at: {today()}\n"
+        f"valid_from: {today()}\n"
+        "valid_until:\n"
+        "supersedes:\n"
+        "ai_integrated: true\n"
+        "ai_integration_priority: low\n"
+        f"last_ai_integration: {today()}\n"
+        + ("topics:\n" + "".join(f"  - {topic}\n" for topic in topics) if topics else "topics: []\n")
+        + f"created: {today()}\n"
+        f"updated: {today()}\n"
+        "sources: []\n"
+        "---\n\n"
+        f"{body}\n"
+    )
+    write_text(path, text)
+    append_log(ws, "emerge", f"{relative_workspace_path(ws, path)} patterns={len(patterns)}")
+    return relative_workspace_path(ws, path)
+
+
+def _paper_page_index(ws: Workspace) -> dict[str, tuple[Path, dict[str, Any], str]]:
+    index: dict[str, tuple[Path, dict[str, Any], str]] = {}
+    for path, meta, body in knowledge_page_records(ws):
+        if meta.get("type") == "paper" and meta.get("source_id"):
+            index[str(meta["source_id"])] = (path, meta, body)
+    return index
+
+
+def paper_queue(ws: Workspace) -> list[dict[str, Any]]:
+    sources = _source_records(ws)
+    papers = _paper_page_index(ws)
+    hot_events = load_hot_events(ws) if ws.paths.hot_md.exists() else []
+    hot_leads = Counter()
+    for event in hot_events:
+        for lead in event.get("paper_leads", []):
+            lead_text = str(lead)
+            hot_leads[lead_text] += 1
+            doi = extract_doi(lead_text)
+            if doi:
+                hot_leads[source_id_from_value("doi", doi)] += 1
+
+    items: list[dict[str, Any]] = []
+    for source_id, record in sources.items():
+        path_meta_body = papers.get(source_id)
+        title = str(record.get("title") or record.get("value") or source_id)
+        if path_meta_body is None:
+            reasons = ["no paper draft"]
+            if str(record.get("fulltext_status", "")) in {"needs-user-pdf", ""}:
+                reasons.append("full text status unknown or needs user PDF")
+            priority = 10 + hot_leads[source_id]
+            items.append(
+                {
+                    "source_id": source_id,
+                    "title": title,
+                    "priority": priority,
+                    "action": "create-paper-draft",
+                    "reasons": reasons,
+                    "path": "",
+                }
+            )
+            continue
+        path, meta, _ = path_meta_body
+        reasons: list[str] = []
+        action = "review-reading"
+        fulltext_status = str(meta.get("fulltext_status", ""))
+        reading_state = str(meta.get("reading_state", meta.get("reading_status", "")))
+        human_feedback = str(meta.get("human_feedback_level", "none"))
+        claim_readiness = str(meta.get("claim_readiness", ""))
+        priority = hot_leads[source_id]
+        if fulltext_status == "needs-user-pdf":
+            reasons.append("needs user PDF for full text")
+            action = "request-user-pdf"
+            priority += 90
+        if reading_state in {"metadata-only", "abstract-read"}:
+            reasons.append(f"reading state is {reading_state}")
+            priority += 50
+        if human_feedback == "none":
+            reasons.append("no human feedback yet")
+            priority += 30
+        if claim_readiness == "locator-needed":
+            reasons.append("locator needed before stable claims")
+            priority += 20
+        if hot_leads[source_id]:
+            reasons.append(f"repeated paper/search demand: {hot_leads[source_id]}")
+            priority += 10 * hot_leads[source_id]
+        if not reasons and claim_readiness in {"claim-ready", "synthesis-ready"}:
+            reasons.append("ready for synthesis review")
+            action = "synthesis-review"
+            priority += 10
+        if reasons:
+            items.append(
+                {
+                    "source_id": source_id,
+                    "title": title,
+                    "priority": priority,
+                    "action": action,
+                    "reasons": reasons,
+                    "path": relative_workspace_path(ws, path),
+                }
+            )
+    items.sort(key=lambda item: (-int(item["priority"]), str(item["source_id"])))
+    return items
+
+
+def render_paper_nudge(ws: Workspace, *, limit: int = 10) -> str:
+    items = paper_queue(ws)[:limit]
+    lines = [
+        "# RKF Paper Reading Nudge",
+        "",
+        f"Generated: {today()}",
+        "",
+        "This is an active reading queue. It prioritizes understanding maturity and user feedback; it does not promote claims by itself.",
+        "",
+    ]
+    if not items:
+        lines.append("- No active paper nudges.")
+        return "\n".join(lines) + "\n"
+    for item in items:
+        path = f" path={item['path']}" if item.get("path") else ""
+        lines.append(f"- {item['source_id']} action={item['action']} priority={item['priority']}{path}")
+        lines.append(f"  reasons: {'; '.join(item['reasons'])}")
+    return "\n".join(lines) + "\n"
+
+
+def render_workspace_status(ws: Workspace, *, log_tail: int = 5) -> str:
+    sources = _source_records(ws)
+    evidence = _evidence_records(ws)
+    knowledge = knowledge_page_records(ws)
+    topics = ws.load_topics()
+    source_counts = Counter(str(record.get("status", "unknown")) for record in sources.values())
+    evidence_counts = Counter(str(record.get("status", "unknown")) for record in evidence.values())
+    knowledge_counts = Counter(str(meta.get("type", "unknown")) for _, meta, _ in knowledge)
+    paper_reading_counts = Counter(
+        str(meta.get("reading_state", meta.get("reading_status", "unknown")))
+        for _, meta, _ in knowledge
+        if meta.get("type") == "paper"
+    )
+    synthesis_maturity_counts = Counter(
+        str(meta.get("synthesis_maturity", "unknown"))
+        for _, meta, _ in knowledge
+        if meta.get("type") == "synthesis"
+    )
+    queue_items = paper_queue(ws)
+    paper_queue_count = len(queue_items)
+    gate_count = len(list(ws.paths.gates.rglob("*.md"))) if ws.paths.gates.exists() else 0
+    hot_events = recent_hot_events(ws) if ws.paths.hot_md.exists() else []
+
+    lines = [
+        "# RKF Workspace Status",
+        "",
+        "## L0 Identity And Critical Facts",
+        "",
+        "- Framework: Research Knowledge Framework active academic LLM Wiki",
+        f"- Wiki root: {relative_workspace_path(ws, ws.paths.wiki_root)}",
+        f"- Snapshot date: {today()}",
+        f"- Knowledge pages: {len(knowledge)}",
+        f"- Sources: {len(sources)}",
+        f"- Evidence artifacts: {len(evidence)}",
+        f"- Pending/review gate files: {gate_count}",
+        f"- Topics: {len(topics)}",
+        f"- Critical facts file: {relative_workspace_path(ws, ws.paths.critical_facts)}",
+        "",
+        "### Critical Facts",
+        "",
+    ]
+    lines.extend(_critical_fact_lines(ws))
+    lines.extend(["", "### Active Blockers", ""])
+    lines.extend(_active_blocker_lines(ws))
+    lines.extend(
+        [
+            "",
+            "## L1 Active Reading And Demand",
+            "",
+            f"- Hot-query events in window: {len(hot_events)}",
+            f"- Active paper nudges: {paper_queue_count}",
+            "",
+            "### Paper Queue",
+            "",
+        ]
+    )
+    if queue_items:
+        for item in queue_items[:8]:
+            path = f" | path={item['path']}" if item.get("path") else ""
+            lines.append(f"- {item['source_id']} | action={item['action']} | priority={item['priority']}{path}")
+    else:
+        lines.append("- No active paper nudges.")
+    lines.extend(["", "### Hot Queries", ""])
+    lines.extend(_hot_query_lines(ws))
+    lines.extend(["", "### Recent Reading Feedback", ""])
+    lines.extend(_recent_reading_event_lines(ws))
+    lines.extend(
+        [
+            "",
+            "## L2 Topics, Synthesis, And Claim Readiness",
+            "",
+            "### Source Status",
+            "",
+        ]
+    )
+    lines.extend(_format_counter(source_counts, empty="No source records."))
+    lines.extend(["", "### Evidence Status", ""])
+    lines.extend(_format_counter(evidence_counts, empty="No evidence artifacts."))
+    lines.extend(["", "### Knowledge Types", ""])
+    lines.extend(_format_counter(knowledge_counts, empty="No knowledge pages."))
+    lines.extend(["", "### Paper Reading State", ""])
+    lines.extend(_format_counter(paper_reading_counts, empty="No paper reading states."))
+    lines.extend(["", "### Synthesis Maturity", ""])
+    lines.extend(_format_counter(synthesis_maturity_counts, empty="No synthesis maturity fields."))
+    lines.extend(["", "### Claim Readiness", ""])
+    lines.extend(_claim_readiness_lines(ws))
+    lines.extend(["", "### Contradiction Hints", ""])
+    lines.extend(_contradiction_hint_lines(ws))
+    lines.extend(
+        [
+            "",
+            "## L3 Graph, Files, And Validation",
+            "",
+            f"- Index: {relative_workspace_path(ws, ws.paths.index)}",
+            f"- Graph: {relative_workspace_path(ws, ws.paths.graph / 'research_graph.json')}",
+            f"- Hot queries: {relative_workspace_path(ws, ws.paths.hot_md)}",
+            f"- Reading ledger directory: {relative_workspace_path(ws, ws.paths.reading)}",
+            f"- Critical facts: {relative_workspace_path(ws, ws.paths.critical_facts)}",
+            "",
+            "### Validation Checks",
+            "",
+            "- python3 -B -m unittest discover -s tests",
+            "- python3 tools/public_safety_scan.py",
+            "- RKF all lint through the Codex app/internal runtime",
+            "- RKF graph lint through the Codex app/internal runtime",
+            "",
+            "## Recent Log",
+            "",
+        ]
+    )
+    if ws.paths.log.exists():
+        log_lines = [line for line in read_text(ws.paths.log).splitlines() if line.startswith("- ")]
+        lines.extend(log_lines[-log_tail:] or ["- No log entries."])
+    else:
+        lines.append("- No wiki log found.")
+    return "\n".join(lines) + "\n"
 
 
 def lint_public_safety(ws: Workspace) -> list[str]:
@@ -1067,6 +2785,18 @@ def lint_public_safety(ws: Workspace) -> list[str]:
                     errors.append(f"{rel}: local/private path pattern: {match}")
             if rel.startswith("knowledge/papers/") and len(text) > 120000:
                 errors.append(f"{rel}: unusually large paper page may contain copied article text")
+    if ws.paths.critical_facts.exists():
+        rel = relative_workspace_path(ws, ws.paths.critical_facts)
+        text = ws.paths.critical_facts.read_text(encoding="utf-8", errors="replace")
+        for pattern in LOCAL_PATH_PATTERNS:
+            for match in pattern.findall(text):
+                errors.append(f"{rel}: local/private path pattern: {match}")
+        for line_number, line in enumerate(text.splitlines(), start=1):
+            stripped = line.strip()
+            if stripped.startswith("- fact_id="):
+                for key in ("observed_at=", "valid_from=", "confidence=", "source_or_blocker="):
+                    if key not in stripped:
+                        errors.append(f"{rel}:{line_number}: critical fact missing {key.rstrip('=')}")
     if ws.paths.hot_md.exists():
         rel = relative_workspace_path(ws, ws.paths.hot_md)
         text = ws.paths.hot_md.read_text(encoding="utf-8", errors="replace")
@@ -1079,12 +2809,16 @@ def lint_public_safety(ws: Workspace) -> list[str]:
     return errors
 
 
-def export_graph(ws: Workspace) -> dict[str, Any]:
+def build_research_graph(ws: Workspace) -> dict[str, Any]:
     nodes: list[dict[str, Any]] = []
     edges: list[dict[str, Any]] = []
     for path in sorted(ws.paths.sources.glob("*.json")) if ws.paths.sources.exists() else []:
         record = read_json(path)
-        nodes.append({"id": record["source_id"], "type": "source", "status": record.get("status", "")})
+        node = {"id": record["source_id"], "type": "source", "status": record.get("status", "")}
+        for key in ("reading_state", "fulltext_status"):
+            if record.get(key):
+                node[key] = record[key]
+        nodes.append(node)
         for evidence_id in record.get("evidence_ids", []):
             edges.append({"from": record["source_id"], "to": evidence_id, "type": "has-evidence"})
         for topic_id in record.get("topic_ids", []):
@@ -1095,19 +2829,270 @@ def export_graph(ws: Workspace) -> dict[str, Any]:
             if not meta:
                 continue
             node_id = path.relative_to(ws.paths.knowledge).with_suffix("").as_posix()
-            nodes.append({"id": node_id, "type": meta.get("type", "knowledge"), "status": meta.get("status", "")})
+            node = {"id": node_id, "type": meta.get("type", "knowledge"), "status": meta.get("status", "")}
+            for key in (
+                "reading_state",
+                "fulltext_status",
+                "human_feedback_level",
+                "claim_readiness",
+                "synthesis_maturity",
+                "source_coverage",
+            ):
+                if meta.get(key):
+                    node[key] = meta[key]
+            nodes.append(node)
             for evidence_id in meta.get("evidence_ids", []):
                 edges.append({"from": node_id, "to": evidence_id, "type": "supported-by"})
             if meta.get("source_id"):
                 edges.append({"from": node_id, "to": meta["source_id"], "type": "derived-from"})
             for topic_id in meta.get("topics", []):
                 edges.append({"from": node_id, "to": topic_id, "type": "tagged-with"})
-    graph = {"schema": "rkf-graph-v1", "generated": today(), "nodes": nodes, "edges": edges}
+            relations = meta.get("paper_relations", [])
+            if isinstance(relations, list):
+                for relation in relations:
+                    if not isinstance(relation, dict):
+                        continue
+                    target = str(relation.get("paper_id", ""))
+                    relation_type = str(relation.get("relation", ""))
+                    if target and relation_type in PAPER_RELATION_TYPES:
+                        edges.append({"from": node_id, "to": target, "type": relation_type})
+    return {"schema": "rkf-graph-v1", "generated": today(), "nodes": nodes, "edges": edges}
+
+
+def export_graph(ws: Workspace) -> dict[str, Any]:
+    graph = build_research_graph(ws)
     write_json(ws.paths.graph / "research_graph.json", graph)
     return graph
 
 
-def external_sandbox_capsule(ws: Workspace) -> Path:
+GRAPH_DIRECTIONS = {"outgoing", "incoming", "both"}
+
+
+def _graph_error(message: str, **payload: Any) -> dict[str, Any]:
+    return {"status": "error", "error": message, **payload}
+
+
+def _graph_not_found(node_id: str) -> dict[str, Any]:
+    return {"status": "not-found", "node_id": node_id, "node": None}
+
+
+def _normalize_graph_direction(direction: str) -> str:
+    value = str(direction or "both")
+    if value not in GRAPH_DIRECTIONS:
+        raise ValueError("direction must be one of: both, incoming, outgoing")
+    return value
+
+
+def _positive_graph_int(value: int, *, name: str) -> int:
+    try:
+        number = int(value)
+    except (TypeError, ValueError) as exc:
+        raise ValueError(f"{name} must be an integer") from exc
+    if number <= 0:
+        raise ValueError(f"{name} must be greater than 0")
+    return number
+
+
+def _implicit_graph_node_type(edge: dict[str, Any], endpoint: str) -> str:
+    edge_type = str(edge.get("type", ""))
+    if endpoint == "to" and edge_type in {"has-evidence", "supported-by"}:
+        return "evidence"
+    if endpoint == "to" and edge_type == "tagged-with":
+        return "topic"
+    return "implicit"
+
+
+def _graph_nodes_by_id(graph: dict[str, Any]) -> dict[str, dict[str, Any]]:
+    nodes: dict[str, dict[str, Any]] = {}
+    for node in graph.get("nodes", []):
+        node_id = str(node.get("id", ""))
+        if node_id:
+            nodes[node_id] = dict(node)
+    for edge in graph.get("edges", []):
+        for endpoint in ("from", "to"):
+            node_id = str(edge.get(endpoint, ""))
+            if node_id and node_id not in nodes:
+                nodes[node_id] = {
+                    "id": node_id,
+                    "type": _implicit_graph_node_type(edge, endpoint),
+                    "status": "implicit",
+                }
+    return nodes
+
+
+def _iter_graph_edges(
+    graph: dict[str, Any],
+    node_id: str,
+    *,
+    direction: str,
+) -> list[tuple[dict[str, Any], str]]:
+    matches: list[tuple[dict[str, Any], str]] = []
+    for edge in graph.get("edges", []):
+        from_id = str(edge.get("from", ""))
+        to_id = str(edge.get("to", ""))
+        if direction in {"outgoing", "both"} and from_id == node_id and to_id:
+            matches.append((dict(edge), to_id))
+        if direction in {"incoming", "both"} and to_id == node_id and from_id:
+            matches.append((dict(edge), from_id))
+    return matches
+
+
+def graph_neighbors(
+    ws: Workspace,
+    *,
+    node_id: str,
+    direction: str = "both",
+    limit: int = 20,
+) -> dict[str, Any]:
+    try:
+        normalized_direction = _normalize_graph_direction(direction)
+        normalized_limit = _positive_graph_int(limit, name="limit")
+    except ValueError as exc:
+        return _graph_error(str(exc), node_id=node_id)
+
+    graph = build_research_graph(ws)
+    nodes = _graph_nodes_by_id(graph)
+    if node_id not in nodes:
+        return _graph_not_found(node_id)
+
+    neighbors: list[dict[str, Any]] = []
+    edges: list[dict[str, Any]] = []
+    seen: set[str] = set()
+    for edge, neighbor_id in _iter_graph_edges(graph, node_id, direction=normalized_direction):
+        if neighbor_id in seen:
+            continue
+        if len(neighbors) >= normalized_limit:
+            break
+        seen.add(neighbor_id)
+        neighbors.append(nodes[neighbor_id])
+        edges.append(edge)
+
+    return {
+        "status": "ok",
+        "node": nodes[node_id],
+        "neighbors": neighbors,
+        "edges": edges,
+        "direction": normalized_direction,
+        "limit": normalized_limit,
+    }
+
+
+def graph_paths(
+    ws: Workspace,
+    *,
+    source_id: str,
+    target_id: str,
+    direction: str = "both",
+    max_depth: int = 4,
+    limit: int = 5,
+) -> dict[str, Any]:
+    try:
+        normalized_direction = _normalize_graph_direction(direction)
+        normalized_depth = _positive_graph_int(max_depth, name="max_depth")
+        normalized_limit = _positive_graph_int(limit, name="limit")
+    except ValueError as exc:
+        return _graph_error(str(exc), source_id=source_id, target_id=target_id)
+
+    graph = build_research_graph(ws)
+    nodes = _graph_nodes_by_id(graph)
+    if source_id not in nodes:
+        return _graph_not_found(source_id)
+    if target_id not in nodes:
+        return _graph_not_found(target_id)
+
+    queue: list[tuple[str, list[str], list[dict[str, Any]]]] = [(source_id, [source_id], [])]
+    paths: list[dict[str, Any]] = []
+    while queue and len(paths) < normalized_limit:
+        current_id, node_path, edge_path = queue.pop(0)
+        if len(edge_path) >= normalized_depth:
+            continue
+        for edge, next_id in _iter_graph_edges(graph, current_id, direction=normalized_direction):
+            if next_id in node_path:
+                continue
+            next_node_path = [*node_path, next_id]
+            next_edge_path = [*edge_path, edge]
+            if next_id == target_id:
+                paths.append(
+                    {
+                        "node_ids": next_node_path,
+                        "nodes": [nodes[item] for item in next_node_path],
+                        "edges": next_edge_path,
+                        "length": len(next_edge_path),
+                    }
+                )
+                if len(paths) >= normalized_limit:
+                    break
+            else:
+                queue.append((next_id, next_node_path, next_edge_path))
+
+    return {
+        "status": "ok",
+        "source": nodes[source_id],
+        "target": nodes[target_id],
+        "paths": paths,
+        "direction": normalized_direction,
+        "max_depth": normalized_depth,
+        "limit": normalized_limit,
+    }
+
+
+def graph_page_context(
+    ws: Workspace,
+    *,
+    page_id: str,
+    limit: int = 20,
+) -> dict[str, Any]:
+    try:
+        normalized_limit = _positive_graph_int(limit, name="limit")
+    except ValueError as exc:
+        return _graph_error(str(exc), page_id=page_id)
+
+    graph = build_research_graph(ws)
+    nodes = _graph_nodes_by_id(graph)
+    if page_id not in nodes:
+        return _graph_not_found(page_id)
+
+    incoming_pairs = _iter_graph_edges(graph, page_id, direction="incoming")[:normalized_limit]
+    outgoing_pairs = _iter_graph_edges(graph, page_id, direction="outgoing")[:normalized_limit]
+    related_ids: list[str] = []
+    for _edge, node_id in [*incoming_pairs, *outgoing_pairs]:
+        if node_id not in related_ids:
+            related_ids.append(node_id)
+    related_nodes = [nodes[node_id] for node_id in related_ids]
+
+    related_sources = [node for node in related_nodes if node.get("type") == "source"]
+    related_evidence = [node for node in related_nodes if node.get("type") == "evidence"]
+    related_topics = [node for node in related_nodes if node.get("type") == "topic"]
+    related_pages = [
+        node
+        for node in related_nodes
+        if node.get("type") not in {"source", "evidence", "topic", "implicit"}
+    ]
+    summary = [
+        f"{len(incoming_pairs)} incoming edge(s)",
+        f"{len(outgoing_pairs)} outgoing edge(s)",
+        f"{len(related_sources)} related source(s)",
+        f"{len(related_evidence)} related evidence item(s)",
+        f"{len(related_topics)} related topic(s)",
+        f"{len(related_pages)} related page(s)",
+    ]
+
+    return {
+        "status": "ok",
+        "page_id": page_id,
+        "node": nodes[page_id],
+        "incoming": [edge for edge, _node_id in incoming_pairs],
+        "outgoing": [edge for edge, _node_id in outgoing_pairs],
+        "related_sources": related_sources,
+        "related_evidence": related_evidence,
+        "related_topics": related_topics,
+        "related_pages": related_pages,
+        "summary": summary,
+        "limit": normalized_limit,
+    }
+
+
+def codex_handoff_capsule(ws: Workspace) -> Path:
     allowed_modes = [
         "capture",
         "discover",
@@ -1117,21 +3102,34 @@ def external_sandbox_capsule(ws: Workspace) -> Path:
         "query",
         "save",
         "synthesize",
+        "emerge",
         "hot record",
         "hot refresh",
+        "paper status",
+        "paper feedback",
+        "paper queue",
+        "paper next",
+        "paper nudge",
+        "world",
+        "evolve",
+        "reconcile",
+        "challenge",
+        "propagate",
         "lint",
         "graph",
     ]
-    path = ws.paths.prompts / "external_sandbox_context.md"
+    path = ws.paths.prompts / "codex_handoff_context.md"
     write_text(
         path,
         "# Research Knowledge Framework Context Capsule\n\n"
-        f"- Repo path: {ws.root}\n"
-        f"- Private evidence root: {ws.paths.private_evidence}\n"
+        "- Repo path: active ResearchWiki checkout supplied by the host environment.\n"
+        "- Private evidence root: resolve from `rkf.workspace.toml` when authorized; do not copy machine-specific paths into durable docs.\n"
         "- Public-safe boundary: do not paste PDFs, full article text, local secrets, or private Drive paths into public wiki pages.\n"
-        "- Evidence rule: metadata, search candidates, and ARS reports are not evidence; a QCed PDF artifact is required before paper distillation.\n"
-        "- Durable path: PDF evidence -> PDF QC -> wiki page.\n"
-        "- Hot-query rule: public-safe research questions may be recorded in hot.md with `python3 tools/rk.py hot record`; do not create separate hot-query files.\n"
+        "- Reading rule: metadata, search candidates, and ARS reports may start paper drafts, but they are not stable claim evidence by themselves.\n"
+        "- Durable path: capture source -> create/read paper draft -> update full-text status -> request user PDF only when unavailable -> record feedback/locators -> promote claims only at the boundary.\n"
+        "- Claim boundary: stable claims and trusted synthesis need a locator, human feedback, or existing governed source; explicit blockers prevent promotion until reviewed.\n"
+        "- Reading ledger rule: public-safe reading events live under state/reading/ and are operational memory, not claim evidence by themselves.\n"
+        "- Hot-query rule: public-safe research questions may be recorded in hot.md through the Codex app action `hot.record`; do not create separate hot-query files.\n"
         "- Target save layers: paper, question, concept, claim, synthesis, topic, meeting, seminar, review item.\n"
         "- Allowed modes: "
         + ", ".join(allowed_modes)
@@ -1140,9 +3138,12 @@ def external_sandbox_capsule(ws: Workspace) -> Path:
         "```yaml\n"
         "target_layer: paper | question | concept | claim | synthesis | topic | review\n"
         "title: short title\n"
-        "evidence_boundary: PDF locator, existing wiki page, or review blocker\n"
+        "reading_state: metadata-only | abstract-read | partial-fulltext | fulltext-read | human-reviewed | blocked\n"
+        "fulltext_status: unknown | needs-user-pdf | user-pdf-provided | publisher-html | publisher-pdf | open-access-pdf | partial-only | fulltext-read | unavailable | blocked\n"
+        "human_feedback_level: none | skimmed | discussed | annotated | trusted\n"
+        "evidence_boundary: metadata-only, locator, existing wiki page, human-reviewed, or review-blocker (blocks promotion)\n"
         "confidence: low | medium | high | mixed\n"
-        "recommended_mode: save | review | synthesize | distill\n"
+        "recommended_mode: save | review | synthesize | distill | paper-feedback\n"
         "reason_to_save: one sentence\n"
         "```\n",
     )

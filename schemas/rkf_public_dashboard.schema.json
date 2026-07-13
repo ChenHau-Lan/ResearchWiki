@@ -1,0 +1,406 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://example.org/rkf/rkf_public_dashboard.schema.json",
+  "title": "RKF Public Aggregate Dashboard Snapshot",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schema",
+    "generated_at",
+    "window_days",
+    "snapshot_hash",
+    "publication",
+    "freshness",
+    "research_hotspots",
+    "registered_research_areas",
+    "demand",
+    "discovery",
+    "paper_pipeline",
+    "knowledge",
+    "graph",
+    "framework",
+    "health",
+    "safety"
+  ],
+  "properties": {
+    "schema": { "const": "rkf-public-dashboard-v1" },
+    "generated_at": { "type": "string", "format": "date-time" },
+    "window_days": { "type": "integer", "minimum": 1, "maximum": 365 },
+    "snapshot_hash": { "type": "string", "pattern": "^[0-9a-f]{64}$" },
+    "publication": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["status", "approved_snapshot_hash", "published_at"],
+      "properties": {
+        "status": { "enum": ["pending-review", "published", "synthetic-preview"] },
+        "approved_snapshot_hash": {
+          "oneOf": [
+            { "const": "" },
+            { "type": "string", "pattern": "^[0-9a-f]{64}$" }
+          ]
+        },
+        "published_at": {
+          "oneOf": [
+            { "const": "" },
+            { "type": "string", "format": "date-time", "minLength": 1 }
+          ]
+        }
+      }
+    },
+    "freshness": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["latest_hot_event_date", "hot_event_count"],
+      "properties": {
+        "latest_hot_event_date": { "type": "string", "maxLength": 10 },
+        "hot_event_count": { "$ref": "#/$defs/count" }
+      }
+    },
+    "research_hotspots": {
+      "type": "array",
+      "maxItems": 12,
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["topic_id", "name", "demand_count"],
+        "properties": {
+          "topic_id": { "type": "string", "pattern": "^[a-z0-9]+(?:-[a-z0-9]+)*$" },
+          "name": { "type": "string", "minLength": 1, "maxLength": 100 },
+          "demand_count": { "$ref": "#/$defs/count" }
+        }
+      }
+    },
+    "registered_research_areas": {
+      "type": "array",
+      "maxItems": 12,
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["topic_id", "name"],
+        "properties": {
+          "topic_id": { "type": "string", "pattern": "^[a-z0-9]+(?:-[a-z0-9]+)*$" },
+          "name": { "type": "string", "minLength": 1, "maxLength": 100 }
+        }
+      }
+    },
+    "demand": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["event_count", "topic_linked_event_count", "untriaged_event_count", "paper_lead_event_count"],
+      "properties": {
+        "event_count": { "$ref": "#/$defs/count" },
+        "topic_linked_event_count": { "$ref": "#/$defs/count" },
+        "untriaged_event_count": { "$ref": "#/$defs/count" },
+        "paper_lead_event_count": { "$ref": "#/$defs/count" }
+      }
+    },
+    "discovery": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["run_count", "candidate_count", "decision_counts"],
+      "properties": {
+        "run_count": { "$ref": "#/$defs/count" },
+        "candidate_count": { "$ref": "#/$defs/count" },
+        "decision_counts": { "$ref": "#/$defs/discoveryDecisionCounts" }
+      }
+    },
+    "paper_pipeline": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "source_count",
+        "paper_page_count",
+        "queue_count",
+        "queue_action_counts",
+        "reading_state_counts",
+        "fulltext_status_counts",
+        "human_feedback_counts",
+        "claim_readiness_counts"
+      ],
+      "properties": {
+        "source_count": { "$ref": "#/$defs/count" },
+        "paper_page_count": { "$ref": "#/$defs/count" },
+        "queue_count": { "$ref": "#/$defs/count" },
+        "queue_action_counts": { "$ref": "#/$defs/queueActionCounts" },
+        "reading_state_counts": { "$ref": "#/$defs/readingStateCounts" },
+        "fulltext_status_counts": { "$ref": "#/$defs/fulltextStatusCounts" },
+        "human_feedback_counts": { "$ref": "#/$defs/humanFeedbackCounts" },
+        "claim_readiness_counts": { "$ref": "#/$defs/claimReadinessCounts" }
+      }
+    },
+    "knowledge": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["page_count", "registered_topic_count", "type_counts", "synthesis_maturity_counts"],
+      "properties": {
+        "page_count": { "$ref": "#/$defs/count" },
+        "registered_topic_count": { "$ref": "#/$defs/count" },
+        "type_counts": { "$ref": "#/$defs/knowledgeTypeCounts" },
+        "synthesis_maturity_counts": { "$ref": "#/$defs/synthesisMaturityCounts" }
+      }
+    },
+    "graph": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["node_count", "edge_count"],
+      "properties": {
+        "node_count": { "$ref": "#/$defs/count" },
+        "edge_count": { "$ref": "#/$defs/count" }
+      }
+    },
+    "framework": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["knowledge_schema", "review_cadence", "storage_handles", "gates"],
+      "properties": {
+        "knowledge_schema": { "type": "string", "pattern": "^(?:unknown|rkf-v[0-9]+(?:\\.[0-9]+)*)$" },
+        "review_cadence": { "enum": ["daily", "weekly", "monthly", "quarterly", "annual", "other", "unknown"] },
+        "storage_handles": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["wiki_root_configured", "raw_root_configured", "private_evidence_configured"],
+          "properties": {
+            "wiki_root_configured": { "type": "boolean" },
+            "raw_root_configured": { "type": "boolean" },
+            "private_evidence_configured": { "type": "boolean" }
+          }
+        },
+        "gates": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["require_pdf_checkpoint", "require_pdf_qc", "require_claim_support", "require_synthesis_review"],
+          "properties": {
+            "require_pdf_checkpoint": { "type": "boolean" },
+            "require_pdf_qc": { "type": "boolean" },
+            "require_claim_support": { "type": "boolean" },
+            "require_synthesis_review": { "type": "boolean" }
+          }
+        }
+      }
+    },
+    "health": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "connection_status",
+        "writer_role",
+        "doctor_finding_count",
+        "doctor_blocker_count",
+        "doctor_warning_count",
+        "lint_counts"
+      ],
+      "properties": {
+        "connection_status": { "enum": ["ok", "warning", "blocked"] },
+        "writer_role": { "enum": ["designated", "other", "unregistered", "conflict", "unknown"] },
+        "doctor_finding_count": { "$ref": "#/$defs/count" },
+        "doctor_blocker_count": { "$ref": "#/$defs/count" },
+        "doctor_warning_count": { "$ref": "#/$defs/count" },
+        "lint_counts": { "$ref": "#/$defs/lintCounts" }
+      }
+    },
+    "safety": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "aggregate_only",
+        "raw_questions_published",
+        "paper_identity_published",
+        "reading_ledgers_published",
+        "article_text_published",
+        "demand_is_evidence",
+        "candidates_are_evidence"
+      ],
+      "properties": {
+        "aggregate_only": { "const": true },
+        "raw_questions_published": { "const": false },
+        "paper_identity_published": { "const": false },
+        "reading_ledgers_published": { "const": false },
+        "article_text_published": { "const": false },
+        "demand_is_evidence": { "const": false },
+        "candidates_are_evidence": { "const": false }
+      }
+    }
+  },
+  "$defs": {
+    "count": { "type": "integer", "minimum": 0 },
+    "discoveryDecisionCounts": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["accepted", "ambiguous", "candidate", "duplicate", "rejected", "other"],
+      "properties": {
+        "accepted": { "$ref": "#/$defs/count" },
+        "ambiguous": { "$ref": "#/$defs/count" },
+        "candidate": { "$ref": "#/$defs/count" },
+        "duplicate": { "$ref": "#/$defs/count" },
+        "rejected": { "$ref": "#/$defs/count" },
+        "other": { "$ref": "#/$defs/count" }
+      }
+    },
+    "queueActionCounts": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["create-paper-draft", "request-user-pdf", "review-reading", "synthesis-review", "other"],
+      "properties": {
+        "create-paper-draft": { "$ref": "#/$defs/count" },
+        "request-user-pdf": { "$ref": "#/$defs/count" },
+        "review-reading": { "$ref": "#/$defs/count" },
+        "synthesis-review": { "$ref": "#/$defs/count" },
+        "other": { "$ref": "#/$defs/count" }
+      }
+    },
+    "readingStateCounts": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "abstract-read",
+        "blocked",
+        "first-pass-pdf-qc",
+        "full-read",
+        "fulltext-available",
+        "fulltext-read",
+        "human-reviewed",
+        "metadata-only",
+        "mixed",
+        "ocr-qc",
+        "partial-fulltext",
+        "reproduced",
+        "skimmed",
+        "synthesis-ready",
+        "visual-qc",
+        "other"
+      ],
+      "properties": {
+        "abstract-read": { "$ref": "#/$defs/count" },
+        "blocked": { "$ref": "#/$defs/count" },
+        "first-pass-pdf-qc": { "$ref": "#/$defs/count" },
+        "full-read": { "$ref": "#/$defs/count" },
+        "fulltext-available": { "$ref": "#/$defs/count" },
+        "fulltext-read": { "$ref": "#/$defs/count" },
+        "human-reviewed": { "$ref": "#/$defs/count" },
+        "metadata-only": { "$ref": "#/$defs/count" },
+        "mixed": { "$ref": "#/$defs/count" },
+        "ocr-qc": { "$ref": "#/$defs/count" },
+        "partial-fulltext": { "$ref": "#/$defs/count" },
+        "reproduced": { "$ref": "#/$defs/count" },
+        "skimmed": { "$ref": "#/$defs/count" },
+        "synthesis-ready": { "$ref": "#/$defs/count" },
+        "visual-qc": { "$ref": "#/$defs/count" },
+        "other": { "$ref": "#/$defs/count" }
+      }
+    },
+    "fulltextStatusCounts": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "blocked",
+        "fulltext-read",
+        "needs-user-pdf",
+        "not-applicable",
+        "open-access-pdf",
+        "partial-only",
+        "publisher-html",
+        "publisher-pdf",
+        "unavailable",
+        "unknown",
+        "user-pdf-provided",
+        "other"
+      ],
+      "properties": {
+        "blocked": { "$ref": "#/$defs/count" },
+        "fulltext-read": { "$ref": "#/$defs/count" },
+        "needs-user-pdf": { "$ref": "#/$defs/count" },
+        "not-applicable": { "$ref": "#/$defs/count" },
+        "open-access-pdf": { "$ref": "#/$defs/count" },
+        "partial-only": { "$ref": "#/$defs/count" },
+        "publisher-html": { "$ref": "#/$defs/count" },
+        "publisher-pdf": { "$ref": "#/$defs/count" },
+        "unavailable": { "$ref": "#/$defs/count" },
+        "unknown": { "$ref": "#/$defs/count" },
+        "user-pdf-provided": { "$ref": "#/$defs/count" },
+        "other": { "$ref": "#/$defs/count" }
+      }
+    },
+    "humanFeedbackCounts": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["annotated", "discussed", "none", "skimmed", "trusted", "other"],
+      "properties": {
+        "annotated": { "$ref": "#/$defs/count" },
+        "discussed": { "$ref": "#/$defs/count" },
+        "none": { "$ref": "#/$defs/count" },
+        "skimmed": { "$ref": "#/$defs/count" },
+        "trusted": { "$ref": "#/$defs/count" },
+        "other": { "$ref": "#/$defs/count" }
+      }
+    },
+    "claimReadinessCounts": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["claim-ready", "locator-needed", "not-ready", "synthesis-ready", "other"],
+      "properties": {
+        "claim-ready": { "$ref": "#/$defs/count" },
+        "locator-needed": { "$ref": "#/$defs/count" },
+        "not-ready": { "$ref": "#/$defs/count" },
+        "synthesis-ready": { "$ref": "#/$defs/count" },
+        "other": { "$ref": "#/$defs/count" }
+      }
+    },
+    "knowledgeTypeCounts": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "claim",
+        "concept",
+        "inbox",
+        "meeting",
+        "overview",
+        "paper",
+        "project-synthesis",
+        "question",
+        "seminar",
+        "synthesis",
+        "topic",
+        "other"
+      ],
+      "properties": {
+        "claim": { "$ref": "#/$defs/count" },
+        "concept": { "$ref": "#/$defs/count" },
+        "inbox": { "$ref": "#/$defs/count" },
+        "meeting": { "$ref": "#/$defs/count" },
+        "overview": { "$ref": "#/$defs/count" },
+        "paper": { "$ref": "#/$defs/count" },
+        "project-synthesis": { "$ref": "#/$defs/count" },
+        "question": { "$ref": "#/$defs/count" },
+        "seminar": { "$ref": "#/$defs/count" },
+        "synthesis": { "$ref": "#/$defs/count" },
+        "topic": { "$ref": "#/$defs/count" },
+        "other": { "$ref": "#/$defs/count" }
+      }
+    },
+    "synthesisMaturityCounts": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["draft", "human-reviewed", "multi-source", "publication-ready", "single-source", "other"],
+      "properties": {
+        "draft": { "$ref": "#/$defs/count" },
+        "human-reviewed": { "$ref": "#/$defs/count" },
+        "multi-source": { "$ref": "#/$defs/count" },
+        "publication-ready": { "$ref": "#/$defs/count" },
+        "single-source": { "$ref": "#/$defs/count" },
+        "other": { "$ref": "#/$defs/count" }
+      }
+    },
+    "lintCounts": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["ars-handoff", "graph", "public-safety", "structure", "topic"],
+      "properties": {
+        "ars-handoff": { "$ref": "#/$defs/count" },
+        "graph": { "$ref": "#/$defs/count" },
+        "public-safety": { "$ref": "#/$defs/count" },
+        "structure": { "$ref": "#/$defs/count" },
+        "topic": { "$ref": "#/$defs/count" }
+      }
+    }
+  }
+}

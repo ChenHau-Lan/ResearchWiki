@@ -1,0 +1,79 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://example.org/rkf/rkf_discovery_candidate.schema.json",
+  "title": "RKF Discovery Candidate",
+  "description": "Allowlisted bibliographic metadata for a candidate-only discovery result.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schema",
+    "candidate_id",
+    "title",
+    "authors",
+    "year",
+    "venue",
+    "doi",
+    "url",
+    "provider",
+    "provider_id",
+    "providers",
+    "provider_ids",
+    "topic_id",
+    "relevance_score",
+    "ranking_explanation",
+    "dedupe_status",
+    "evidence_boundary",
+    "claim_readiness",
+    "promotion"
+  ],
+  "properties": {
+    "schema": {"const": "rkf-discovery-candidate-v1"},
+    "candidate_id": {"type": "string", "pattern": "^cand_[0-9a-f]{20}$"},
+    "title": {"type": "string", "minLength": 1, "maxLength": 500},
+    "authors": {
+      "type": "array",
+      "maxItems": 20,
+      "uniqueItems": true,
+      "items": {"type": "string", "minLength": 1, "maxLength": 160}
+    },
+    "year": {
+      "oneOf": [
+        {"type": "integer", "minimum": 1800, "maximum": 2200},
+        {"type": "null"}
+      ]
+    },
+    "venue": {"type": "string", "maxLength": 300},
+    "doi": {"type": "string", "maxLength": 300},
+    "url": {
+      "oneOf": [
+        {"type": "string", "format": "uri", "pattern": "^https?://"},
+        {"const": ""}
+      ]
+    },
+    "provider": {"type": "string", "pattern": "^[a-z0-9][a-z0-9-]*$"},
+    "provider_id": {"type": "string", "maxLength": 300},
+    "providers": {
+      "type": "array",
+      "minItems": 1,
+      "uniqueItems": true,
+      "items": {"type": "string", "pattern": "^[a-z0-9][a-z0-9-]*$"}
+    },
+    "provider_ids": {
+      "type": "array",
+      "uniqueItems": true,
+      "items": {"type": "string", "maxLength": 340}
+    },
+    "topic_id": {"type": "string", "maxLength": 160},
+    "relevance_score": {"type": "number", "minimum": 0},
+    "ranking_explanation": {
+      "enum": [
+        "Provider-ranked bibliographic match; candidate only.",
+        "Bibliographic match for the requested query; candidate only."
+      ]
+    },
+    "dedupe_status": {"enum": ["new", "existing", "ambiguous"]},
+    "evidence_boundary": {"const": "candidate-only"},
+    "claim_readiness": {"const": "not-ready"},
+    "promotion": {"const": "none"}
+  }
+}

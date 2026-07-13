@@ -1,0 +1,171 @@
+{
+  "demand": {
+    "event_count": 0,
+    "paper_lead_event_count": 0,
+    "topic_linked_event_count": 0,
+    "untriaged_event_count": 0
+  },
+  "discovery": {
+    "candidate_count": 64,
+    "decision_counts": {
+      "accepted": 0,
+      "ambiguous": 0,
+      "candidate": 0,
+      "duplicate": 0,
+      "other": 64,
+      "rejected": 0
+    },
+    "run_count": 2
+  },
+  "framework": {
+    "gates": {
+      "require_claim_support": true,
+      "require_pdf_checkpoint": true,
+      "require_pdf_qc": true,
+      "require_synthesis_review": true
+    },
+    "knowledge_schema": "rkf-v1",
+    "review_cadence": "monthly",
+    "storage_handles": {
+      "private_evidence_configured": true,
+      "raw_root_configured": true,
+      "wiki_root_configured": true
+    }
+  },
+  "freshness": {
+    "hot_event_count": 0,
+    "latest_hot_event_date": ""
+  },
+  "generated_at": "2026-07-13T09:37:56Z",
+  "graph": {
+    "edge_count": 342,
+    "node_count": 148
+  },
+  "health": {
+    "connection_status": "blocked",
+    "doctor_blocker_count": 1,
+    "doctor_finding_count": 2,
+    "doctor_warning_count": 1,
+    "lint_counts": {
+      "ars-handoff": 0,
+      "graph": 0,
+      "public-safety": 0,
+      "structure": 0,
+      "topic": 0
+    },
+    "writer_role": "unknown"
+  },
+  "knowledge": {
+    "page_count": 70,
+    "registered_topic_count": 2,
+    "synthesis_maturity_counts": {
+      "draft": 0,
+      "human-reviewed": 0,
+      "multi-source": 0,
+      "other": 2,
+      "publication-ready": 0,
+      "single-source": 0
+    },
+    "type_counts": {
+      "claim": 0,
+      "concept": 0,
+      "inbox": 0,
+      "meeting": 0,
+      "other": 0,
+      "overview": 8,
+      "paper": 57,
+      "project-synthesis": 0,
+      "question": 1,
+      "seminar": 0,
+      "synthesis": 2,
+      "topic": 2
+    }
+  },
+  "paper_pipeline": {
+    "claim_readiness_counts": {
+      "claim-ready": 0,
+      "locator-needed": 0,
+      "not-ready": 0,
+      "other": 57,
+      "synthesis-ready": 0
+    },
+    "fulltext_status_counts": {
+      "blocked": 0,
+      "fulltext-read": 0,
+      "needs-user-pdf": 0,
+      "not-applicable": 0,
+      "open-access-pdf": 0,
+      "other": 57,
+      "partial-only": 0,
+      "publisher-html": 0,
+      "publisher-pdf": 0,
+      "unavailable": 0,
+      "unknown": 0,
+      "user-pdf-provided": 0
+    },
+    "human_feedback_counts": {
+      "annotated": 0,
+      "discussed": 0,
+      "none": 0,
+      "other": 57,
+      "skimmed": 0,
+      "trusted": 0
+    },
+    "paper_page_count": 57,
+    "queue_action_counts": {
+      "create-paper-draft": 21,
+      "other": 0,
+      "request-user-pdf": 0,
+      "review-reading": 57,
+      "synthesis-review": 0
+    },
+    "queue_count": 78,
+    "reading_state_counts": {
+      "abstract-read": 0,
+      "blocked": 0,
+      "first-pass-pdf-qc": 13,
+      "full-read": 44,
+      "fulltext-available": 0,
+      "fulltext-read": 0,
+      "human-reviewed": 0,
+      "metadata-only": 0,
+      "mixed": 0,
+      "ocr-qc": 0,
+      "other": 0,
+      "partial-fulltext": 0,
+      "reproduced": 0,
+      "skimmed": 0,
+      "synthesis-ready": 0,
+      "visual-qc": 0
+    },
+    "source_count": 78
+  },
+  "publication": {
+    "approved_snapshot_hash": "5eb6a1d2f68bfbbcfc76a75efa5a5412cb30e7a659f92c98db3609c9680216d4",
+    "published_at": "2026-07-13T15:55:36Z",
+    "status": "published"
+  },
+  "registered_research_areas": [
+    {
+      "name": "Aerosol Effects on Ice-Phase Clouds",
+      "topic_id": "aerosol-ice-phase-clouds"
+    },
+    {
+      "name": "Wildfire Smoke Cloud Microphysics",
+      "topic_id": "wildfire-smoke-cloud-microphysics"
+    }
+  ],
+  "research_hotspots": [],
+  "safety": {
+    "aggregate_only": true,
+    "article_text_published": false,
+    "candidates_are_evidence": false,
+    "demand_is_evidence": false,
+    "paper_identity_published": false,
+    "raw_questions_published": false,
+    "reading_ledgers_published": false
+  },
+  "schema": "rkf-public-dashboard-v1",
+  "snapshot_hash": "5eb6a1d2f68bfbbcfc76a75efa5a5412cb30e7a659f92c98db3609c9680216d4",
+  "window_days": 30
+}

@@ -1,0 +1,4 @@
+interface:
+  display_name: "RKF Auto-Connect"
+  short_description: "Connect Codex research tasks to a governed RKF workspace"
+  default_prompt: "Use $rkf-auto-connect to activate RKF and connect this research project safely."

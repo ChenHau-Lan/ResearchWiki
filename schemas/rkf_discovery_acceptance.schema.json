@@ -1,0 +1,34 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://example.org/rkf/rkf_discovery_acceptance.schema.json",
+  "title": "RKF Discovery Acceptance State",
+  "description": "Mutable, validated acceptance decisions stored beside an immutable discovery run.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schema",
+    "run_id",
+    "preview_hash",
+    "updated_at",
+    "accepted"
+  ],
+  "properties": {
+    "schema": {"const": "rkf-discovery-acceptance-v1"},
+    "run_id": {"type": "string", "pattern": "^run_[a-z0-9][a-z0-9_-]{0,159}$"},
+    "preview_hash": {"type": "string", "pattern": "^[0-9a-f]{64}$"},
+    "updated_at": {"type": "string", "format": "date-time"},
+    "accepted": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["candidate_id", "accepted_at", "actor"],
+        "properties": {
+          "candidate_id": {"type": "string", "pattern": "^cand_[0-9a-f]{20}$"},
+          "accepted_at": {"type": "string", "format": "date-time"},
+          "actor": {"enum": ["human", "codex", "automation"]}
+        }
+      }
+    }
+  }
+}

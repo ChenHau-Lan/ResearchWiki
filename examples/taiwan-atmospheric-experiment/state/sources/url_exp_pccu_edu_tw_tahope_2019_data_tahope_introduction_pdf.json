@@ -6,15 +6,17 @@
   "normalized_doi": "",
   "title": "Taiwan-Area Heavy rain Observation and Prediction Experiment (TAHOPE) Introduction",
   "status": "wiki_done",
+  "reading_state": "fulltext-read",
+  "fulltext_status": "fulltext-read",
   "topic_ids": [
     "taiwan-atmospheric-field-campaigns"
   ],
   "gates": [
     {
-      "gate_id": "pdf_acquisition_url_exp_pccu_edu_tw_tahope_2019_data_tahope_introduction_pdf",
-      "type": "pdf_acquisition",
+      "gate_id": "fulltext_route_url_exp_pccu_edu_tw_tahope_2019_data_tahope_introduction_pdf",
+      "type": "fulltext_route",
       "status": "approved",
-      "path": "examples/taiwan-atmospheric-experiment/state/gates/pdf_acquisition/url_exp_pccu_edu_tw_tahope_2019_data_tahope_introduction_pdf.md"
+      "path": "examples/taiwan-atmospheric-experiment/state/reading/fulltext_routes/url_exp_pccu_edu_tw_tahope_2019_data_tahope_introduction_pdf.md"
     }
   ],
   "evidence_ids": [

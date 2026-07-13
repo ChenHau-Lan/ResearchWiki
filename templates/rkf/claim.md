@@ -5,6 +5,10 @@ review_stage: ai-extracted
 evidence_boundary: review-blocker
 evidence_ids: []
 topics: []
+observed_at: YYYY-MM-DD
+valid_from: YYYY-MM-DD
+valid_until:
+supersedes:
 created: YYYY-MM-DD
 updated: YYYY-MM-DD
 sources: []

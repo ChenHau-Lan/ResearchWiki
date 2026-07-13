@@ -6,15 +6,17 @@
   "normalized_doi": "10.5194/acp-26-2083-2026",
   "title": "Separating the Twomey effect and the semi-direct effect in absorbing aerosol environments through the cloud-aerosol mixing ratio",
   "status": "wiki_done",
+  "reading_state": "fulltext-read",
+  "fulltext_status": "fulltext-read",
   "topic_ids": [
     "taiwan-atmospheric-field-campaigns"
   ],
   "gates": [
     {
-      "gate_id": "pdf_acquisition_doi_10_5194_acp_26_2083_2026",
-      "type": "pdf_acquisition",
+      "gate_id": "fulltext_route_doi_10_5194_acp_26_2083_2026",
+      "type": "fulltext_route",
       "status": "approved",
-      "path": "examples/taiwan-atmospheric-experiment/state/gates/pdf_acquisition/doi_10_5194_acp_26_2083_2026.md"
+      "path": "examples/taiwan-atmospheric-experiment/state/reading/fulltext_routes/doi_10_5194_acp_26_2083_2026.md"
     }
   ],
   "evidence_ids": [

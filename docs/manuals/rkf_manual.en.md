@@ -1,385 +1,206 @@
-# RKF Operating Manual
+# Research Knowledge Framework Manual
 
-Research Knowledge Framework (RKF) is an LLM Wiki-based research knowledge
-framework. It turns research discussions, literature leads, topics, questions,
-claims, concepts, and synthesis into governed, queryable, compounding long-term
-memory.
+RKF is an LLM Wiki-based research knowledge framework. Its job is to preserve
+durable, source-aware academic knowledge while letting paper understanding grow
+actively across sessions.
 
-PDF is not the source of the knowledge base. It is the most common and strongest
-evidence carrier for paper reading. RKF manages source trust, evidence locators,
-save decisions, topic drift, and whether the wiki can be reused in the next
-research session.
+The current model is reading maturity first, claim boundary second. A paper can
+enter the wiki early as a draft from metadata, an abstract, partial full text,
+or a user-provided PDF. The draft must state what has actually been read. Stable
+claims, trusted synthesis, citation confidence, and publication still require a
+locator, human feedback, an existing governed RKF source, or an explicit review
+blocker.
 
-![Skill triggers](assets/rkf_taiwan_atmospheric_experiment/01_skill_triggers.png)
+RKF works beside the Codex `academic-research-suite` skill: ARS can search,
+reason, write, and review; RKF decides what becomes durable wiki memory and
+what remains a reading draft or proposal.
 
-## Core Mental Model
+## Mental Model
 
-The core of an LLM Wiki is not a prettier folder. It is a way for LLM reasoning
-to compound. ARS can research, fact-check, write, and review; RKF adds durable
-memory, topic governance, evidence boundaries, and a maintainable wiki graph.
-
-```text
-research idea -> topic governance -> evidence candidates -> ARS analysis
--> RKF memory decision -> wiki page / review queue / synthesis
-```
-
-Wiki pages are not only paper pages. RKF maintains paper, question, concept,
-claim, topic, overview, and synthesis pages. A query answer is not a wiki page
-until it is saved as a question, claim, concept, or synthesis.
-
-## Start From A Codex Workspace
-
-1. Create a new Codex project folder, such as `ResearchKnowledgeFramework`.
-2. Put or clone the RKF repo into that folder. This is the Git root for rules,
-   templates, schemas, skills, manuals, and public-safe wiki pages.
-3. Install or enable `academic-research-skills` in Codex. ARS is the research
-   and reasoning capability; RKF is the persistence and governance layer.
-4. Start with a local RKF workspace. You do not need cross-computer sync on day
-   one. Shared databases, Drive links, and private artifact locations are
-   experimental `rkf-connect` concerns described at the end of this manual.
-5. Create the first topic. AI should search the topic registry first, reuse the
-   closest topic when possible, and propose a new topic only when needed. You can
-   later revise aliases, scope, include/exclude rules, and search strings.
-6. Capture DOI, URL, PDF, topic, or idea leads. They begin as candidates, not
-   evidence.
-7. After literature search, stop at a checkpoint: which artifacts are ready for
-   QC, which papers lack PDF/full text, and which items require the user to get
-   legal access.
-8. Only reviewed paper artifacts can become paper wiki pages. Cross-paper
-    ideas become questions, concepts, claims, or synthesis.
-
-![Codex workspace setup](assets/rkf_taiwan_atmospheric_experiment/02_source_intake.png)
-
-## Skill And Mode Routing
-
-| Stage | When To Use It | Skill | Mode | Output | Boundary |
-|---|---|---|---|---|---|
-| Clarify scope | Topic names, acronyms, or boundaries are unclear | `academic-research-skills` | `deep-research:socratic` or `deep-research:quick` | Scope and search terms | No RKF wiki write yet |
-| Find literature | You need SCI papers, DOI routes, and research context | `academic-research-skills` | `deep-research:lit-review` | Candidate paper list | Candidates are not evidence |
-| Verify sources | DOI, authors, version, or route need checking | `academic-research-skills` | `deep-research:fact-check` | Source verification notes | ARS output remains proposal context |
-| Capture source | You have a DOI/URL/PDF/topic lead | `rkf-evidence-vault` | `capture` | SourceRecord | No paper page yet |
-| Manage candidates | Literature exists but PDF/full text is missing | `rkf-evidence-vault` | `discover` | Candidate backlog / missing artifact checkpoint | Missing evidence stays in review queue |
-| Acquire evidence | You found a legal PDF, official document, screenshot, or authorized text | `rkf-evidence-vault` | `acquire` | Acquisition checkpoint | Stop on unclear access or identity |
-| Verify evidence | Artifact usability must be checked | `rkf-evidence-vault` | `verify-pdf` | QCed reading artifact and locators | Un-QCed artifacts cannot create paper pages |
-| Write wiki | Evidence passed QC | `rkf-knowledge-synthesis` | `distill-paper`, `save-concept`, `synthesize` | Paper, concept, or synthesis pages | Claims must trace back to locators |
-| Review topics | Topics grow, candidates pile up, or scope drifts | `rkf-knowledge-synthesis` | `topic-review` | merge/split/search-string/update proposal | Propose changes before large registry edits |
-| Ask wiki | You need an answer from existing wiki context | `rkf-wiki-core` | `query` | RKF context + ARS analysis + save proposal | Answer is not automatically a wiki page |
-| Maintain | Topic grows, evidence changes, or sharing is planned | `rkf-lint` | `structure-lint`, `evidence-lint`, `graph-lint`, `ars-handoff-lint`, `public-safety-lint`, `repair-plan` | Findings or repair plan | Repair plans do not bulk-edit claims |
-| Connect shared database | Multiple computers, Drive sharing, or external sandbox access | `rkf-connect` | `shared-database-plan`, `link-workspace`, `sandbox-grant`, `sandbox-save-proposal` | connection plan or proposal | Experimental; do not commit local links or private paths |
-
-## Skill Triggers
-
-| Skill | English Triggers | 中文觸發詞 |
+| Layer | Purpose | Boundary |
 |---|---|---|
-| `academic-research-skills` | literature review, deep research, fact check, source verification | 文獻回顧、深度研究、找 SCI、查 DOI、查核來源 |
-| `rkf-evidence-vault` | find papers, capture DOI, missing PDF, acquire evidence, PDF/OCR QC | 文獻搜尋、加入 DOI/URL/PDF、缺 PDF、合法取得、PDF 檢查、OCR 檢查 |
-| `rkf-knowledge-synthesis` | paper note, wiki page, concept, question, claim, synthesis, topic review | 整理成 wiki、論文筆記、概念頁、問題頁、claim、綜整、topic 整理、topic 建議 |
-| `rkf-wiki-core` | ask the wiki, ARS reasoning, save memory, graph, sandbox capsule | 問知識庫、ARS 分析、回寫 wiki、保存討論、知識圖譜、外部 sandbox |
-| `rkf-lint` | audit, maintenance, repair plan, public safety, evidence boundary | 檢查、定期維護、修復計畫、證據邊界、發布安全、private path 檢查 |
-| `rkf-connect` | shared database, Google Drive, symlink, junction, sandbox access | 共享資料庫、多台電腦、Google Drive、ln、symlink、junction、連結 wiki、外部 sandbox 權限 |
+| Source record | Register DOI, URL, PDF pointer, topic seed, idea, or question | Source identity and topic fit |
+| Paper draft | Preserve current understanding of one paper | Reading state, full-text status, feedback level, claim readiness |
+| Reading ledger | Keep public-safe interaction history | Operational memory, not evidence by itself |
+| Claim | Preserve a supported or reviewable statement | Locator, human feedback, existing page, or blocker |
+| Synthesis | Preserve cross-source judgment | Source coverage, maturity, feedback, claim readiness |
+| Topic | Control discovery scope and drift | Scope, aliases, include/exclude, default searches |
 
-## Topic Governance
+## Paper Maturity
 
-A topic is the research index, not just a folder name. Each topic should have:
+Paper frontmatter should record:
 
-- topic ID: stable, short, frontmatter-safe.
-- aliases: synonyms, acronyms, spelling variants.
-- scope: what the topic governs.
-- include / exclude rules: which sources belong and which do not.
-- default search strings: reusable ARS/search queries.
-- canonical pages: main topic, concept, and synthesis pages.
-- review cadence: how often to check topic drift and candidate backlog.
+```yaml
+reading_state: metadata-only | abstract-read | partial-fulltext | fulltext-available | fulltext-read | human-reviewed | synthesis-ready | blocked
+fulltext_status: unknown | needs-user-pdf | user-pdf-provided | publisher-html | publisher-pdf | open-access-pdf | partial-only | fulltext-read | unavailable | blocked
+human_feedback_level: none | skimmed | discussed | annotated | trusted
+understanding_confidence: low | medium | high | mixed
+claim_readiness: not-ready | locator-needed | claim-ready | synthesis-ready
+last_reading_interaction: YYYY-MM-DD
+reading_ledger: state/reading/<source_id>.json
+```
 
-When you ask a new research question, AI should search the topic registry first.
-If a near match exists, it should reuse that topic. If none fits, it should
-propose a new topic. You can later edit aliases, scope, include/exclude rules,
-and search strings so future discovery gets sharper.
+Use conservative values when the system knows little. A metadata-only draft is
+useful because it makes the next reading action visible.
 
-Topics need regular review, not just setup. `topic-review` answers four
-questions:
+## Synthesis Maturity
 
-- Has this topic become too broad and needs subtopics?
-- Do two topics govern the same research area and need merging or aliases?
-- Which candidate papers no longer fit the scope, and which still lack artifacts?
-- Are the default search strings stale, causing ARS to find the same or wrong papers?
+Synthesis frontmatter should record:
 
-Useful requests:
+```yaml
+synthesis_maturity: draft | single-source | multi-source | human-reviewed | publication-ready
+source_coverage: unknown | partial | representative | systematic
+human_feedback_level: none | skimmed | discussed | annotated | trusted
+claim_readiness: not-ready | locator-needed | claim-ready | synthesis-ready
+last_synthesis_interaction: YYYY-MM-DD
+observed_at: YYYY-MM-DD
+valid_from: YYYY-MM-DD
+valid_until: optional
+supersedes: optional
+```
 
-- "Review this topic regularly and suggest merges, splits, and stale candidates."
-- "Clean up this topic's aliases, include/exclude rules, and search strings."
-- "Based on the current wiki, suggest keywords for the next literature search."
-- "Check which candidates still lack PDFs and which should move to another topic."
+Synthesis can remain draft-quality while it collects questions and source gaps.
+It becomes trusted only when coverage, feedback, and claim readiness are clear.
 
-## Wiki Page Types And Template Functions
+## Common Workflows
 
-RKF wiki pages are knowledge objects, not just notes. Each page type has a
-different job:
+### Save a ChatGPT or web clip to the inbox
 
-| Page Type | Main Function | Core Fields / Sections | Create When |
-|---|---|---|---|
-| `paper` | Preserve reading results from one QCed artifact | source identity, evidence boundary, PDF/visual locators, reading notes, claims to promote, graph links | a legal paper artifact has passed QC |
-| `question` | Preserve a research question worth tracking | question, why it matters, current evidence, missing evidence, next search | a query reveals a reusable or unresolved question |
-| `concept` | Preserve a reusable method, variable, instrument, mechanism, or dataset | definition, scope, related papers, use cases, open caveats | several sources reuse the same idea |
-| `claim` | Preserve a supported or reviewable statement | claim statement, supporting locator, confidence, caveat, review blocker | a statement may enter synthesis or writing and needs traceability |
-| `topic` | Govern research scope and discovery strategy | topic ID, aliases, scope, include/exclude, default searches, canonical pages, review cadence | starting or reorganizing a research direction |
-| `overview` | Preserve project, dataset, experiment, or field context | context, scope, key artifacts, related topics, limitations | the source is contextual rather than one SCI paper |
-| `synthesis` | Preserve cross-source judgment, recommendation, or reusable answer | synthesis question, evidence base, claims, gaps, recommendations, review status | an answer crosses sources or affects research decisions |
-| `project-synthesis` | Preserve a project-stage conclusion | project goal, source set, decision log, remaining blockers, next actions | a research project needs stage-level integration |
-| `meeting` | Preserve research decisions and action items from a meeting | agenda, decisions, evidence links, action items, save proposals | meeting outcomes affect topics or synthesis |
-| `seminar` | Preserve seminar or reading-group knowledge that may enter RKF | speaker/context, main claims, related papers, questions, follow-up | external knowledge should become question/concept/claim proposals |
+Ask Codex: "Save this ChatGPT or web clip to the RKF inbox. Keep the source
+summary, DOI/URL, my reader note, and any AI/agent note in separate sections."
 
-All pages should have frontmatter: `type`, `status`, `review_stage`, `topics`,
-`evidence_boundary`, `created`, and `updated`. `evidence_boundary` states
-whether the page rests on PDF evidence, an existing wiki page, an ARS proposal,
-or a review blocker.
+An inbox item is a low-risk capture object. DOI injection only creates or links
+the `SourceRecord` and paper backlink; it does not promote stable claims.
 
-## Evidence Checkpoint And QC
+### Register a paper and create an early draft
 
-After SCI paper discovery, do not write paper pages immediately. Stop at a
-checkpoint:
+Ask Codex: "Capture this DOI/URL in RKF and create a conservative paper draft,
+even if we only have metadata or an abstract."
 
-| Category | Meaning | Next Step |
+If no full text is available, the draft should show `fulltext_status:
+needs-user-pdf` and the paper should appear in the queue.
+
+### Ask the user for a PDF only when needed
+
+Ask Codex: "Show which registered papers need my PDF or authorized full text."
+
+This marks the source as needing a user PDF. It does not create a new required
+checkpoint. Older checkpoint files remain valid for legacy records.
+
+### Record a user-provided PDF
+
+Ask Codex: "I have the PDF for this paper; update full-text status and keep the
+private evidence boundary intact."
+
+The PDF remains in private evidence storage. The public wiki records only safe
+metadata, reading state, and locator notes.
+
+### Check locators and upgrade readiness
+
+Ask Codex: "Check the locators/readability for this paper and tell me whether
+it can support claim readiness."
+
+Use this when a PDF, publisher HTML page, or visual artifact has been checked
+enough to support claims. For scanned or image-only papers, record visual
+locators, OCR confidence, and human reading notes.
+
+### Record feedback
+
+Ask Codex: "Record that I discussed, annotated, corrected, or trusted this
+paper, and append the public-safe event to its reading ledger."
+
+Feedback updates the paper frontmatter and appends a public-safe event to
+`state/reading/`. The ledger helps RKF know which papers are trusted by the
+user, but a ledger entry alone is not claim evidence.
+
+### Use the active paper queue
+
+Ask Codex: "Show my active RKF paper queue and the next papers that need PDF,
+feedback, locators, or synthesis review."
+
+The queue should prioritize papers that are metadata-only, need a user PDF,
+lack human feedback, have repeated questions, or are ready for synthesis review.
+
+### Start a session with world context
+
+Ask Codex: "Start this session with RKF world context."
+
+`world` returns the L0-L3 context capsule: critical facts, active reading,
+claim readiness, contradiction hints, graph links, and validation state.
+
+### Evolve an existing page
+
+Ask Codex: "Use `evolve` to add this low-risk update to the existing page and
+leave an AI Integration Note."
+
+Low-risk updates may rewrite existing pages when they leave an AI Integration
+Note. High-risk stable claim promotion, source identity conflicts,
+publication-ready synthesis, and delete/merge choices should be written as
+blockers or maturity downgrades.
+
+### Reconcile contradictions and challenge a synthesis
+
+Ask Codex: "Reconcile contradictions in this topic and challenge this synthesis
+using only existing RKF knowledge."
+
+`reconcile` marks contradictions as AI-integrated blockers. `challenge` returns
+counterpoints and downgrade suggestions only; it does not create stable claims.
+
+### Discover unnamed patterns
+
+Ask Codex: "Find unnamed patterns from the current reading queue, hot demand,
+feedback gaps, and topic state; keep any written synthesis low maturity."
+
+Auto-synthesis uses existing RKF reading, hot-query, feedback, and topic state.
+It does not require candidate records and starts as low maturity.
+
+## Skill Routing
+
+| Task | Skill | Mode |
 |---|---|---|
-| Artifact ready for QC | Legal PDF, official document, or authorized text exists | Run evidence QC |
-| Missing PDF / full text | Only DOI, metadata, abstract, or candidate page exists | Keep in candidate backlog |
-| User action needed | Institutional access, author manuscript, publisher page, or scan may be needed | User obtains legal artifact, then returns to RKF |
+| Capture DOI/URL/PDF lead | `rkf-evidence-vault` | `capture` |
+| Find candidate papers | `rkf-evidence-vault` | `discover` |
+| Record missing or user-provided full text | `rkf-evidence-vault` | `acquire` |
+| Check locators/readability | `rkf-evidence-vault` | `verify-pdf` |
+| Create/update paper draft | `rkf-knowledge-synthesis` | `distill-paper` |
+| Save question/concept/claim/synthesis | `rkf-knowledge-synthesis` | `save-*` / `synthesize` |
+| Find unnamed patterns | `rkf-knowledge-synthesis` | `emerge` |
+| Query wiki and record hot demand | `rkf-wiki-core` | `query` / `hot-query` |
+| Evolve or challenge existing pages | `rkf-wiki-core` | `evolve` / `challenge` |
+| Track paper queue and feedback | `rkf-wiki-core` | `paper-*` |
+| Run maintenance checks or reconcile contradictions | `rkf-lint` | `structure`, `evidence`, `graph`, `ARS`, `public-safety`, `reconcile` |
+| Connect other Codex sessions or projects | `rkf-connect` | `handoff-*` |
 
-PDF QC happens after acquisition checkpoint and before paper page creation. It
-checks:
+## Save Rules
 
-- source identity: title, authors, DOI, journal, year.
-- legal route: open access, publisher free access, institutional access,
-  user-provided artifact, or official document.
-- version: publisher version, author manuscript, preprint, or scan.
-- readability: pages, figures, and tables render clearly.
-- locator: page, section, figure, table, or visual location used by the wiki
-  page.
+- A query answer is not a wiki page until explicitly saved.
+- A paper draft reports one source; cross-source judgment belongs in synthesis.
+- A candidate is not evidence, but it can start a reading draft.
+- ARS output is a proposal unless RKF review promotes it.
+- `emerge` does not require candidate records and starts as draft synthesis.
+- Every AI rewrite needs an AI Integration Note.
+- Stable AI-integrated claim/synthesis content needs `observed_at` and
+  `valid_from`.
+- Stable claims require locator support, human feedback, or an existing RKF
+  source. Explicit blockers prevent promotion until reviewed.
+- Durable article text, PDFs, browser captures, private Drive paths, and local
+  secrets must not be committed.
 
-For old scanned image PDFs, add visual/OCR notes. Use screenshots, page numbers,
-manual visual reading, and OCR confidence notes. If OCR is unreliable, save
-visual locators and human summaries only; do not claim searchable full-read text
-evidence.
+## Codex Handoff Contexts
 
-![Evidence QC](assets/rkf_taiwan_atmospheric_experiment/04_pdf_qc.png)
+Other Codex sessions or connected projects should receive a generated RKF
+context capsule and the same reading-boundary rules. They default to
+read/proposal access. If a handoff context only has search results, unclear
+topic fit, missing full text, low reading maturity, or insufficient locators,
+it should return a proposal instead of editing stable claims.
 
-## Worked Example: Taiwan Atmospheric Experiments
+Trusted handoff contexts may return `evolve`, `reconcile`, or `emerge` updates
+when the changes remain AI-marked and maturity-aware. They should not implement
+open-web or multimodal ingestion pipelines inside RKF; use ARS for external
+research.
 
-The complete example lives in
-[`examples/taiwan-atmospheric-experiment/`](../../examples/taiwan-atmospheric-experiment/).
-Starting prompt:
+## Validation
 
-> I want to organize atmospheric experiments in Taiwan, such as TAMEX, SOMEX,
-> and TAHOPE.
-
-### 1. Create The Topic
-
-AI checks whether a related topic already exists in the topic registry. If a
-close topic exists, it attaches new candidates there. If not, it proposes a new
-topic. The example uses:
-
-Topic ID: `taiwan-atmospheric-field-campaigns`
-
-Scope: Taiwan atmospheric observation campaigns and field studies, including
-TAMEX, SoWMEX/TiMREX, TAHOPE/PRECIP, complex-terrain rainfall, Mei-yu fronts,
-southwest monsoon rainfall, typhoon rainfall, dual-polarimetric radar, data
-assimilation, aerosol, CCN, and cloud microphysics.
-
-### 2. Use ARS To Find SCI Papers
-
-Use `academic-research-skills` with `deep-research:lit-review` to find
-candidates, then `deep-research:fact-check` to verify DOI, venue, version, and
-route.
-
-| Status | Paper | DOI / Route | RKF Decision |
-|---|---|---|---|
-| QCed, wiki done | Chen and Liang 1992 TAMEX midlevel vortex | `10.2151/jmsj1965.70.1_25`; J-STAGE free PDF | Ingested as TAMEX paper page |
-| Candidate, missing artifact | Kuo and Chen 1990 TAMEX overview | `10.1175/1520-0477(1990)071<0488:TTAMEA>2.0.CO;2`; AMS | Await legal PDF or authorized text |
-| QCed, wiki done | You, Chung, and Tsai 2020 SoWMEX IOP8 | `10.3390/rs12183004`; MDPI | Manual browser checkpoint, then QC |
-| Candidate, missing artifact | Chang, Lee, and Liou 2015 SoWMEX/TiMREX microphysics | `10.1175/MWR-D-14-00081.1`; AMS/UCAR | Keep in candidate backlog |
-| QCed, wiki done | Miao et al. 2025 TAHOPE/PRECIP IOP2 | `10.1029/2024JD042375`; open PDF route | Ingested as TAHOPE/PRECIP paper page |
-| Candidate, missing artifact | Yang et al. 2024 TAHOPE/PRECIP IOP3 | `10.1175/MWR-D-24-0049.1`; AMS | Await legal PDF/QC |
-| Project context | TAHOPE official introduction PDF | official project PDF | Saved as project overview, not SCI evidence |
-
-![SCI candidates](assets/rkf_taiwan_atmospheric_experiment/03_sci_candidates.png)
-
-### 3. Ingest Evidence Into Wiki Pages
-
-A paper page is one wiki page type, not the whole wiki. The example paper page
-contains:
-
-- frontmatter: type, status, source_id, review_stage, evidence_boundary, topics.
-- Source Identity: DOI, journal, experiment, evidence status.
-- PDF / visual locators: where abstract, method, figures, or conclusions appear.
-- Reading Notes: research question, data, method, core finding.
-- Claims To Promote: possible claim pages with locator and caveat.
-- Graph Links: topic, concept, question, and synthesis links.
-
-![Wiki paper page](assets/rkf_taiwan_atmospheric_experiment/05_wiki_page.png)
-
-After paper pages are ingested, ARS can suggest useful questions:
-
-- How did experiment design evolve from terrain-rainfall diagnosis to prediction systems?
-- Which instruments or data flows recur across campaign generations?
-- Which candidate papers lack artifacts and limit the current synthesis?
-
-### 4. Ask The Wiki And Save Synthesis
-
-Question:
-
-> What should Taiwan do in a future meteorological observation experiment?
-
-Flow:
-
-1. RKF retrieves relevant topic, paper, concept, question, and candidate backlog
-   context.
-2. ARS analyzes the governed wiki context and proposes recommendations.
-3. RKF marks evidence gaps and missing artifacts.
-4. RKF records a public-safe hot-query signal so repeated questions can inform
-   topic review.
-5. Save as synthesis only when the answer crosses multiple sources, supports a
-   research decision, will be reused, or changes topic direction.
-
-The example synthesis recommends treating TAMEX, SoWMEX/TiMREX, and
-TAHOPE/PRECIP as a design ladder from terrain-rainfall diagnosis to radar
-microphysics, data assimilation, prediction products, and data governance.
-
-![Query answer](assets/rkf_taiwan_atmospheric_experiment/06_query_answer.png)
-
-## Use `hot.md` For Recurring Research Demand
-
-`hot.md` is the single retrieval file for questions and paper-search requests
-that keep coming back. Use it to see which topics are currently active, which
-questions are being repeated, which paper leads are being searched, and which
-queries do not yet fit a governed topic.
-
-It is operational memory only. A line in `hot.md` does not make a claim true,
-does not count as evidence, and does not create a paper page. It tells RKF what
-the research workflow is asking for so topic review can respond with better
-aliases, search strings, candidate backlog work, or new topic proposals.
-
-Typical uses:
-
-- Ask the wiki or search for papers; RKF records a public-safe hot-query event.
-- Review `hot.md` before topic maintenance to see repeated questions and stale
-  search demand.
-- Treat unknown-topic queries as triage items, not automatic new topics.
-- Use frequent questions to decide whether to save a durable question,
-  synthesis, or topic-review proposal.
-
-External sandbox use:
-
-- Sandboxes should return hot-query proposals or record short, public-safe
-  research questions through RKF hot-query behavior.
-- Do not create separate hot-query files and do not use a separate sandbox
-  inbox.
-- Records should stay short and use this format:
-
-```text
-- 2026-05-26 | origin=external-sandbox | topic=aerosol-ice-phase-clouds | intent=paper-search | query="supercooled liquid IWP aerosol mechanism"
-```
-
-Never put PDFs, article text, browser captures, raw chat transcripts, private
-Drive paths, local filesystem paths, tokens, or secrets into `hot.md`.
-
-## Why Maintenance Matters
-
-A wiki that is not maintained slowly loses trust: topics drift, candidate papers
-are forgotten, claims detach from evidence, graph links break, synthesis pages
-go stale, and private evidence can accidentally enter Git.
-
-Useful maintenance requests:
-
-- "Run maintenance for this topic."
-- "Check which candidates still lack PDF or full text."
-- "Check whether this synthesis is stale and which claims need updates."
-- "Run evidence-lint, graph-lint, and public-safety-lint."
-- "Create a repair plan without changing content automatically."
-
-Suggested rhythm:
-
-- Active topic: weekly checks for topic drift, candidate backlog, evidence
-  boundaries, and graph links.
-- Major new PDF / ARS report / synthesis: semi-automatic evidence and ARS
-  handoff lint before and after saving.
-- Stable topic: monthly checks for stale synthesis, unresolved candidates, and
-  duplicate concepts.
-- Before sharing or publishing: public-safety lint is mandatory.
-- After durable wiki writes: refresh `index.md`, keep `log.md` as the operation
-  trail for the next LLM session, and review `hot.md` for recurring questions.
-
-## Experimental: Shared Database Across Computers
-
-A shared database is not required for basic RKF use. Enable it when multiple
-computers or external sandboxes need the same research memory. This is managed
-by `rkf-connect`.
-
-Current method:
-
-```text
-<Drive ResearchSync>/
-  raw/
-  wiki/
-    index.md
-    log.md
-    knowledge/
-    state/
-    governance/
-    graph/
-```
-
-- Google Drive for desktop is the shared folder; `raw` and `wiki` hold the real
-  data.
-- Each computer creates local links from its RKF project folder to the Drive
-  `raw` and `wiki` folders.
-- macOS/Linux can use `ln` or symlink; Windows can use junction or symlink.
-- Do not commit cross-platform links, private Drive paths, or licensed evidence
-  into the public repo.
-- When `storage.wiki_root` is configured, RKF treats that folder as the active
-  database for `knowledge`, `state`, `governance`, and `graph`.
-- `index.md` gives LLM sessions a compact retrieval entrypoint; `log.md` keeps
-  the append-only operation history.
-- External sandboxes are read-only by default. Generate the `external-sandbox`
-  context capsule, then use `prompts/external_sandbox_bootstrap.en.md` or
-  `prompts/external_sandbox_bootstrap.zh-TW.md` to start the other sandbox.
-- A trusted sandbox can receive the RKF repo as a writable workspace and operate
-  through RKF CLI: `capture -> acquire -> verify-pdf -> distill`. This still
-  must pass the evidence gates.
-- If the sandbox only has search results, unclear topic fit, missing PDF QC,
-  weak locators, unclear claim support, or no write access, return a
-  `sandbox-save-proposal` and let RKF decide whether to save it.
-
-For external sandbox literature search and reading, use this path:
-
-```text
-literature search
-  -> source candidate
-  -> capture DOI/URL/PDF pointer
-  -> legal acquisition checkpoint
-  -> PDF/OCR/visual QC with locators
-  -> paper wiki distillation
-```
-
-Remember: candidates are not evidence, and ARS/deep-research reports are not
-evidence by themselves. Temporary PDF text or OCR text may be used for reading,
-but do not write full article text, PDFs, browser captures, private Drive paths,
-tokens, or local secrets into RKF.
-
-Useful `rkf-connect` requests:
-
-- "Plan a Google Drive shared database so my Mac and Windows machines use the same raw/wiki."
-- "Check this machine's RKF links and make sure private paths are not in the repo."
-- "Generate sandbox instructions for reading the wiki and proposing saves."
-- "Start RKF mode in another sandbox so it can search papers and add wiki pages through gates."
-- "Turn a useful sandbox question into an RKF question proposal."
-
-## Reference Sources
-
-- [Kuo and Chen 1990 TAMEX overview](https://journals.ametsoc.org/abstract/journals/bams/71/4/1520-0477_1990_071_0488_ttamea_2_0_co_2.xml)
-- [J-STAGE Chen and Liang 1992 TAMEX paper](https://www.jstage.jst.go.jp/article/jmsj1965/70/1/70_1_25/_article)
-- [J-STAGE Wang and Chen 2003 TAMEX paper](https://www.jstage.jst.go.jp/article/jmsj/81/2/81_2_339/_article)
-- [MDPI You et al. 2020 SoWMEX IOP8 paper](https://www.mdpi.com/2072-4292/12/18/3004)
-- [UCAR Chang et al. 2015 SoWMEX/TiMREX paper](https://www.eol.ucar.edu/publications/kinematic-and-microphysical-characteristics-and-associated-precipitation-efficiency)
-- [TAHOPE Project Office](https://rain.as.ntu.edu.tw/TAHOPE/TAHOPE-home.html)
-- [TAHOPE introduction PDF](https://exp.pccu.edu.tw/TAHOPE_2019/data/TAHOPE_Introduction.pdf)
-- [Miao et al. 2025 TAHOPE/PRECIP PDF](https://tropical.colostate.edu/Publications/papers/Miao_etal_JGR_2025.pdf)
-- [TAHOPE/PRECIP IOP3 paper record](https://www.researchgate.net/publication/384138264_Investigating_the_mechanisms_of_an_intense_coastal_rainfall_event_during_TAHOPEPRECIP-IOP3_using_a_multiscale_radar_ensemble_data_assimilation_system)
+Before publishing or opening a PR, ask Codex to run the smallest relevant
+validation suite. The final report should name the tests, lint checks,
+public-safety checks, skipped checks, and any environment limits.

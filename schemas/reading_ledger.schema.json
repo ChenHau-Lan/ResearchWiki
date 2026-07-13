@@ -1,0 +1,42 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://example.org/rkf/reading_ledger.schema.json",
+  "title": "ReadingLedger",
+  "type": "object",
+  "required": ["schema", "source_id", "events", "created", "updated"],
+  "properties": {
+    "schema": { "enum": ["rkf-reading-ledger-v1", "rkf-reading-ledger-v1.1"] },
+    "source_id": { "type": "string" },
+    "knowledge_path": { "type": "string" },
+    "events": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": ["created", "type", "actor", "summary", "public_safe"],
+        "properties": {
+          "created": { "type": "string" },
+          "type": {
+            "enum": [
+              "paper-draft-created",
+              "reading-update",
+              "human-feedback",
+              "question",
+              "answer",
+              "annotation",
+              "trust-change",
+              "blocker",
+              "inbox-injection",
+              "migration"
+            ]
+          },
+          "actor": { "enum": ["codex", "human", "codex-handoff", "automation"] },
+          "summary": { "type": "string", "maxLength": 1000 },
+          "public_safe": { "type": "boolean" },
+          "details": { "type": "object" }
+        }
+      }
+    },
+    "created": { "type": "string" },
+    "updated": { "type": "string" }
+  }
+}

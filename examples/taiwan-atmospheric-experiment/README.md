@@ -4,9 +4,9 @@ This example demonstrates how RKF handles the prompt:
 
 > I want to organize atmospheric experiments in Taiwan, such as TAMEX, SoWMEX, and TAHOPE.
 
-It uses `academic-research-skills` for ARS-style literature discovery and
-source verification, then uses RKF skills for source capture, legal PDF
-checkpointing, evidence QC, paper wiki pages, and a final wiki query about
+It uses Codex `academic-research-suite` for ARS-style literature discovery and
+source verification, then uses RKF skills for source capture, full-text route
+notes, paper reading maturity, paper wiki drafts, and a final wiki query about
 future meteorological observation experiments in Taiwan.
 
 ## What This Example Contains
@@ -18,18 +18,19 @@ future meteorological observation experiments in Taiwan.
 | `skill_mode_walkthrough.md` | When to use ARS modes and RKF modes |
 | `state/sources/` | Public-safe source records |
 | `state/evidence/` | Public-safe evidence artifact pointers; actual PDFs are not included |
-| `state/gates/pdf_acquisition/` | Human-readable PDF checkpoint/QC decisions |
-| `knowledge/papers/` | Paper wiki pages from QCed PDFs |
+| `state/reading/` | Reading ledgers and human-readable full-text route notes |
+| `knowledge/papers/` | Paper wiki pages with reading maturity |
 | `knowledge/questions/` | A decision-oriented question page |
 | `knowledge/synthesis/` | A synthesis answering the example question |
 | `graph/research_graph.json` | Public-safe graph export |
 
-## Evidence Boundary
+## Reading And Evidence Boundary
 
 The actual PDFs used for the demonstration stay in a private evidence root.
 This example stores only public-safe pointers such as
-`PRIVATE_EVIDENCE_ROOT/doi_pdf/...`. The paper pages summarize evidence and
-include PDF locators; they do not contain copied article text.
+`PRIVATE_EVIDENCE_ROOT/doi_pdf/...`. The paper pages summarize current
+understanding, include reading maturity and locators, and do not contain copied
+article text.
 
 ## Alias Note
 

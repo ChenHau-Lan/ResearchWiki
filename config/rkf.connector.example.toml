@@ -1,0 +1,9 @@
+# Private per-user connector configuration.
+# Copy to ~/.codex/rkf_connector.toml only when cross-project routing is wanted.
+# Never commit the copied file because it contains a machine-local checkout path.
+
+[researchwiki]
+root = "/absolute/path/to/ResearchWiki"
+
+[policy]
+mode = "active-aggressive"

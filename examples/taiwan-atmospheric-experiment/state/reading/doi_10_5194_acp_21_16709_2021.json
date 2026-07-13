@@ -1,0 +1,20 @@
+{
+  "schema": "rkf-reading-ledger-v1",
+  "source_id": "doi_10_5194_acp_21_16709_2021",
+  "knowledge_path": "examples/taiwan-atmospheric-experiment/knowledge/papers/chang-et-al-2021-ccn-diurnal-precipitation.md",
+  "events": [
+    {
+      "created": "2026-05-24",
+      "type": "reading-update",
+      "actor": "codex",
+      "summary": "Example paper read from a checked open full-text route; locators recorded for CCN influence on diurnal precipitation over Taiwan topography.",
+      "public_safe": true,
+      "details": {
+        "reading_state": "fulltext-read",
+        "claim_readiness": "claim-ready"
+      }
+    }
+  ],
+  "created": "2026-05-24",
+  "updated": "2026-05-24"
+}

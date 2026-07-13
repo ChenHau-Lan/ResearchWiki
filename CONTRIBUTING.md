@@ -6,7 +6,8 @@ Thanks for improving Research Knowledge Framework.
 
 - Treat `docs/ARCHITECTURE.md`, `MODE_REGISTRY.md`, `schemas/`, and `rkf/` as
   the active framework contract.
-- Use `tools/rk.py` for deterministic local operations.
+- Prefer `rkf.actions` for new Codex app integrations. The legacy/dev runtime
+  shim is for deterministic local maintenance only, not user-facing workflows.
 - Keep evidence artifacts out of Git. Do not commit PDFs, article text, browser
   captures, private Drive paths, or local workspace config.
 - Prefer small changes with a clear mode or object boundary.
@@ -20,10 +21,11 @@ Run before submitting changes:
 ```bash
 python3 -m py_compile tools/rk.py rkf/*.py
 python3 -m unittest discover -s tests
-python3 tools/rk.py topic lint
-python3 tools/rk.py lint
 python3 tools/public_safety_scan.py
 ```
+
+For RKF-specific checks, request topic lint and all lint through the Codex
+app/internal runtime.
 
 ## Documentation
 

@@ -10,6 +10,7 @@ framework.local.yaml
 *.local.toml
 
 .rkf_private/
+.rkf_data/
 output/pdf/
 
 # RKF runtime state is generated per workspace. Commit schemas, docs,

@@ -1,178 +1,250 @@
 # Research Knowledge Framework
 
-[English](README.md) | [Architecture](docs/ARCHITECTURE.md) | [Mode Registry](MODE_REGISTRY.md) | [手冊](docs/manuals/rkf_manual.zh-TW.md)
+[English](README.md) | [完整安裝教學](docs/GETTING_STARTED.zh-TW.md) | [Public Dashboard](docs/workflows/public-dashboard.zh-TW.md) | [Paper Discovery](docs/workflows/paper-discovery.zh-TW.md) | [Architecture](docs/ARCHITECTURE.md) | [Codex 工作流](docs/FEATURES_AND_COMMANDS.zh-TW.md)
 
-Research Knowledge Framework，簡稱 RKF，是一個以 LLM Wiki 為核心的研究知識框架。
-它把研究討論、文獻、topic、question、claim、synthesis 變成可治理、可查詢、
-可累積的長期記憶。
+Research Knowledge Framework，簡稱 RKF，是以 LLM Wiki 為核心的主動研究閱讀框架。
+它把 source、paper draft、閱讀互動、人為反饋、question、claim、synthesis
+整理成可治理、可追蹤、可累積的長期記憶。
 
-目前基準版本：`v1.0.0`。
+目前穩定基準版本：`v1.0.0`；本分支的 RKF 1.1 功能列於
+[Unreleased changelog](CHANGELOG.md)。
 
-PDF 是 paper 閱讀時最常見、最強的 evidence carrier，但不是唯一源頭。RKF 會把
-private evidence 和 public-safe Markdown knowledge pages 分開，並判斷哪些結果
-值得進入 wiki。
+RKF 現在把 evidence 視為**升級邊界**，不是入口門檻。Paper draft 可以很早建立：
+只有 metadata、abstract、部分 full text、或 user-provided PDF 都可以先進入閱讀循環。
+但 stable claim、trusted synthesis、citation、publication 仍需要 locator、人為反饋、
+既有受支持 wiki source，或明確 blocker。
 
-RKF 可以和 [Academic Research Skills](https://github.com/Imbad0202/academic-research-skills) 搭配：
-ARS 負責研究、推理、寫作與審查；RKF 負責長期記憶、evidence boundary、topic
-governance 與 graph-safe wiki state。
+RKF 可以和 Codex `academic-research-suite` skill 搭配：ARS 負責研究、推理、寫作與
+審查；RKF 負責 active reading state、human feedback、evidence boundary、topic
+governance 與 graph-safe wiki memory。
 
 ```text
-candidate != evidence
-ARS output 本身 != evidence
-paper page -> 需要 reviewed source artifact，通常是 QCed PDF
-query answer != wiki page，除非保存成 question / claim / synthesis
-LLM discussion -> save/review proposal
-hot.md == public-safe 熱門研究需求 dashboard，不是 evidence
+paper draft == active reading object
+candidate != claim evidence
+ARS output == proposal 或 reading feedback，直到被 review
+user feedback 會提高 understanding maturity
+stable claim -> locator、supported wiki source、human feedback 或 blocker
+low-risk rewrite -> AI Integration Note + maturity-aware page update
+reconcile/challenge -> AI-marked blocker 與 counterpoints，不是 silent trust
+emerge -> 從既有 RKF 訊號產生 low-maturity pattern synthesis
+hot.md == public-safe 研究需求 dashboard，不是 evidence
+inbox item == ChatGPT/web/source lead capture，不是 claim evidence
 ```
 
-## RKF 與一般 LLM Wiki 的差異
+## 5 分鐘安裝
 
-一般 LLM Wiki 的核心優勢是把 `raw/` 資料編譯成 LLM 維護的 Markdown wiki，並用
-`index.md`、`log.md`、Obsidian graph view 讓知識持續累積。RKF 採用同一個
-LLM-readable wiki 思路，但把它收斂到 academic research：每個可保存的 paper、claim
-或 synthesis 都必須說清楚 evidence boundary。
+RKF 核心只需要 Git、Python 3.9+ 與 Codex app；不需要先安裝 Python package，
+static dashboard 也不需要 Node.js。
 
-| 面向 | 一般 LLM Wiki | RKF |
-|---|---|---|
-| 主要目標 | 個人或團隊知識持續整理 | 可治理、可審計的研究記憶 |
-| 來源處理 | raw inbox 由 LLM 讀取並更新 wiki | DOI/URL/PDF/topic 先成為 SourceRecord，候選不是 evidence |
-| Paper 寫入 | 常由文章/PDF 摘要直接生成頁面 | 需通過合法 acquisition、PDF/OCR/visual QC 與 locator notes |
-| Claim 保存 | 通常依賴頁面摘要與交叉引用 | 需 locator、既有 wiki source，或明確 review blocker |
-| 查詢回寫 | 好回答可歸檔回 wiki | query answer 先是 proposal，符合條件才保存成 question/claim/synthesis |
-| 維護 | 檢查矛盾、孤立頁、過期內容 | 另加 evidence lint、ARS handoff lint、topic review、public-safety lint |
+```bash
+git clone https://github.com/ChenHau-Lan/ResearchWiki.git
+cd ResearchWiki
+python3 tools/bootstrap_rkf.py
+```
 
-簡單說：一般 LLM Wiki 解決「知識如何累積」；RKF 進一步解決「研究知識憑什麼可信、
-能不能發布、下次能否追到證據」。
+第一個 bootstrap 是不寫檔的 preview。確認 receipt 為 `ready` 且沒有
+`blocker_codes` 後，再建立 ignored 的本機 workspace；若要讓其他專案找到這個
+checkout，同時安裝 machine-local connector 與 repo 內 version-matched 的
+`rkf-auto-connect` skill：
 
-## 快速開始
+```bash
+python3 tools/bootstrap_rkf.py --apply --install-connector
+python3 tools/check_install.py --strict
+```
 
-日常使用時用自然語言要求 RKF：
+不要手動把 PDF、private Drive path 或 API key 放進 repo。Windows 使用者可把
+`python3` 換成 `py -3`。完整的安裝、錯誤排除與隱私邊界見
+[RKF 新手安裝與第一個研究專案](docs/GETTING_STARTED.zh-TW.md)。
 
-- 「建立台灣大氣觀測實驗 topic，找相關 SCI paper。」
-- 「列出哪些候選文獻還缺 PDF 或全文，讓我先取得資料。」
-- 「這份 PDF 是合法取得的，請檢查並整理成 paper wiki page。」
-- 「問知識庫目前有哪些 evidence-backed recommendations，並用 ARS 分析取回的脈絡。」
-- 「如果這個回答值得長期保存，請轉成 synthesis proposal。」
-- 「定期整理這個 topic registry，建議 merge、split、過期候選與新的 search strings。」
-- 「做一次 topic drift、evidence boundary、graph link、public safety 維護檢查。」
-- 「把這個 RKF wiki 連到另一台電腦或外部 sandbox 的共享研究資料夾。」
-- 「把這個 paper-search 問題記到 hot.md，讓 topic review 看見我反覆在問什麼。」
+### 連結另一個研究專案
+
+先 preview，再 apply；這只會建立 v2 `.rkf-connect.toml` 和輕量 `RKF/` bridge，
+不會複製第二套 wiki，也不會永久啟動 RKF：
+
+```bash
+python3 tools/rkf_auto_connect.py connect-project "/path/to/MyResearchProject" --project-name "MyResearchProject"
+python3 tools/rkf_auto_connect.py connect-project "/path/to/MyResearchProject" --project-name "MyResearchProject" --apply
+```
+
+每個新的 Codex task 仍從 RKF OFF 開始；只有明確說「啟動 RKF」後才會使用
+guarded query/capture actions。
+
+## Codex 自然語言快速開始
+
+在 Codex app 裡用自然語言操作 RKF：
+
+- 「先 capture 這個 DOI，就算只有 metadata 也建立 paper draft。」
+- 「把這段 ChatGPT/web clip 存到 RKF inbox，並把我的想法和來源內容分開。」
+- 「列出哪些已登錄 paper 需要我提供 PDF 或 human feedback。」
+- 「我讀完這篇了，把我的反饋記錄進 reading ledger，並提高 trust level。」
+- 「問知識庫目前知道什麼，並用 ARS 對取回 context 推理。」
+- 「開始前先顯示 L0-L3 world context。」
+- 「用 evolve 補上這頁的 retrieval brief 或 reading-state note。」
+- 「Reconcile 這個 topic 的矛盾，並標明 AI integration。」
+- 「用我自己的 RKF knowledge challenge 這個 synthesis。」
+- 「今晚找 unnamed patterns，但保持 low maturity。」
+- 「整理這個 topic registry，建議 merge、split、過期候選與新的 search strings。」
+- 「做一次 reading maturity、evidence boundary、graph link、public safety 維護檢查。」
+- 「把這個 paper-search 問題記到 hot.md，讓 topic review 看見反覆需求。」
+- 「根據 topic 的 search strings 建立 Crossref 與 arXiv candidate preview，先不要攝取。」
+- 「建立 aggregate-only 的 dashboard preview，不要發布。」
+- 「把這個 dashboard preview render 成 private review page，不要更新 site。」
+
+## 研究熱點網站與 Paper Discovery
+
+- `site/` 是原生 HTML/CSS/JavaScript dashboard，顯示 topic-level demand、paper
+  pipeline、reading maturity、claim readiness 與 machine-neutral settings。它不顯示
+  raw query、paper title、DOI、路徑、全文或 reading ledger。沒有最近 demand 時，
+  已登錄 topics 會另列為研究領域，不會被誤稱為 hotspots。
+- Dashboard 採 `preview -> private visual review -> exact snapshot hash -> local
+  publish -> GitHub Pages` 關卡。Private review 可直接打開且不修改 `site/`。Repo
+  只提供未啟用的 Pages workflow 範本；remote、branch、push 與
+  Pages 啟用都需要另行批准。
+- `discover.preview` 可從 topic、`hot.md` 或明確 query 查詢 Crossref、arXiv，並可選
+  OpenAlex／paper-radar metadata adapter。只有 exact preview 可被記錄；只接受選定
+  candidate IDs，且預設不建立 paper draft、不升級 claim。
+
+操作細節見 [Public Dashboard](docs/workflows/public-dashboard.zh-TW.md) 與
+[Paper Discovery](docs/workflows/paper-discovery.zh-TW.md)。
 
 ## Skills At A Glance
 
 | Skill | 目的 |
 |---|---|
-| `rkf-evidence-vault` | Capture sources、discovery、合法 evidence route、paper-reading artifact QC |
-| `rkf-knowledge-synthesis` | 從 reviewed evidence 建立 paper page，維護 question/concept/claim/topic/synthesis |
-| `rkf-wiki-core` | 取回 LLM Wiki context、銜接 ARS reasoning、保存 durable memory、graph、sandbox capsule |
-| `rkf-lint` | 維護 structure、evidence boundary、graph、ARS handoff、public safety、repair plan |
-| `rkf-connect` | 實驗性的多電腦共享資料庫、Drive 連結與外部 sandbox 存取管理 |
+| `rkf-evidence-vault` | Capture source、discovery、追蹤 full text availability、更新 reading artifact |
+| `rkf-knowledge-synthesis` | 維護 paper draft、question、concept、claim、topic、synthesis 與 reading maturity review |
+| `rkf-wiki-core` | 取回 LLM Wiki context、銜接 ARS reasoning、保存 durable memory、Codex session context、graph、handoff capsule |
+| `rkf-lint` | 維護 structure、reading maturity、evidence boundary、graph、ARS handoff、public safety、repair plan |
+| `rkf-connect` | 實驗性的多電腦共享資料庫、Drive 連結與 Codex handoff 存取管理 |
 
 `rkf-ars-bridge` 是 protocol，不是 active skill。它把 ARS output 轉成 RKF
-save/review/synthesis proposal。
-
-## 實作範例
-
-[`examples/taiwan-atmospheric-experiment`](examples/taiwan-atmospheric-experiment/)
-示範「我想整理在台灣的大氣實驗」：建立 topic、搜尋 SCI paper、缺 PDF
-checkpoint、evidence QC、paper wiki pages，以及針對「未來台灣要做氣象觀測實驗的
-建議」建立 synthesis。
+save/review/synthesis proposal 或 reading feedback。
 
 ## Knowledge Flow
 
 ```mermaid
 flowchart LR
-    A["研究想法 / DOI / URL / PDF / 討論"] --> B["Topic governance"]
-    B --> C["SourceRecord 與候選 backlog"]
-    C --> D["Evidence route checkpoint"]
-    D --> E["Reviewed evidence artifact"]
-    E --> F["Wiki page: paper / question / concept / claim"]
-    F --> G["RKF query 取回 context"]
-    G --> H["ARS 針對 context 推理"]
-    H --> I["RKF 視需要保存 synthesis"]
-    B --> J["Topic review: merge / split / 更新 search strings"]
-    J --> B
+    Z["ChatGPT / web clip / project note"] --> A["Inbox item"]
+    A --> B["SourceRecord<br/>有 DOI/URL 才連結"]
+    A --> N["Reader notes / ideas<br/>和來源分開"]
+    B --> C["Early paper draft"]
+    C --> D["Reading maturity<br/>metadata / abstract / partial / fulltext / human-reviewed"]
+    D --> E["Reading ledger<br/>問題、反饋、blocker"]
+    E --> F["Claims and synthesis<br/>成熟度足夠才升級"]
+    F --> G["World context<br/>L0-L3 capsule"]
+    F --> M["Priority evolve<br/>AI Integration Note"]
+    H["RKF query"] --> I["Hot-query event"]
+    H --> J["Governed wiki context"]
+    J --> K["ARS reasoning"]
+    K --> E
+    L["Topic review and lint"] --> B
+    L --> F
 ```
 
-RKF 不把 durable full article text 當作 public knowledge layer。工具可以暫時讀取
-PDF text、OCR output 或 browser text 來協助分析，但保存下來的知識必須保留
-locator、review status 與 evidence boundary。
+PDF 仍是重要閱讀 artifact，但 RKF 不再等 PDF 才記得一篇 paper 存在。若 full text
+讀不到，RKF 會標記 `needs-user-pdf` 並放進 active reading queue。工具可以暫時讀
+PDF text、OCR output 或 browser text；但 durable public pages 只能保存 locator、
+review status、成熟度欄位與 evidence boundary。
+
+## Reading Maturity
+
+Paper page 追蹤：
+
+- `reading_state`：metadata-only、abstract-read、partial-fulltext、fulltext-read、human-reviewed 或 mixed。
+- `fulltext_status`：unknown、needs-user-pdf、user-pdf-provided、publisher-html、publisher-pdf、open-access-pdf、partial-only、fulltext-read、unavailable 或 blocked。
+- `human_feedback_level`：none、skimmed、discussed、annotated 或 trusted。
+- `understanding_confidence`：low、medium、high 或 mixed。
+- `claim_readiness`：not-ready、locator-needed、claim-ready 或 synthesis-ready。
+- `reading_ledger`：位於 `state/reading/` 的 public-safe operational record。
+
+Synthesis page 也追蹤 `synthesis_maturity`、`source_coverage`、
+`human_feedback_level` 與 `claim_readiness`。
+
+## 主動推播 Paper
+
+RKF 可以產生 active paper queue，列出需要 paper draft、user-provided PDF、human
+feedback、locator 或 synthesis review 的 paper。這讓 wiki 更主動，但不會讓 unsupported
+claim 自動變成 stable knowledge。
+
+## World Context
+
+開始 session 或交接給另一個 agent 時，請 Codex 顯示 RKF world context。它會輸出
+L0-L3 context capsule：L0 identity、critical facts、active blockers；L1 active
+papers、paper queue、hot queries、recent reading feedback；L2 topic、synthesis、
+claim readiness、contradiction hints；L3 graph/detail links 和 validation state。
+
+`CRITICAL_FACTS.md` 保存短句、public-safe、可重用且有 `observed_at`、
+`valid_from`、`confidence`、`source_or_blocker` 的 facts，讓未來 agent 不需要
+把私人筆記或全文塞進 wiki。
+
+## Priority Evolve
+
+請 Codex 使用 `evolve` 做低風險 existing page 更新。它會寫入 `AI Integration
+Note`，標記 `ai_integrated: true`，並保持 maturity 保守。Stable claim promotion、
+source identity conflict、publication-ready synthesis、delete/merge choices 都要留
+blocker 或 maturity downgrade，不能靜默升級信任。
+
+`propagate` 仍保留為 manual preview/audit fallback，用於先看受影響頁面。
+
+## Reconcile、Challenge 與 Emerge
+
+請 Codex 用 `reconcile` 掃描同 topic 頁面中的明顯 tension；寫入時透過 high-priority
+`evolve` 留下 AI-marked blocker，不假裝已經 human-resolved。
+
+請 Codex 用 `challenge` 只從現有 RKF pages 列出 counterpoints、missing evidence 與
+maturity downgrade 建議。Challenge output 是 critique，不是 stable claim evidence。
+
+請 Codex 用 `emerge` 從 reading queue、hot-query demand、human-feedback gap 與 topic
+state 找 unnamed patterns。它不需要 candidate records，也不使用 open-web retrieval。
+當你批准寫入時，會建立 low-maturity synthesis draft：`synthesis_maturity: draft`、
+`source_coverage: partial`、`claim_readiness: not-ready`。
+
+`emerge` 是唯一的 pattern-synthesis 路徑。
+
+Agent prompt templates 位於 `prompts/agents/`，包含 morning、nightly、weekly、
+health。這些只是 repo prompt；真正建立 app automation 需要使用者另外批准。
 
 ## 熱門研究問題
 
-`hot.md` 是最近研究需求的單一檢索檔。RKF 會把短而 public-safe 的 query 與
-discovery 紀錄寫在這個 Markdown 檔，再用最近 30 天資料整理 topic、重複問題、
-paper/search lead 與 unknown-topic triage。
+`hot.md` 是最近研究需求的單一檢索檔。RKF 會把短而 public-safe 的 query 與 discovery
+紀錄寫入此檔，再整理最近 30 天的 topic、重複問題、paper/search lead 與
+unknown-topic triage。這一層是 operational memory，不是 evidence。
 
-這一層只是 operational memory：它幫助判斷哪些 topic 需要 review、哪些搜尋反覆出現、
-哪裡可能需要新 topic proposal。它不是 evidence，也不會把 claim 升級。外部 sandbox
-應回傳 hot-query proposal，或透過 RKF hot-query 行為記錄；不要另外建立 hot-query
-分檔。
+## RKF 1.1 審核關卡工具
+
+- `paper.migration.preview` 會在本機建立 copied-corpus 的 diff、routing proposal
+  與 manifest hash；它不會修改 live wiki。真正套用前仍要對該 exact hash 另外批准。
+- 已實作的 apply/rollback path 會重新檢查全部 checksum、建立 private backup 與
+  journal，並在部分失敗時自動還原；preview 或 maintenance 不會自行觸發它。
+- `connect.doctor` 只檢查多電腦安全狀態，不寫入也不選 sync winner。
+  `views.preview` 產生五個 Obsidian Bases 預覽，`views.generate` 則只允許已登記的
+  maintenance writer。
+- `maintenance.preview` 與 `cleanup.manifest.preview` 都是安全的規劃工具；它們不會
+  建立 automation、升級 claim、刪除或封存檔案。這些動作各自仍要另外批准。
 
 ## 驗證
 
-```bash
-python3 -m py_compile tools/rk.py rkf/*.py tools/public_safety_scan.py
-python3 -m unittest discover -s tests
-python3 tools/rk.py topic lint
-python3 tools/rk.py lint
-python3 tools/public_safety_scan.py
-```
+發布、開 PR 或完成較大的 RKF 修改前，請 Codex 執行最小相關驗證。Agent 應回報跑了
+哪些 tests、lint、public-safety checks，以及哪些檢查因環境或範圍沒有執行。
 
-## 實驗項目：建立共享資料庫在不同電腦
+## 實驗項目：共享資料庫
 
-這個流程是實驗性功能，放在 RKF 的邊緣層，不放在最基本的入門流程。當你想讓多台
-電腦或外部 sandbox 共用同一份研究資料庫時，使用 `rkf-connect`。
+當你想讓多台電腦或其他 Codex session/project 共用同一份研究資料庫時，使用
+`rkf-connect`。目前建議用 Google Drive for desktop 放真正的 `raw/` 與 `wiki/`，
+每台電腦再用本機 link 連到該共享資料夾。Machine-specific links 與 private Drive
+paths 不進 public source of truth。
 
-目前建議的方法是使用 Google Drive for desktop 作為共享資料夾。真正共享的資料放在
-同一個 Drive 位置，例如：
-
-```text
-<Drive ResearchSync>/
-  raw/
-  wiki/
-    index.md
-    log.md
-    hot.md
-    knowledge/
-    state/
-    governance/
-    graph/
-```
-
-每台電腦再用該作業系統適合的本機連結方式，把 Drive 裡的 `raw` 和 `wiki` 連到本機
-RKF 專案資料夾：macOS/Linux 可用 `ln` 或 symlink，Windows 可用 junction/symlink。
-Drive 裡放真實 raw 與 wiki 檔案；本機 RKF 資料夾只負責連接它們。不要把每台電腦
-自己的 link 或 private Drive path commit 成 public source of truth。
-
-當 `storage.wiki_root` 有設定時，RKF 會把該資料夾視為實際 wiki database。
-`knowledge`、`state`、`governance`、`graph` 都會解析到 shared wiki 底下。
-`index.md` 是給 LLM 快速取回脈絡的壓縮入口，`log.md` 是跨會話延續用的 append-only
-操作軌跡。`hot.md` 是 rolling public-safe 問題 dashboard 與檢索紀錄。
-
-外部 sandbox 預設只給讀取權限。若只需要查詢或提出想法，使用
-`python3 tools/rk.py prompt external-sandbox` 產生 context capsule，並把
-`prompts/external_sandbox_bootstrap.zh-TW.md` 貼到另一個 sandbox 作為啟動提示。
-
-若另一個 sandbox 是可信任的研究代理，也可以把 RKF repo 加成可寫 workspace，讓它透過
-RKF CLI 直接操作。這不是跳過治理：它仍必須走
-`capture -> acquire -> verify-pdf -> distill`。搜尋結果只是 candidate；沒有合法
-artifact、PDF/OCR/visual QC 與 locator notes，就不能生成正式 paper wiki page。
-
-當 sandbox 沒有寫入權限，或 topic fit、PDF QC、locator、claim support 不完整時，應該
-回傳 RKF save/review proposal，附上 evidence boundary，再由 RKF 決定是否寫入穩定
-wiki。
+其他 Codex session 或 connected project 預設只給 read/proposal 邊界。它的有用輸出
+回到 RKF 時，應成為 reading update、save/review proposal 或 synthesis proposal；
+除非使用者明確批准寫入路徑。
 
 ## 版本管理
 
-目前 release target：`v1.0.0`。
+目前 stable release：`v1.0.0`；下一個相容性 target 是尚未發布的 `v1.1.0`。
 
-版本規則：
-
-- `v1.x`：允許相容性的 docs、skill prompt、template、lint、example 與實驗性
-  `rkf-connect` 指引更新。
-- `v2.0`：保留給 breaking schema changes、核心 skill 重新命名、或新的 storage
-  contract。
+- `v1.x`：允許相容性的 docs、skill prompt、template、lint、example、reading maturity
+  與實驗性 `rkf-connect` 指引更新。
+- `v2.0`：保留給 breaking schema changes、核心 skill 重新命名、或新的 storage contract。
 - 實驗功能在有穩定測試與 migration guidance 前，都要明確標示 experimental。
 
 詳細版本歷史見 [CHANGELOG.md](CHANGELOG.md)。

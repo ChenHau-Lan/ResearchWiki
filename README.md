@@ -1,6 +1,6 @@
 # Research Knowledge Framework
 
-[繁體中文](README.zh-TW.md) | [Beginner Setup](docs/GETTING_STARTED.md) | [Public Dashboard](docs/workflows/public-dashboard.zh-TW.md) | [Paper Discovery](docs/workflows/paper-discovery.zh-TW.md) | [Architecture](docs/ARCHITECTURE.md) | [Codex Workflows](docs/FEATURES_AND_COMMANDS.zh-TW.md)
+[繁體中文](README.zh-TW.md) | [Live RKF Observatory](https://chenhau-lan.github.io/ResearchWiki/) | [Beginner Setup](docs/GETTING_STARTED.md) | [Public Dashboard](docs/workflows/public-dashboard.zh-TW.md) | [Paper Discovery](docs/workflows/paper-discovery.zh-TW.md) | [Architecture](docs/ARCHITECTURE.md) | [Codex Workflows](docs/FEATURES_AND_COMMANDS.zh-TW.md)
 
 Research Knowledge Framework, or RKF, is an LLM Wiki-based research knowledge
 framework for active academic reading. It turns sources, paper drafts, reading
@@ -103,8 +103,10 @@ Use RKF through natural-language research requests in the Codex app:
   as research areas rather than mislabeled as hotspots.
 - Dashboard publication follows `preview -> private visual review -> exact
   snapshot hash -> local publish -> GitHub Pages`. The self-contained private
-  review does not modify `site/`. The repository contains only an inactive
-  workflow example; remote, branch, push, and Pages activation require separate approval.
+  review does not modify `site/`. The approved reference instance is live at
+  [RKF Observatory](https://chenhau-lan.github.io/ResearchWiki/), deployed by
+  `.github/workflows/pages.yml`. Every future snapshot still requires a new
+  exact-hash approval before commit, push, or deployment.
 - `discover.preview` can query Crossref and arXiv from a topic, `hot.md`, or an
   explicit query, with optional OpenAlex and paper-radar metadata adapters.
   Only an exact preview may be recorded, and only selected candidate IDs may be

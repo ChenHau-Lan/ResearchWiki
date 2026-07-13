@@ -1,6 +1,6 @@
 # Research Knowledge Framework
 
-[English](README.md) | [完整安裝教學](docs/GETTING_STARTED.zh-TW.md) | [Public Dashboard](docs/workflows/public-dashboard.zh-TW.md) | [Paper Discovery](docs/workflows/paper-discovery.zh-TW.md) | [Architecture](docs/ARCHITECTURE.md) | [Codex 工作流](docs/FEATURES_AND_COMMANDS.zh-TW.md)
+[English](README.md) | [Live RKF Observatory](https://chenhau-lan.github.io/ResearchWiki/) | [完整安裝教學](docs/GETTING_STARTED.zh-TW.md) | [Public Dashboard](docs/workflows/public-dashboard.zh-TW.md) | [Paper Discovery](docs/workflows/paper-discovery.zh-TW.md) | [Architecture](docs/ARCHITECTURE.md) | [Codex 工作流](docs/FEATURES_AND_COMMANDS.zh-TW.md)
 
 Research Knowledge Framework，簡稱 RKF，是以 LLM Wiki 為核心的主動研究閱讀框架。
 它把 source、paper draft、閱讀互動、人為反饋、question、claim、synthesis
@@ -97,9 +97,10 @@ guarded query/capture actions。
   raw query、paper title、DOI、路徑、全文或 reading ledger。沒有最近 demand 時，
   已登錄 topics 會另列為研究領域，不會被誤稱為 hotspots。
 - Dashboard 採 `preview -> private visual review -> exact snapshot hash -> local
-  publish -> GitHub Pages` 關卡。Private review 可直接打開且不修改 `site/`。Repo
-  只提供未啟用的 Pages workflow 範本；remote、branch、push 與
-  Pages 啟用都需要另行批准。
+  publish -> GitHub Pages` 關卡。Private review 可直接打開且不修改 `site/`。
+  已核准的 reference instance 位於 [RKF Observatory](https://chenhau-lan.github.io/ResearchWiki/)，
+  由 `.github/workflows/pages.yml` 部署。未來每個新 snapshot 仍需新的 exact-hash
+  核准，才可 commit、push 或 deployment。
 - `discover.preview` 可從 topic、`hot.md` 或明確 query 查詢 Crossref、arXiv，並可選
   OpenAlex／paper-radar metadata adapter。只有 exact preview 可被記錄；只接受選定
   candidate IDs，且預設不建立 paper draft、不升級 claim。

@@ -1,18 +1,29 @@
 # RKF Paper Discovery Automation Proposal
 
-Status: **proposal only — no recurring automation is active**
+Status: **active — candidate-harvest only**
 
-這份文件定義第一次啟用 paper discovery automation 時的保守預設。下列 topic 與
-時間只是依目前 public-safe registry 產生的待核准 proposal；它不是排程設定，也不
-授權 shared RKF 寫入、全文取得或 paper draft 建立。
+這份文件保留第一次啟用 paper discovery automation 時的保守預設與核准紀錄。
+下列 topic、providers、時間與上限已由使用者核准，並透過 Codex automation 管理器
+建立；這份核准仍不包含 candidate acceptance、全文取得或 paper draft 建立。
 
-## Recommended first automation
+## Activation record
 
-| Field | Proposed value |
+- Activated: 2026-07-13 after explicit user approval.
+- Automation ID: `rkf-weekly-paper-candidate-harvest`.
+- Saved state: `ACTIVE`; every Monday at 09:00 in the local
+  `America/Denver` timezone.
+- Manual prerequisite: two governed runs completed, 40 candidates recorded,
+  0 accepted, `Promotion: none`.
+- The active prompt preserves the providers, per-topic cap, exact-record flow,
+  redacted reporting, and all no-accept/no-draft/no-promotion boundaries below.
+
+## Active automation policy
+
+| Field | Active value |
 |---|---|
-| Topic scope | `aerosol-ice-phase-clouds`、`wildfire-smoke-cloud-microphysics`；啟用前仍需使用者明確核准 |
+| Topic scope | `aerosol-ice-phase-clouds`、`wildfire-smoke-cloud-microphysics` |
 | Providers | Crossref + arXiv；OpenAlex 只有 machine-local key 已存在時才加入 |
-| Cadence | 每週一 09:00，`America/Denver`；啟用前仍可調整 |
+| Cadence | 每週一 09:00，`America/Denver` |
 | Maximum | 每個 topic/run 最多 20 candidates；兩個 topics 各自保留 run receipt |
 | Intake policy | `candidate-harvest`：preview + exact record；不 accept |
 | Paper draft | `false` |
@@ -21,7 +32,7 @@ Status: **proposal only — no recurring automation is active**
 
 ## Activation prerequisites
 
-所有條件都必須成立：
+下列條件已於 2026-07-13 全部驗證；未來變更 policy 或移轉機器時必須重新檢查：
 
 1. `python3 tools/check_install.py --strict` 回傳 ready。
 2. Installed `rkf-auto-connect` bundle 與目前 checkout 完全相同。

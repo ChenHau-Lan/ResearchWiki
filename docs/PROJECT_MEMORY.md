@@ -254,28 +254,34 @@ tests, Python compilation, all/topic/graph lint, public-safety scan, 14 closed
 JSON schemas, deterministic discovery-acceptance restart recovery,
 task-owned cross-project runtime validation, `rkf-auto-connect` exact-manifest
 validation, self-contained exact-preview review bundles, desktop/mobile browser
-QA, and a non-persistent Crossref/arXiv live smoke test. Exact mobile
+QA, and governed Crossref/arXiv discovery. Exact mobile
 geometry was verified at a 390 CSS-pixel viewport (`scrollWidth == innerWidth`)
 after discovering that headless Chrome's command-line window has a 500-pixel
-minimum unless device metrics are overridden. The current machine diagnostic
-remains blocked by one connection-doctor blocker and a non-exact pre-existing
-global auto-connect skill; neither was changed automatically.
+minimum unless device metrics are overridden. The old global skill was moved to
+a timestamped backup and replaced with the exact vendored bundle. The live
+workspace now has an opaque machine identity and matching designated-writer
+registry; the elevated path-redacted strict diagnostic is ready. Doctor remains
+warning-only because 57 existing PDFs still lack governed identity mapping.
+An ordinary repo-only sandbox cannot prove write access to external shared
+storage, so unattended runs must still stop if their execution profile reports
+writer storage unavailable.
 
 The latest private aggregate preview for the finalized dashboard schema is
 `20260713T093756Z_5eb6a1d2f68b`, exact hash
 `5eb6a1d2f68bfbbcfc76a75efa5a5412cb30e7a659f92c98db3609c9680216d4`.
 Its self-contained private review page was rendered and verified at 1440 and
-390 CSS pixels with no horizontal overflow or non-file request. It is
-`pending-review`, not published. The committed site snapshot remains the
-synthetic preview with hash
-`327a2fea61033a126a1e6fe3bd1cfdbd53e0b3bd8994a2c532a8ebe3e3cf2f51`.
+390 CSS pixels with no horizontal overflow or non-file request. The user
+approved that exact preview/hash, and it was published without rebuilding the
+snapshot. The committed and live JSON both report `publication.status` as
+`published`, and `approved_snapshot_hash` equals `snapshot_hash`.
 
-As observed on 2026-07-13, GitHub Pages is disabled on both configured remotes.
-The local `main` commit is 9 ahead / 0 behind `wiki_research/main` and 26 ahead /
-2 behind public `origin/main`; the latter has an empty content diff but is not a
-fast-forward relationship. Publish through a reconciled integration branch and
-normal PR, then enable Pages with GitHub Actions and a deployment reviewer;
-never force-push the public default branch for dashboard activation.
+PR #13 reconciled the public history without force-push and merged the
+Observatory release into public `main`. GitHub Pages uses the GitHub Actions
+source and a `github-pages` environment restricted to `main`, with a required
+reviewer. Deployment workflow run #1 completed successfully for merge commit
+`9f82519`; the live site is
+`https://chenhau-lan.github.io/ResearchWiki/`. Live HTML and JSON were verified,
+including the exact approved hash and absence of the private-review banner.
 
 ## Known Operational Traps
 
@@ -377,12 +383,12 @@ never force-push the public default branch for dashboard activation.
 
 ## Next Steps
 
-- Complete branch/PR reconciliation, GitHub Pages enablement, deployment, and
-  live exact-hash verification for the approved public dashboard snapshot.
-- Two governed candidate-only manual discovery runs have completed for the two
-  approved topics with Crossref and arXiv: 40 candidates, 0 accepted, and no
-  promotion. Create and verify the approved weekly scheduler only after its
-  saved policy exactly preserves those boundaries.
+- Future dashboard refreshes must create a new private preview and receive a new
+  exact-hash approval; never treat the current deployment approval as reusable.
+- Monitor the first scheduled run of `rkf-weekly-paper-candidate-harvest`. Its
+  saved state is ACTIVE for Monday 09:00 `America/Denver`, and its prompt fixes
+  both approved topics, Crossref + arXiv, 20 candidates per topic/run, exact
+  recording, 0 automatic acceptance, and `Promotion: none`.
 
 - The private 57-paper migration preview has been generated and validated.
   Inspect its ignored local manifest/diffs and request approval tied to that

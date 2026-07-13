@@ -5,6 +5,11 @@ RKF dashboard 是 public-safe aggregate snapshot，不是 live wiki viewer。它
 與 machine-neutral settings，但不會發布問題原文、paper title、DOI、路徑、machine
 ID、reading ledger、abstract、PDF 或 article text。
 
+目前已核准的 reference instance：
+[RKF Observatory](https://chenhau-lan.github.io/ResearchWiki/)。本 repository 的
+`.github/workflows/pages.yml` 已啟用；fork 或新部署仍須自行設定 GitHub Pages source、
+environment protection 與新的 exact-hash review。
+
 當最近視窗沒有 public-safe hot demand 時，網站會把最多 12 個 topic 顯示為
 「已登錄研究領域」，不會誤標成 recent hotspot。Settings 只顯示 storage handles
 是否已設定、doctor blocker/warning 數量與 gate 開關，不顯示實際路徑或 finding

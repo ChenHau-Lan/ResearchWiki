@@ -212,6 +212,32 @@ class RKFSessionTests(unittest.TestCase):
         self.assertEqual(date_only_session.mode, SessionMode.ACTIVE_READ_ONLY)
         self.assertIn("WRITER_REGISTRY_MISMATCH", date_only_receipt["warnings"])
 
+    def test_activation_uses_the_configured_writer_registry(self) -> None:
+        config = (self.root / "rkf.workspace.toml").read_text(encoding="utf-8")
+        (self.root / "rkf.workspace.toml").write_text(
+            config.replace("maintenance_writer = false", "maintenance_writer = true")
+            + "\n[sync]\nwriter_registry = \"state/sync/alternate-writer.json\"\n",
+            encoding="utf-8",
+        )
+        sync = self.wiki / "state" / "sync"
+        sync.mkdir(parents=True)
+        (sync / "maintenance-writer.json").write_text(
+            '{"schema":"rkf-writer-registry-v1","machine_id":"machine-7f3a2c91",'
+            '"assigned_at":"2026-07-10T12:00:00Z"}\n',
+            encoding="utf-8",
+        )
+        (sync / "alternate-writer.json").write_text(
+            '{"schema":"rkf-writer-registry-v1","machine_id":"other-machine",'
+            '"assigned_at":"2026-07-10T12:00:00Z"}\n',
+            encoding="utf-8",
+        )
+        session = new_session("task-alternate-registry")
+
+        receipt = activate_session(session, Workspace(self.root), project_root=self.project)
+
+        self.assertEqual(session.mode, SessionMode.ACTIVE_READ_ONLY)
+        self.assertIn("WRITER_REGISTRY_MISMATCH", receipt["warnings"])
+
 
 if __name__ == "__main__":
     unittest.main()

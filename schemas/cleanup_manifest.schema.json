@@ -1,0 +1,55 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://example.org/rkf/cleanup_manifest.schema.json",
+  "title": "RKFCleanupManifest",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["schema", "generated_at", "approval_status", "manifest_hash", "entries"],
+  "properties": {
+    "schema": { "const": "rkf-cleanup-manifest-v1" },
+    "generated_at": { "type": "string" },
+    "approval_status": { "const": "pending" },
+    "manifest_hash": { "type": "string", "pattern": "^[a-f0-9]{64}$" },
+    "entries": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "logical_id",
+          "kind",
+          "reason",
+          "owner",
+          "references",
+          "recommended_action",
+          "replacement_or_archive",
+          "risk",
+          "rollback",
+          "dry_run",
+          "approval_status"
+        ],
+        "properties": {
+          "logical_id": { "type": "string" },
+          "kind": {
+            "enum": [
+              "ignored-cache",
+              "duplicate-asset",
+              "empty-directory",
+              "stale-document",
+              "paused-automation"
+            ]
+          },
+          "reason": { "type": "string" },
+          "owner": { "type": "string" },
+          "references": { "type": "array", "items": { "type": "string" } },
+          "recommended_action": { "enum": ["retain", "review-delete", "review-archive", "review-replace-or-remove"] },
+          "replacement_or_archive": { "type": "string" },
+          "risk": { "type": "string" },
+          "rollback": { "type": "string" },
+          "dry_run": { "const": "no-change" },
+          "approval_status": { "const": "pending" }
+        }
+      }
+    }
+  }
+}

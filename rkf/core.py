@@ -95,6 +95,19 @@ FULLTEXT_STATUSES = {
 HUMAN_FEEDBACK_LEVELS = {"none", "skimmed", "discussed", "annotated", "trusted"}
 UNDERSTANDING_CONFIDENCES = {"low", "medium", "high", "mixed"}
 CLAIM_READINESS = {"not-ready", "locator-needed", "claim-ready", "synthesis-ready"}
+PAPER_RELATION_TYPES = {"uses-paper", "compares-paper", "extends-from-paper", "discusses-paper"}
+PAPER_V11_SECTIONS = (
+    "Source Identity",
+    "Reading Maturity",
+    "Research Question",
+    "Methods And Data",
+    "Main Findings",
+    "Evidence And Locators",
+    "Limitations And Boundaries",
+    "Questions About This Paper",
+    "Future Agent Retrieval Brief",
+    "Intrinsic Links",
+)
 SYNTHESIS_MATURITY = {"draft", "single-source", "multi-source", "human-reviewed", "publication-ready"}
 SOURCE_COVERAGE = {"unknown", "partial", "representative", "systematic"}
 LOCAL_PATH_PATTERNS = [
@@ -184,6 +197,15 @@ def parse_frontmatter(text: str) -> tuple[dict[str, Any], str]:
     meta: dict[str, Any] = {}
     lines = raw.splitlines()
     index = 0
+
+    def parse_scalar(value: str) -> Any:
+        if value == "[]":
+            return []
+        if value in {"true", "false"}:
+            return value == "true"
+        return value.strip('"')
+
+    mapping_item_re = re.compile(r"^(?P<key>[A-Za-z_][A-Za-z0-9_-]*):\s*(?P<value>.*)$")
     while index < len(lines):
         line = lines[index]
         if ":" not in line or line.startswith(" "):
@@ -192,26 +214,45 @@ def parse_frontmatter(text: str) -> tuple[dict[str, Any], str]:
         key, value = line.split(":", 1)
         value = value.strip()
         if value == "":
-            items: list[str] = []
+            items: list[Any] = []
             lookahead = index + 1
-            while lookahead < len(lines) and lines[lookahead].startswith("  - "):
-                items.append(lines[lookahead][4:].strip())
-                lookahead += 1
+            if lookahead < len(lines) and lines[lookahead].startswith("  - "):
+                first_item = lines[lookahead][4:].strip()
+                first_match = mapping_item_re.match(first_item)
+                if first_match and key.strip() == "paper_relations":
+                    while lookahead < len(lines) and lines[lookahead].startswith("  - "):
+                        mapping_match = mapping_item_re.match(lines[lookahead][4:].strip())
+                        if not mapping_match:
+                            break
+                        item: dict[str, Any] = {
+                            mapping_match.group("key"): parse_scalar(mapping_match.group("value").strip())
+                        }
+                        lookahead += 1
+                        while lookahead < len(lines) and lines[lookahead].startswith("    "):
+                            nested_match = mapping_item_re.match(lines[lookahead].strip())
+                            if not nested_match:
+                                break
+                            item[nested_match.group("key")] = parse_scalar(nested_match.group("value").strip())
+                            lookahead += 1
+                        items.append(item)
+                else:
+                    while lookahead < len(lines) and lines[lookahead].startswith("  - "):
+                        items.append(lines[lookahead][4:].strip())
+                        lookahead += 1
             meta[key.strip()] = items
             index = lookahead
             continue
-        if value == "[]":
-            parsed: Any = []
-        elif value in {"true", "false"}:
-            parsed = value == "true"
-        else:
-            parsed = value.strip('"')
-        meta[key.strip()] = parsed
+        meta[key.strip()] = parse_scalar(value)
         index += 1
     return meta, body
 
 
 def frontmatter(meta: dict[str, Any]) -> str:
+    def render_scalar(value: Any) -> str:
+        if isinstance(value, bool):
+            return "true" if value else "false"
+        return str(value)
+
     lines = ["---"]
     for key, value in meta.items():
         if isinstance(value, list):
@@ -220,7 +261,17 @@ def frontmatter(meta: dict[str, Any]) -> str:
             else:
                 lines.append(f"{key}:")
                 for item in value:
-                    lines.append(f"  - {item}")
+                    if isinstance(item, dict):
+                        pairs = list(item.items())
+                        if not pairs:
+                            lines.append("  - {}")
+                        else:
+                            first_key, first_value = pairs[0]
+                            lines.append(f"  - {first_key}: {render_scalar(first_value)}")
+                            for nested_key, nested_value in pairs[1:]:
+                                lines.append(f"    {nested_key}: {render_scalar(nested_value)}")
+                    else:
+                        lines.append(f"  - {render_scalar(item)}")
         elif isinstance(value, bool):
             lines.append(f"{key}: {'true' if value else 'false'}")
         else:
@@ -418,7 +469,12 @@ class Workspace:
     """Path and persistence boundary for an RKF workspace."""
 
     def __init__(self, root: Path | None = None) -> None:
-        self.root = Path(os.environ.get("RKF_ROOT", root or Path(__file__).resolve().parents[1])).resolve()
+        selected_root = (
+            root
+            if root is not None
+            else Path(os.environ.get("RKF_ROOT", Path(__file__).resolve().parents[1]))
+        )
+        self.root = Path(selected_root).resolve()
         self.config = self._load_config()
         self.paths = self._paths()
 
@@ -437,7 +493,10 @@ class Workspace:
         section_value = self.config.get(section, {}) if isinstance(self.config, dict) else {}
         value = section_value.get(key) if isinstance(section_value, dict) else None
         if isinstance(value, str) and value.strip():
-            return Path(os.path.expandvars(os.path.expanduser(value))).resolve()
+            configured = Path(os.path.expandvars(os.path.expanduser(value)))
+            if not configured.is_absolute():
+                configured = self.root / configured
+            return configured.resolve()
         return None
 
     def _paths(self) -> WorkspacePaths:
@@ -853,10 +912,11 @@ def create_paper_note(ws: Workspace, record: dict[str, Any], *, slug: str = "") 
         }
     )
     meta = {
+        "schema": "rkf-paper-v1.1",
         "type": "paper",
         "status": "draft",
         "source_id": record["source_id"],
-        "source_status": "peer-reviewed",
+        "source_status": "paper_draft",
         "reading_status": maturity["reading_state"],
         "reading_state": maturity["reading_state"],
         "fulltext_status": maturity["fulltext_status"],
@@ -882,6 +942,8 @@ def create_paper_note(ws: Workspace, record: dict[str, Any], *, slug: str = "") 
         "## Source Identity\n\n"
         f"- Source ID: {record['source_id']}\n"
         f"- DOI: {record.get('normalized_doi', '')}\n"
+        "- Authors / journal / year: not recorded yet\n"
+        f"- Source record: state/sources/{record['source_id']}.json\n"
         f"{evidence_line}\n"
         f"- Evidence status: {evidence_status}\n\n"
         "## Reading Maturity\n\n"
@@ -891,41 +953,28 @@ def create_paper_note(ws: Workspace, record: dict[str, Any], *, slug: str = "") 
         f"- Understanding confidence: {maturity['understanding_confidence']}\n"
         f"- Claim readiness: {maturity['claim_readiness']}\n"
         f"- Reading ledger: {maturity['reading_ledger']}\n\n"
-        "## Source-Grounded Summary\n\n"
-        "- Research question:\n"
-        "- Method/data:\n"
-        "- Key findings:\n"
-        "- Limitations:\n"
-        f"- Evidence boundary: {boundary}\n\n"
-        "## Extracted Evidence And Locators\n\n"
+        "## Research Question\n\n"
+        "- Not recorded yet.\n\n"
+        "## Methods And Data\n\n"
+        "- Not recorded yet.\n\n"
+        "## Main Findings\n\n"
+        "- Not recorded yet.\n\n"
+        "## Evidence And Locators\n\n"
         f"{locator_lines}\n"
         "- What the source explicitly supports:\n"
         "- What it does not support:\n\n"
-        "## Reader Notes\n\n"
-        "- My interpretation:\n"
-        "- Why this matters to my project:\n"
-        "- Connections to other RKF pages:\n\n"
-        "## AI/Agent Notes\n\n"
-        "- Agent-generated summary:\n"
-        "- Unverified inference:\n"
-        "- Needs human check:\n\n"
-        "## Questions And Feedback\n\n"
-        "- User questions:\n"
-        "- Human feedback:\n"
-        "- Open blockers:\n\n"
-        "## Claims To Promote\n\n"
-        "- Claim:\n"
-        "  - Required locator or blocker:\n"
-        "  - Caveat:\n\n"
+        "## Limitations And Boundaries\n\n"
+        f"- Evidence boundary: {boundary}\n"
+        "- Author-stated and reader-verified limits: not recorded yet.\n\n"
+        "## Questions About This Paper\n\n"
+        "- Not recorded yet.\n\n"
         "## Future Agent Retrieval Brief\n\n"
         "- Read this page when:\n"
         "- Trust level:\n"
         "- Current gaps:\n"
         "- Next best action:\n\n"
-        "## Graph Links\n\n"
-        "- Topics:\n"
-        "- Concepts:\n"
-        "- Questions:\n"
+        "## Intrinsic Links\n\n"
+        "- Topics, concepts, methods, datasets, and subject links intrinsic to this paper: not recorded yet.\n"
     )
     write_text(dest, frontmatter(meta) + body)
     set_source_status(ws, record, "wiki_done" if artifact and artifact.get("status") == "pdf_qc_done" else "paper_draft")
@@ -1122,8 +1171,6 @@ def guarded_inject_inbox_item(
             inbox_items.append(rel_inbox)
         meta["inbox_items"] = inbox_items
         meta["updated"] = today()
-        bullet = f"- Inbox backlink: {rel_inbox} captured {today()}; source identity only, not claim evidence."
-        body = append_under_heading(body, "## Questions And Feedback", bullet)
         set_frontmatter(paper_path, meta, body)
     reading_key = f"{projection_event_id}:inbox-injection" if projection_event_id else ""
     ledger_before = load_reading_ledger(ws, str(record["source_id"]))
@@ -1814,7 +1861,13 @@ def lint_graph_links(ws: Workspace) -> list[str]:
         if source_id and source_id not in sources:
             errors.append(f"{evidence_id}: missing source record {source_id}")
 
-    for path, meta, _ in knowledge_page_records(ws):
+    records = knowledge_page_records(ws)
+    paper_ids = {
+        path.relative_to(ws.paths.knowledge).with_suffix("").as_posix()
+        for path, meta, _ in records
+        if meta.get("type") == "paper"
+    }
+    for path, meta, body in records:
         rel = relative_workspace_path(ws, path)
         source_id = str(meta.get("source_id", ""))
         if source_id and source_id not in sources:
@@ -1826,6 +1879,25 @@ def lint_graph_links(ws: Workspace) -> list[str]:
             for topic_id in meta.get("topics", []):
                 if str(topic_id) not in topics:
                     errors.append(f"{rel}: unknown topic {topic_id}")
+        relations = meta.get("paper_relations", [])
+        if relations and not isinstance(relations, list):
+            errors.append(f"{rel}: paper_relations must be a list")
+            continue
+        for relation in relations:
+            if not isinstance(relation, dict):
+                errors.append(f"{rel}: paper relation must be a mapping")
+                continue
+            paper_id = str(relation.get("paper_id", ""))
+            relation_type = str(relation.get("relation", ""))
+            if relation_type not in PAPER_RELATION_TYPES:
+                errors.append(f"{rel}: unknown paper relation {relation_type!r}")
+            if paper_id not in paper_ids:
+                errors.append(f"{rel}: missing paper relation target {paper_id}")
+                continue
+            target_path = ws.paths.knowledge / f"{paper_id}.md"
+            body_link = os.path.relpath(target_path, start=path.parent).replace(os.sep, "/")
+            if not re.search(r"\]\(" + re.escape(body_link) + r"(?:#[^)]+)?\)", body):
+                errors.append(f"{rel}: paper relation missing body link to {paper_id}")
     return errors
 
 
@@ -1857,7 +1929,7 @@ def lint_knowledge_pages(ws: Workspace) -> list[str]:
         return errors
     for path in ws.paths.knowledge.rglob("*.md"):
         text = read_text(path)
-        meta, _ = parse_frontmatter(text)
+        meta, body = parse_frontmatter(text)
         rel = relative_workspace_path(ws, path)
         if not meta:
             errors.append(f"{rel}: missing YAML frontmatter")
@@ -1902,6 +1974,12 @@ def lint_knowledge_pages(ws: Workspace) -> list[str]:
                 has_support = bool(meta.get("evidence_ids")) or str(meta.get("human_feedback_level", "")) in {"annotated", "trusted"}
                 if not has_support:
                     errors.append(f"{rel}: claim-ready paper needs evidence id or strong human feedback")
+            if meta.get("schema") == "rkf-paper-v1.1":
+                if meta.get("reading_state") != meta.get("reading_status"):
+                    errors.append(f"{rel}: reading_status must equal reading_state")
+                for heading in PAPER_V11_SECTIONS:
+                    if f"## {heading}" not in body:
+                        errors.append(f"{rel}: missing canonical paper section {heading}")
         if page_type == "synthesis":
             for key, allowed in (
                 ("synthesis_maturity", SYNTHESIS_MATURITY),
@@ -2769,6 +2847,15 @@ def build_research_graph(ws: Workspace) -> dict[str, Any]:
                 edges.append({"from": node_id, "to": meta["source_id"], "type": "derived-from"})
             for topic_id in meta.get("topics", []):
                 edges.append({"from": node_id, "to": topic_id, "type": "tagged-with"})
+            relations = meta.get("paper_relations", [])
+            if isinstance(relations, list):
+                for relation in relations:
+                    if not isinstance(relation, dict):
+                        continue
+                    target = str(relation.get("paper_id", ""))
+                    relation_type = str(relation.get("relation", ""))
+                    if target and relation_type in PAPER_RELATION_TYPES:
+                        edges.append({"from": node_id, "to": target, "type": relation_type})
     return {"schema": "rkf-graph-v1", "generated": today(), "nodes": nodes, "edges": edges}
 
 

@@ -10,6 +10,7 @@ Academic Research Skills is a protocol, not an active skill.
 | `rkf-wiki-core` | LLM Wiki query/save/graph/world, evolve, challenge, paper queue/nudge, Codex handoff memory |
 | `rkf-lint` | Structure, reading maturity, claim boundary, reconcile, graph, ARS handoff, public-safety lint |
 | `rkf-connect` | Experimental shared RAW/wiki database links and Codex handoff access or AI-marked proposal |
+| `rkf-auto-connect` | Installable global task connector for per-task activation, cross-project query/capture, candidate discovery, and dashboard preview |
 
 Common trigger words:
 
@@ -23,6 +24,8 @@ Common trigger words:
   檢查, 修復計畫, 證據邊界.
 - Connect: shared database, Google Drive, symlink, junction, Codex handoff
   access, 共享資料庫, 多台電腦, 連結wiki.
+- Auto-connect: 啟動 RKF, 連結 RKF, 問 RKF, 收進 RKF, 自動找 paper,
+  research hotspot dashboard.
 
 Use `MODE_REGISTRY.md` for the mode table and `AGENTS.md` for routing
 discipline.

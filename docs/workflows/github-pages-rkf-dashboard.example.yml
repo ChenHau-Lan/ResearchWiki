@@ -1,0 +1,49 @@
+# Inactive documentation template.
+# Copy to .github/workflows/pages.yml only after the repository, branch,
+# publication policy, and GitHub Pages settings are explicitly approved.
+# Before activation, reconcile the selected branch through a normal PR and
+# configure the github-pages environment with an appropriate reviewer policy.
+
+name: Deploy RKF public dashboard
+
+on:
+  workflow_dispatch:
+  push:
+    branches:
+      - main
+    paths:
+      - "site/**"
+
+permissions:
+  contents: read
+  pages: write
+  id-token: write
+
+concurrency:
+  group: pages
+  cancel-in-progress: false
+
+jobs:
+  deploy:
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v7
+      - name: Set up Python
+        uses: actions/setup-python@v6
+        with:
+          python-version: "3.11"
+      - name: Validate exact-hash publication approval
+        run: python3 tools/build_public_dashboard.py validate-publication
+      - name: Configure Pages
+        uses: actions/configure-pages@v6
+      - name: Upload static dashboard
+        uses: actions/upload-pages-artifact@v5
+        with:
+          path: site
+      - name: Deploy to GitHub Pages
+        id: deployment
+        uses: actions/deploy-pages@v5

@@ -6,6 +6,7 @@ on:
     branches:
       - main
       - "codex*"
+      - "codex/**"
 
 jobs:
   framework-ci:
@@ -16,7 +17,10 @@ jobs:
         with:
           python-version: "3.11"
       - name: Python syntax
-        run: python3 -m py_compile tools/rk.py rkf/*.py tools/public_safety_scan.py
+        run: >-
+          python3 -m py_compile tools/rk.py tools/rkf_auto_connect.py
+          tools/bootstrap_rkf.py tools/check_install.py
+          tools/build_public_dashboard.py rkf/*.py tools/public_safety_scan.py
       - name: CLI unit tests
         run: python3 -m unittest discover -s tests
       - name: Topic lint

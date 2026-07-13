@@ -12,6 +12,7 @@ from typing import Any
 from datetime import datetime
 
 from .core import Workspace, load_toml, read_json
+from .sync import run_connect_doctor
 
 
 SUPPORTED_SCHEMA_VERSIONS = {"", "rkf-v1", "rkf-v1.1"}
@@ -100,9 +101,10 @@ def read_project_policy(project_root: Path | None) -> ProjectPolicy:
 
 
 def _root_status(path: Path) -> dict[str, bool]:
+    is_directory = path.is_dir()
     return {
-        "exists": path.exists(),
-        "readable": path.exists() and os.access(path, os.R_OK),
+        "exists": is_directory,
+        "readable": is_directory and os.access(path, os.R_OK),
     }
 
 
@@ -189,40 +191,24 @@ def activate_session(
             "error_code": "RKF_PREFLIGHT_FAILED",
         }
 
-    machine_id, requested_writer = _machine_state(ws)
-    knowledge = ws.config.get("knowledge", {}) if isinstance(ws.config, dict) else {}
-    schema = str(knowledge.get("schema_version", "")) if isinstance(knowledge, dict) else ""
-    warnings: list[str] = []
-    if not machine_id:
-        warnings.append("MACHINE_ID_MISSING")
-    if _conflicts(ws.paths.wiki_root):
-        warnings.append("SYNC_CONFLICT")
-    if schema not in SUPPORTED_SCHEMA_VERSIONS:
-        warnings.append("SCHEMA_INCOMPATIBLE")
+    doctor = run_connect_doctor(ws)
+    machine_id, _requested_writer = _machine_state(ws)
+    warnings = [finding.code for finding in doctor.findings]
+    if any(code.startswith("WRITER_REGISTRY_") for code in warnings):
+        # Preserve the established session receipt vocabulary while retaining
+        # the more precise doctor code in the same safe receipt.
+        warnings.append("WRITER_REGISTRY_MISMATCH")
 
     session.query_first = policy.query_first
     session.capture_mode = policy.capture_mode
     session.machine_id = machine_id
-    session.writer_role = (
-        _writer_role(ws, machine_id, requested_writer) if machine_id else "unknown"
-    )
-    if session.writer_role == "conflict":
-        warnings.append("WRITER_REGISTRY_MISMATCH")
-    session.warnings = warnings
-    blocking_read_only = {
-        "MACHINE_ID_MISSING",
-        "SYNC_CONFLICT",
-        "SCHEMA_INCOMPATIBLE",
-        "WRITER_REGISTRY_MISMATCH",
-    }
-    session.mode = (
-        SessionMode.ACTIVE_READ_ONLY
-        if blocking_read_only.intersection(warnings)
-        else SessionMode.ACTIVE
-    )
+    session.writer_role = str(doctor.writer.get("role", "unknown"))
+    session.warnings = list(dict.fromkeys(warnings))
+    session.mode = SessionMode.ACTIVE_READ_ONLY if doctor.status == "blocked" else SessionMode.ACTIVE
     return {
         **session_receipt(session),
         "roots": roots,
+        "doctor": doctor.as_payload(),
         "project_available": policy.available,
     }
 

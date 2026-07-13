@@ -20,10 +20,12 @@ legacy CLI 只作為 Codex app、測試與維護使用的內部 shim。新的使
 | 功能 | 用途 | 主要輸出 |
 |---|---|---|
 | Source capture | 攝取 DOI、URL、PDF pointer、topic seed、idea、question | `state/sources/*.json` |
+| Portable onboarding | Preview/apply 本機 workspace、安裝 connector 與 version-matched global skill、診斷 storage/writer/skill | `tools/bootstrap_rkf.py`、`tools/check_install.py` |
 | Inbox capture | 把 ChatGPT 對話片段、網頁 clip、DOI、URL 與想法先放進低風險 inbox；DOI 只做保守 source/paper backlink injection | `knowledge/inbox/*.md`、可選 `state/sources/*.json`、`knowledge/papers/*.md` backlink |
 | Auto-connect helper | 啟動後才分類跨專案研究內容並建立 structured request；helper 本身不能啟動 session 或直接繞過 guard 寫入 | global `rkf-auto-connect` skill、`tools/rkf_auto_connect.py`、`.rkf-connect.toml`、`RKF/` |
-| Discovery staging | 建立候選文獻搜尋 run；候選可啟動 draft，但不是 claim evidence | `state/search_runs/*/candidates.json`、`hot.md` |
-| Paper reading draft | 從 metadata、abstract、partial full text 或 PDF 先建立 paper draft；頁面分開 source-grounded summary、locator/evidence、reader notes、AI/Agent notes 與 claim candidates | `knowledge/papers/*.md` |
+| Discovery staging | 從 topic、既有 hot demand、明確 query 或已提供的 paper-radar metadata 建立候選 preview；選定攝取預設不建 draft，且不是 claim evidence | non-persistent `discover.preview`；immutable `state/search_runs/*/candidates.json` 與 separate `acceptance.json` |
+| Public dashboard | 將 hot demand、paper pipeline、maturity、graph 與 machine-neutral settings 轉為 aggregate-only preview；先 render private visual review，exact hash 後才更新 static site | `.rkf_private/dashboard_previews/`、`site/`；不發布 raw query／paper identity／路徑 |
+| Paper reading draft | 從 metadata、abstract、partial full text 或 PDF 建立 paper draft；頁面只保留 paper 的研究問題、方法、結果、locators、限制、paper-specific questions 與 intrinsic links | `knowledge/papers/*.md` |
 | Full-text status | 標記 `needs-user-pdf`、`user-pdf-provided`、`fulltext-read` 等狀態 | source frontmatter/JSON、paper frontmatter |
 | Reading ledger | 記錄 public-safe reading event、問題、AI 回答、人為修正、trust 變化與 blocker | `state/reading/*.json` |
 | User PDF handling | 只有讀不到全文時要求 user 提供 PDF；可直接更新 full-text state | `state/evidence/*.json` |
@@ -35,6 +37,12 @@ legacy CLI 只作為 Codex app、測試與維護使用的內部 shim。新的使
 | Deterministic retrieval | 先從 RKF 找 exact identifier、alias、keyword、topic 與 graph context，並回報 maturity/evidence boundary | `query.search` |
 | Event-first capture | 分類、去重、先寫 immutable event，再由單一 writer 投影 inbox/hot/wiki；writer 可用 checkpoint 安全重試 queued/partial event；不自動 promotion | `capture.route`、`capture.project_pending`、`state/events/` |
 | Action runtime | 讓 Codex app 以 session-owned structured runtime 執行 guarded read/write path | `rkf/actions.py` |
+| Paper migration preview | 以 57 篇 live paper 的唯讀複本產生 canonical-page diff、routing manifest、copied ledger 與 manifest hash | `.rkf_private/migration_reports/`；不改 live wiki |
+| Paper migration apply/rollback | 以精確 manifest hash、drift guard、private backup/journal 與 atomic replace 套用或還原 | `paper.migration.apply`／`paper.migration.rollback`；designated writer 且需獨立核准 |
+| Multi-computer doctor | 檢查 shared root、writer registry、conflict copy、schema、stale aggregate、PDF checksum divergence | `connect.doctor` public-safe receipt |
+| Obsidian Bases | 由 canonical Markdown properties 產生 papers、reading queue、inbox、questions、synthesis views | `views.preview` / writer-only `views.generate` → `wiki/views/*.base` |
+| Maintenance plan | 產生日／週／月維護計畫、RAW incoming checksum inventory 與 `Promotion: none` receipt | `maintenance.preview` / writer-only `maintenance.run` |
+| Cleanup manifest | 產生 exact path/automation ID、references、risk、rollback 與 approval status 的清理清單 | `cleanup.manifest.preview` → local pending manifest；沒有 apply |
 | Topic governance | 維護 topic id、scope、aliases、include/exclude、default search strings | `governance/topic_registry.json`、`knowledge/topics/*.md` |
 | L0-L3 world context | 快速重建 identity、critical facts、active reading、claim readiness、graph/detail links 與 validation state | Codex app report |
 | Health snapshot | 以 Codex app report 顯示 sources、paper queue、claim readiness、maturity、hot-query 與 lint 摘要 | `stats.snapshot` action |
@@ -61,17 +69,19 @@ legacy CLI 只作為 Codex app、測試與維護使用的內部 shim。新的使
 - ARS output 本身不是 evidence；進 RKF 前只能是 proposal 或 review blocker。
 - Paper draft 要明確記錄 `reading_state`、`fulltext_status`、`human_feedback_level`、
   `understanding_confidence`、`claim_readiness` 和 `reading_ledger`。
-- Paper draft body 要分開 `Source-Grounded Summary`、`Extracted Evidence And Locators`、
-  `Reader Notes`、`AI/Agent Notes`、`Questions And Feedback` 與
-  `Claims To Promote`。
-- `Reader Notes` 可以保存使用者主觀判斷；`AI/Agent Notes` 可以保存 AI 推論；
-  兩者都不能單獨作為 stable claim evidence。
+- Paper draft body 使用 `Source Identity`、`Reading Maturity`、`Research Question`、
+  `Methods And Data`、`Main Findings`、`Evidence And Locators`、
+  `Limitations And Boundaries`、`Questions About This Paper`、
+  `Future Agent Retrieval Brief` 與 `Intrinsic Links`。
+- `Reader Notes`、`AI/Agent Notes`、project/manuscript use、cross-paper judgment 與
+  broader questions 預設保留在 reading ledger、inbox、question、synthesis 或
+  project-synthesis；它們不會改變 paper page 的重心，也不能單獨作為 stable claim evidence。
 - 讀不到全文時，標記 `fulltext_status: needs-user-pdf`，並請 user 提供 PDF。
 - Stable claim / trusted synthesis 需要 locator、人為 feedback、或既有 wiki source。
   明確 review blocker 只能保留候選/blocked 狀態，不能作為 synthesis support。
 - Durable full article text 不進 public knowledge layer。
-- `save` 和 `synthesize` 預設不覆寫既有 knowledge object；要更新必須明確使用
-  `--update`。
+- `save` 和 `synthesize` 預設不覆寫既有 knowledge object；要更新必須在 Codex
+  request 中明確說明要更新既有頁。
 - Propagation review 是 manual preview / audit fallback；正常狀態查看請先用 `world`。
 
 ## Codex App Workflow Inventory
@@ -84,7 +94,18 @@ legacy CLI 只作為 Codex app、測試與維護使用的內部 shim。新的使
 | 啟動 RKF | `rkf.activate` | 唯讀 preflight；回傳遮蔽路徑的 session receipt |
 | 問 RKF：... | `query.search` | 先查中央 RKF；不足才讀 project-local |
 | 收進 RKF：... | `capture.route` | 先寫 immutable event；回報 dedupe、queued/materialized、`Promotion: none` |
+| 預覽候選 paper | `discover.preview` | 可讀 provider metadata；不寫 run、不抓全文、不把 candidate 當 evidence |
+| 記錄／查看候選 run | `discover.record`／`discover.status` | record 需 designated writer、passing doctor 與 exact hash；status 只回 aggregate |
+| 接受選定候選 | `discover.accept` | 需 ACTIVE、passing doctor、designated writer；selected IDs only，預設不建 paper draft |
+| 預覽／審查／發布 dashboard | `dashboard.preview`／`dashboard.review`／`dashboard.publish` | review 建立 self-contained private page 且不改 `site/`；publish 只接受 exact hash；不授權 commit/push/Pages |
 | 停用 RKF | `rkf.deactivate` | 本 task 後續不再查詢或攝入 RKF |
+| 預覽 57 篇 paper 遷移 | `paper.migration.preview` | 只寫 local private report；manifest hash 之後才可請求 live apply approval |
+| 套用／還原 paper 遷移 | `paper.migration.apply`／`paper.migration.rollback` | matching manifest hash 與 backup ID；任何 partial failure 自動 rollback |
+| 檢查多電腦連線 | `connect.doctor` | 唯讀；blocker 使 session 降為 `ACTIVE_READ_ONLY` |
+| 預覽 Obsidian views | `views.preview` | 唯讀；不建立 vault、symlink 或 `.obsidian/` |
+| 產生 Obsidian views | `views.generate` | 僅 designated writer；以 atomic checksum write 產生五個 `.base` |
+| 預覽定期維護 | `maintenance.preview` | 日／週／月 plan，永遠 `Promotion: none` |
+| 預覽清理清單 | `cleanup.manifest.preview` | 只建立 pending local manifest；不刪除／封存／停用 automation |
 
 | Workflow | 在 Codex app 可以這樣說 | 主要邊界 |
 |---|---|---|
@@ -94,7 +115,8 @@ legacy CLI 只作為 Codex app、測試與維護使用的內部 shim。新的使
 | Query wiki | 「先用 RKF 找這個 DOI／概念。」 | 使用 `query.search`；答案不自動成為 wiki page |
 | Auto-connect capture | 「這個外部專案討論有研究價值，幫我回饋到 RKF。」 | 啟動後透過 `capture.route` 先記 event；`Promotion: none` |
 | Deactivate RKF | 「停用 RKF。」 | 使用 `rkf.deactivate`；後續 action 再次被 OFF guard 阻擋 |
-| Discover papers | 「針對這個 topic 找候選文獻，但不要把 candidates 當 evidence。」 | Candidate 只能啟動 draft |
+| Discover papers | 「針對這個 topic 找候選文獻，但不要把 candidates 當 evidence。」 | Preview 不寫 state；接受選定候選預設只進 inbox/SourceRecord，不建立 draft |
+| Research dashboard | 「建立最近 30 天 aggregate-only dashboard preview，再 render 成 private review page；不要發布。」 | 不顯示 raw query、paper identity 或本機設定值；private review 不改 `site/`，local publish 仍需 exact hash |
 | Create paper draft | 「就算目前只有 metadata，也幫我建 paper draft 並標清楚 maturity。」 | Paper page 必須保守標記 reading state |
 | Request user PDF | 「列出哪些 paper 需要我提供 PDF。」 | 不繞過 paywall 或授權限制 |
 | Record provided PDF | 「我提供了 PDF，請更新 full-text status 並保留 private evidence 邊界。」 | Public wiki 只留 safe pointer/locator |
@@ -115,13 +137,25 @@ legacy CLI 只作為 Codex app、測試與維護使用的內部 shim。新的使
 | World context | 「開始前給我 L0-L3 world context。」 | 用於 Codex session bootstrap |
 | Graph/index | 「更新 graph/index 讓未來 retrieval 更準。」 | 只產生 public-safe graph/index |
 | Codex handoff | 「把目前 RKF context 交給另一個 Codex session/project。」 | 預設 read/proposal boundary |
+| Paper migration preview | 「預覽 57 篇 paper 的 paper-centred 遷移，先不要套用。」 | 輸出 diff、routing manifest 和 manifest hash；不寫 live wiki |
+| Paper migration apply/rollback | 「套用這個 manifest hash」／「用這個 backup ID 還原」 | 套用前重查全部 checksum；private backup/journal；精確 approval gate |
+| Connection doctor | 「檢查 RKF 多電腦狀態。」 | 不選贏家、不修 conflict、不宣稱 Drive 已同步完成 |
+| Obsidian views | 「預覽／產生 RKF Obsidian views。」 | preview 唯讀；generate 需 designated writer；Obsidian 只是 view |
+| Maintenance | 「給我本週 RKF 維護預覽。」 | 可列出 incoming/queue/lint；不建立 automation、不 promotion |
+| Cleanup | 「產生 RKF cleanup manifest。」 | 只列 pending path/automation candidates 與 rollback；不 apply |
 
 ## Legacy Runtime Boundary
 
 現有 `tools/rk.py` / `rkf/cli.py` 保留為 legacy/dev shim，供 Codex app agent、測試與維護使用。
 `rkf.actions` 以 session-owned `RKFActionRuntime` 執行；`rkf.activate`、
-`query.search`、`capture.route` 與 `rkf.deactivate` 是 Phase 1 的正式 action
-boundary。Auto-connect helper 只建立 request，不能自行取得 ACTIVE 狀態。CLI 不是正式使用者控制介面。
+`query.search`、`capture.route`、`discover.preview`、`discover.status`、
+`dashboard.preview`、`dashboard.review`、`paper.migration.preview`、`connect.doctor`、
+`views.preview`、`maintenance.preview`、`cleanup.manifest.preview` 與
+`rkf.deactivate` 是目前的 app-facing action boundary。`views.generate` 與
+`maintenance.run` 是 designated-writer-only actions。Auto-connect helper 只建立
+request，不能自行取得 ACTIVE 狀態。`discover.record`／`discover.accept` 是
+designated-writer guarded actions；`dashboard.publish` 只寫本機 static snapshot，
+但仍需 exact-hash approval，且不代表 deployment approval。CLI 不是正式使用者控制介面。
 新增或修改能力時，優先描述 Codex app 工作流與 RKF action 邊界；不要新增面向使用者的 CLI 教學。
 
 ## Validation
@@ -134,8 +168,8 @@ boundary。Auto-connect helper 只建立 request，不能自行取得 ACTIVE 狀
 
 ## Current Cleanup Candidates
 
-這些是目前工作目錄中看起來不需要提交，或只應該留在本機的檔案/目錄。本文件只列出
-建議；沒有刪除任何檔案。
+這些只是初步候選。請以 `cleanup.manifest.preview` 產生含 references、risk、rollback、
+dry-run 和 exact approval status 的正式清單；沒有任何刪除、封存或 automation 變更會自動發生。
 
 | Path | 狀態 | 建議 |
 |---|---|---|

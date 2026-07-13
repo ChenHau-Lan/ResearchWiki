@@ -42,20 +42,21 @@ class RKFCliTests(unittest.TestCase):
         expected_sections = [
             "## Source Identity",
             "## Reading Maturity",
-            "## Source-Grounded Summary",
-            "## Extracted Evidence And Locators",
-            "## Reader Notes",
-            "## AI/Agent Notes",
-            "## Questions And Feedback",
-            "## Claims To Promote",
+            "## Research Question",
+            "## Methods And Data",
+            "## Main Findings",
+            "## Evidence And Locators",
+            "## Limitations And Boundaries",
+            "## Questions About This Paper",
             "## Future Agent Retrieval Brief",
-            "## Graph Links",
+            "## Intrinsic Links",
         ]
         headings = [line.strip() for line in text.splitlines() if line.strip().startswith("## ")]
         for section in expected_sections:
             self.assertIn(section, headings)
-        self.assertNotIn("## Locators", headings)
-        self.assertNotIn("## Reading Notes", headings)
+        self.assertNotIn("## Reader Notes", headings)
+        self.assertNotIn("## AI/Agent Notes", headings)
+        self.assertNotIn("## Questions And Feedback", headings)
 
     def test_doi_normalization_and_source_id(self) -> None:
         self.assertEqual(normalize_doi("https://doi.org/10.1234/ABC.Def."), "10.1234/abc.def")
@@ -175,17 +176,19 @@ class RKFCliTests(unittest.TestCase):
         self.assertTrue(paper.exists())
         paper_text = paper.read_text(encoding="utf-8")
         self.assertIn("claim_readiness: not-ready", paper_text)
-        self.assertIn("Inbox backlink: knowledge/inbox/", paper_text)
-        self.assertIn("source identity only, not claim evidence", paper_text)
+        self.assertIn("inbox_items:", paper_text)
+        self.assertNotIn("## Questions And Feedback", paper_text)
+        ledger = (self.root / "state" / "reading" / f"{source_id}.json").read_text(encoding="utf-8")
+        self.assertIn('"type": "inbox-injection"', ledger)
+        self.assertIn("source identity/backlink only", ledger)
 
     def test_inbox_capture_backlinks_existing_paper_without_overwriting_reader_notes(self) -> None:
         doi = "10.4321/Existing.Paper"
         source_id = "doi_10_4321_existing_paper"
         self.run_rk("capture", "doi", doi, "--title", "Existing Paper")
         self.run_rk("distill", "paper", source_id)
+        self.run_rk("paper", "feedback", source_id, "--note", "keep this human note")
         paper = self.root / "knowledge" / "papers" / f"{source_id}.md"
-        original = paper.read_text(encoding="utf-8")
-        paper.write_text(original.replace("- My interpretation:", "- My interpretation: keep this human note"), encoding="utf-8")
 
         result = self.run_rk(
             "inbox",
@@ -201,9 +204,11 @@ class RKFCliTests(unittest.TestCase):
 
         self.assertIn("doi_injection: paper-backlinked", result)
         updated = paper.read_text(encoding="utf-8")
-        self.assertIn("- My interpretation: keep this human note", updated)
         self.assertIn("inbox_items:", updated)
-        self.assertIn("Inbox backlink: knowledge/inbox/", updated)
+        self.assertNotIn("## Questions And Feedback", updated)
+        ledger = (self.root / "state" / "reading" / f"{source_id}.json").read_text(encoding="utf-8")
+        self.assertIn("keep this human note", ledger)
+        self.assertIn('"type": "inbox-injection"', ledger)
 
     def test_inbox_capture_rejects_invalid_explicit_doi(self) -> None:
         result = self.run_rk("inbox", "capture", "Bad DOI", "--doi", "not-a-doi", check=False)
@@ -799,7 +804,7 @@ class RKFCliTests(unittest.TestCase):
         self.assertIn("claim_readiness: claim-ready", text)
         self.assertIn("pp. 1-4 methods and results", text)
         self.assert_paper_boundary_sections(text)
-        self.assertIn("## Extracted Evidence And Locators", text)
+        self.assertIn("## Evidence And Locators", text)
         self.assertIn("- Locator: pp. 1-4 methods and results", text)
         graph = (self.root / "graph" / "research_graph.json").read_text(encoding="utf-8")
         self.assertIn("supported-by", graph)
@@ -850,11 +855,12 @@ class RKFCliTests(unittest.TestCase):
         self.assertNotIn("ResearchWiki" + "Codex", active_docs)
         self.assertNotIn("raw/" + "full_text", active_docs)
 
-    def test_active_skills_are_five_and_bridge_is_not_active_skill(self) -> None:
+    def test_five_mode_skills_plus_installable_auto_connect_and_no_ars_bridge_skill(self) -> None:
         skill_files = sorted(path.relative_to(REPO).as_posix() for path in (REPO / "skills").glob("*/SKILL.md"))
         self.assertEqual(
             skill_files,
             [
+                "skills/rkf-auto-connect/SKILL.md",
                 "skills/rkf-connect/SKILL.md",
                 "skills/rkf-evidence-vault/SKILL.md",
                 "skills/rkf-knowledge-synthesis/SKILL.md",
@@ -862,6 +868,8 @@ class RKFCliTests(unittest.TestCase):
                 "skills/rkf-wiki-core/SKILL.md",
             ],
         )
+        mode_skill_files = [path for path in skill_files if path != "skills/rkf-auto-connect/SKILL.md"]
+        self.assertEqual(len(mode_skill_files), 5)
         self.assertFalse((REPO / "skills" / "rkf-ars-bridge" / "SKILL.md").exists())
 
     def test_skills_are_plain_language_and_manuals_use_codex_workflows(self) -> None:

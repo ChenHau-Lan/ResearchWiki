@@ -56,6 +56,7 @@ docs or code unless the user explicitly asks for machine-local setup notes.
 | `rkf-wiki-core` | LLM Wiki retrieval, ARS reasoning handoff, save, graph, L0-L3 world context, evolve, challenge, paper queue, handoff context | LLM Wiki, query, save, graph, world, evolve, challenge, paper queue, 回寫wiki |
 | `rkf-lint` | Health checks, reconcile detection, and repair planning for structure, maturity, evidence boundary, graph, public safety | lint, reconcile, audit, repair plan, 檢查, 修復計畫, 發布安全 |
 | `rkf-connect` | Experimental shared database, multi-computer Drive links, and Codex handoff access boundaries | shared database, Google Drive, symlink, handoff access, 共享資料庫 |
+| `rkf-auto-connect` | Installable global connector for per-task activation and cross-project RKF actions | 啟動 RKF, 連結 RKF, 問 RKF, 收進 RKF, 自動找 paper, 研究熱點 |
 
 `rkf-ars-bridge` is not an active skill. It is an implicit protocol for
 translating ARS outputs into RKF proposals or reading-feedback events.

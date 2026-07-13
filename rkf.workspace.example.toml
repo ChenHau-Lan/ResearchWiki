@@ -27,6 +27,11 @@ maintenance_writer = false
 # registered maintenance writer may project them into inbox/hot/wiki views.
 writer_registry = "state/sync/maintenance-writer.json"
 event_root = "state/events"
+# Named aggregate files use expected checksum + temporary sibling + atomic
+# rename. Doctor treats a daily aggregate as stale after two cadences.
+atomic_writes = true
+conflict_detection = true
+aggregate_cadence_hours = 24
 
 [gates]
 require_pdf_checkpoint = true

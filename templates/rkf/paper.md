@@ -1,15 +1,15 @@
 ---
+schema: rkf-paper-v1.1
 type: paper
 status: draft
 source_id:
-source_status: peer-reviewed
-reading_status: metadata-only
+source_status: paper_draft
 reading_state: metadata-only
+reading_status: metadata-only
 fulltext_status: needs-user-pdf
 human_feedback_level: none
 understanding_confidence: low
 claim_readiness: not-ready
-last_reading_interaction: YYYY-MM-DD
 reading_ledger: state/reading/SOURCE_ID.json
 review_stage: ai-extracted
 evidence_boundary: review-blocker
@@ -27,8 +27,8 @@ sources: []
 
 - Source ID:
 - DOI:
-- PDF Evidence: not provided yet
-- Evidence status: Reading draft; evidence boundary not promoted
+- Authors / journal / year:
+- Source record:
 
 ## Reading Maturity
 
@@ -39,43 +39,32 @@ sources: []
 - Claim readiness:
 - Reading ledger:
 
-## Source-Grounded Summary
+## Research Question
 
-- Research question:
-- Method/data:
-- Key findings:
-- Limitations:
-- Evidence boundary: review-blocker
+- What question does this paper ask?
 
-## Extracted Evidence And Locators
+## Methods And Data
 
-- Locator: not recorded yet
+- Study design, model, data, sample, or instrument:
+
+## Main Findings
+
+- What the source explicitly reports:
+
+## Evidence And Locators
+
+- Locator:
 - What the source explicitly supports:
 - What it does not support:
 
-## Reader Notes
+## Limitations And Boundaries
 
-- My interpretation:
-- Why this matters to my project:
-- Connections to other RKF pages:
+- Author-stated and reader-verified limits:
+- Evidence boundary:
 
-## AI/Agent Notes
+## Questions About This Paper
 
-- Agent-generated summary:
-- Unverified inference:
-- Needs human check:
-
-## Questions And Feedback
-
-- User questions:
-- Human feedback:
-- Open blockers:
-
-## Claims To Promote
-
-- Claim:
-  - Required locator or blocker:
-  - Caveat:
+- Only questions about this paper's method, data, results, figures, assumptions, limitations, or reproducibility:
 
 ## Future Agent Retrieval Brief
 
@@ -84,8 +73,6 @@ sources: []
 - Current gaps:
 - Next best action:
 
-## Graph Links
+## Intrinsic Links
 
-- Topics:
-- Concepts:
-- Questions:
+- Concepts, methods, datasets, and subject topics intrinsic to this paper:

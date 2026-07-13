@@ -1,13 +1,14 @@
 # Research Knowledge Framework
 
-[繁體中文](README.zh-TW.md) | [Architecture](docs/ARCHITECTURE.md) | [Mode Registry](MODE_REGISTRY.md) | [Manual](docs/manuals/rkf_manual.en.md) | [Codex Workflows](docs/FEATURES_AND_COMMANDS.zh-TW.md)
+[繁體中文](README.zh-TW.md) | [Beginner Setup](docs/GETTING_STARTED.md) | [Public Dashboard](docs/workflows/public-dashboard.zh-TW.md) | [Paper Discovery](docs/workflows/paper-discovery.zh-TW.md) | [Architecture](docs/ARCHITECTURE.md) | [Codex Workflows](docs/FEATURES_AND_COMMANDS.zh-TW.md)
 
 Research Knowledge Framework, or RKF, is an LLM Wiki-based research knowledge
 framework for active academic reading. It turns sources, paper drafts, reading
 interactions, human feedback, questions, claims, and synthesis into governed
 long-term memory.
 
-Current baseline: `v1.0.0`.
+Current stable baseline: `v1.0.0`. RKF 1.1 work on this branch is listed under
+[Unreleased](CHANGELOG.md).
 
 RKF now treats evidence as an **upgrade boundary**, not an entry gate. A paper
 draft may be created early from metadata, an abstract, partial full text, or a
@@ -33,7 +34,46 @@ hot.md == public-safe research demand dashboard, not evidence
 inbox item == captured conversation/web/source lead, not claim evidence
 ```
 
-## Quick Start
+## Five-Minute Install
+
+RKF core needs Git, Python 3.9+, and the Codex app. It has no required Python
+package install, and the static dashboard needs no Node.js.
+
+```bash
+git clone https://github.com/ChenHau-Lan/ResearchWiki.git
+cd ResearchWiki
+python3 tools/bootstrap_rkf.py
+```
+
+The first command is a non-mutating preview. After it reports `ready` with no
+`blocker_codes`, initialize ignored local storage and optionally install the
+machine-local connector plus the repository's version-matched
+`rkf-auto-connect` skill used by other projects:
+
+```bash
+python3 tools/bootstrap_rkf.py --apply --install-connector
+python3 tools/check_install.py --strict
+```
+
+Do not put PDFs, private Drive paths, or API keys in the repository. Windows
+users may replace `python3` with `py -3`. See the
+[beginner setup guide](docs/GETTING_STARTED.md) for troubleshooting and privacy
+boundaries.
+
+### Connect another research project
+
+Preview first, then apply. This creates a v2 `.rkf-connect.toml` marker and a
+small `RKF/` bridge; it does not copy the wiki or permanently activate RKF.
+
+```bash
+python3 tools/rkf_auto_connect.py connect-project "/path/to/MyResearchProject" --project-name "MyResearchProject"
+python3 tools/rkf_auto_connect.py connect-project "/path/to/MyResearchProject" --project-name "MyResearchProject" --apply
+```
+
+Every new Codex task still starts with RKF OFF. Guarded query and capture
+actions become available only after an explicit “Activate RKF.”
+
+## Natural-Language Quick Start
 
 Use RKF through natural-language research requests in the Codex app:
 
@@ -50,6 +90,28 @@ Use RKF through natural-language research requests in the Codex app:
 - "Review this topic registry and suggest merges, splits, stale candidates, and better search strings."
 - "Run maintenance checks for reading maturity, evidence boundaries, graph links, and public safety."
 - "Record this paper-search question in hot.md so topic review sees repeated demand."
+- "Preview Crossref and arXiv candidates from this topic's search strings; do not ingest them yet."
+- "Create an aggregate-only dashboard preview; do not publish it."
+- "Render this dashboard preview as a private review page; do not update the site."
+
+## Research Dashboard And Paper Discovery
+
+- `site/` is a dependency-free dashboard for topic-level demand, the paper
+  pipeline, reading maturity, claim readiness, and machine-neutral settings. It
+  excludes raw queries, paper titles, DOIs, paths, full text, and reading
+  ledgers. When recent demand is empty, registered topics are shown separately
+  as research areas rather than mislabeled as hotspots.
+- Dashboard publication follows `preview -> private visual review -> exact
+  snapshot hash -> local publish -> GitHub Pages`. The self-contained private
+  review does not modify `site/`. The repository contains only an inactive
+  workflow example; remote, branch, push, and Pages activation require separate approval.
+- `discover.preview` can query Crossref and arXiv from a topic, `hot.md`, or an
+  explicit query, with optional OpenAlex and paper-radar metadata adapters.
+  Only an exact preview may be recorded, and only selected candidate IDs may be
+  accepted. Acceptance defaults to no paper draft and no claim promotion.
+
+See the [public dashboard workflow](docs/workflows/public-dashboard.zh-TW.md)
+and [paper discovery workflow](docs/workflows/paper-discovery.zh-TW.md).
 
 ## Skills At A Glance
 
@@ -174,6 +236,21 @@ short public-safe query and discovery lines in this Markdown file, then
 summarizes the last 30 days by topic, repeated question, paper/search lead, and
 unknown-topic triage. This layer is operational memory only.
 
+## RKF 1.1 Review-Gated Tools
+
+- `paper.migration.preview` creates a local, copied-corpus report with diffs,
+  routing proposals, and a manifest hash. It never changes the live wiki; a
+  later live migration needs separate approval for that exact hash.
+- The implemented apply/rollback path rechecks every checksum, creates a
+  private backup and journal, and restores partial failures automatically. It
+  is never triggered by preview or maintenance without manifest-specific approval.
+- `connect.doctor` checks multi-computer safety without writing or choosing a
+  sync winner. `views.preview` renders five Obsidian Bases, while
+  `views.generate` is restricted to the registered maintenance writer.
+- `maintenance.preview` and `cleanup.manifest.preview` are safe planning
+  surfaces. They do not create automations, promote claims, delete files, or
+  archive content. Each of those actions has a separate approval gate.
+
 ## Validation
 
 Ask Codex to run the smallest relevant validation before publishing, opening a
@@ -195,7 +272,8 @@ synthesis proposals unless the user explicitly approves a write path.
 
 ## Version Management
 
-Current release target: `v1.0.0`.
+Current stable release: `v1.0.0`. The next compatible target is the unreleased
+`v1.1.0` line.
 
 Version rules:
 

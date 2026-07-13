@@ -5,6 +5,7 @@
   "type": "object",
   "required": ["type", "status", "review_stage", "topics", "created", "updated"],
   "properties": {
+    "schema": { "type": "string" },
     "type": {
       "enum": [
         "paper",
@@ -97,7 +98,34 @@
     "last_ai_integration": { "type": "string" },
     "review_stage": { "enum": ["ai-extracted", "human-checked", "discussed", "integrated", "cited"] },
     "evidence_boundary": { "enum": ["pdf-evidence", "wiki-page", "ars-proposal", "review-blocker", "not-applicable"] },
+    "evidence_tier": {
+      "enum": [
+        "reading-draft",
+        "metadata-only",
+        "pdf-qc-stub",
+        "locator-backed",
+        "human-matured",
+        "claim-ready",
+        "review-blocker",
+        "candidate",
+        "mixed"
+      ]
+    },
     "evidence_ids": { "type": "array", "items": { "type": "string" } },
+    "paper_relations": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["paper_id", "relation"],
+        "properties": {
+          "paper_id": { "type": "string", "pattern": "^papers/[a-z0-9][a-z0-9._-]*$" },
+          "relation": {
+            "enum": ["uses-paper", "compares-paper", "extends-from-paper", "discusses-paper"]
+          }
+        }
+      }
+    },
     "topics": { "type": "array", "items": { "type": "string" } },
     "created": { "type": "string" },
     "updated": { "type": "string" },

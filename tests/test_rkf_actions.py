@@ -5,7 +5,7 @@ import unittest
 from pathlib import Path
 
 from rkf.actions import ActionRequest, RKFActionRuntime, execute_action_request
-from rkf.core import Workspace, create_paper_note, create_source
+from rkf.core import Workspace, create_paper_note, create_source, lint_knowledge_pages
 
 
 class RKFActionsTests(unittest.TestCase):
@@ -107,6 +107,60 @@ class RKFActionsTests(unittest.TestCase):
         self.assertEqual(found.status, "ok")
         self.assertGreaterEqual(found.payload["count"], 1)
 
+    def test_paper_migration_preview_requires_activation_and_keeps_live_paper_unchanged(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp_name:
+            base = Path(tmp_name)
+            repo = base / "repo"
+            wiki = base / "wiki"
+            raw = base / "raw"
+            repo.mkdir()
+            wiki.mkdir()
+            raw.mkdir()
+            (repo / "rkf.workspace.toml").write_text(
+                "[storage]\n"
+                f'wiki_root = "{wiki.as_posix()}"\n'
+                f'raw_root = "{raw.as_posix()}"\n\n'
+                "[machine]\n"
+                'id = "machine-preview"\n'
+                "maintenance_writer = false\n\n"
+                "[knowledge]\n"
+                'schema_version = "rkf-v1.1"\n',
+                encoding="utf-8",
+            )
+            workspace = Workspace(repo)
+            record = create_source(
+                workspace,
+                kind="doi",
+                value="10.1234/preview.action",
+                title="Preview Action Paper",
+            )
+            paper_path = create_paper_note(workspace, record)
+            before = paper_path.read_bytes()
+            report_root = repo / ".rkf_private" / "migration_reports"
+            runtime = RKFActionRuntime(workspace=workspace, project_root=repo)
+
+            blocked = runtime.execute(
+                ActionRequest(
+                    action="paper.migration.preview",
+                    params={"report_root": str(report_root), "expected_count": 1},
+                )
+            )
+            self.assertEqual(blocked.payload["error_code"], "RKF_NOT_ACTIVE")
+            self.assertFalse(report_root.exists())
+
+            runtime.execute(ActionRequest(action="rkf.activate"))
+            preview = runtime.execute(
+                ActionRequest(
+                    action="paper.migration.preview",
+                    params={"report_root": str(report_root), "expected_count": 1},
+                )
+            )
+
+            self.assertEqual(preview.status, "ok")
+            self.assertEqual(preview.payload["input_count"], 1)
+            self.assertEqual(preview.payload["promotion"], "none")
+            self.assertEqual(paper_path.read_bytes(), before)
+
     def seed_paper(self, *, doi: str = "10.1234/report.action") -> str:
         record = create_source(
             self.workspace,
@@ -154,6 +208,58 @@ class RKFActionsTests(unittest.TestCase):
         self.assertTrue((self.root / "knowledge" / "inbox").exists())
         self.assertTrue((self.root / "state" / "sources" / "doi_10_1234_example.json").exists())
         self.assertTrue((self.root / "knowledge" / "papers" / "doi_10_1234_example.md").exists())
+
+    def test_capture_route_can_accept_a_candidate_without_creating_paper_draft(self) -> None:
+        result = self.runtime.execute(
+            ActionRequest(
+                action="capture.route",
+                params={
+                    "title": "Candidate-only cloud paper",
+                    "text": "Candidate metadata for DOI 10.1234/candidate.only.",
+                    "origin": "discovery:crossref",
+                    "doi": "10.1234/candidate.only",
+                    "intent": "paper-search",
+                    "topic_id": "cloud-microphysics",
+                    "create_paper_draft": False,
+                },
+            )
+        )
+
+        self.assertEqual(result.status, "ok")
+        self.assertEqual(result.payload["materialization"], "materialized")
+        source_id = "doi_10_1234_candidate_only"
+        self.assertTrue((self.root / "state" / "sources" / f"{source_id}.json").exists())
+        inbox_projection = next(
+            item for item in result.payload["projections"] if item["action"] == "inbox.capture"
+        )
+        self.assertTrue((self.root / inbox_projection["payload"]["path"]).exists())
+        self.assertFalse((self.root / "knowledge" / "papers" / f"{source_id}.md").exists())
+
+    def test_new_paper_draft_uses_paper_centered_v1_1_sections(self) -> None:
+        source_id = self.seed_paper(doi="10.1234/canonical.draft")
+        paper_path = self.root / "knowledge" / "papers" / f"{source_id}.md"
+        content = paper_path.read_text(encoding="utf-8")
+
+        self.assertIn("schema: rkf-paper-v1.1", content)
+        self.assertIn("## Research Question", content)
+        self.assertIn("## Questions About This Paper", content)
+        self.assertIn("## Intrinsic Links", content)
+        self.assertNotIn("## Reader Notes", content)
+
+    def test_v1_1_paper_lint_requires_matching_reading_status_and_sections(self) -> None:
+        source_id = self.seed_paper(doi="10.1234/v11.lint")
+        paper_path = self.root / "knowledge" / "papers" / f"{source_id}.md"
+        paper_path.write_text(
+            paper_path.read_text(encoding="utf-8")
+            .replace("reading_status: metadata-only", "reading_status: abstract-read")
+            .replace("## Intrinsic Links", "## Legacy Links"),
+            encoding="utf-8",
+        )
+
+        errors = lint_knowledge_pages(self.workspace)
+
+        self.assertIn(f"knowledge/papers/{source_id}.md: reading_status must equal reading_state", errors)
+        self.assertIn(f"knowledge/papers/{source_id}.md: missing canonical paper section Intrinsic Links", errors)
 
     def test_execute_hot_record_request_refreshes_hot_dashboard(self) -> None:
         request = ActionRequest(
@@ -227,6 +333,50 @@ class RKFActionsTests(unittest.TestCase):
         self.assertEqual(handoff.status, "ok")
         self.assertEqual(handoff.payload["path"], "prompts/codex_handoff_context.md")
         self.assertTrue((self.root / "prompts" / "codex_handoff_context.md").exists())
+
+    def test_connect_doctor_is_active_read_only_action(self) -> None:
+        before = sorted(path.relative_to(self.root).as_posix() for path in self.root.rglob("*") if path.is_file())
+
+        result = self.runtime.execute(ActionRequest(action="connect.doctor"))
+
+        after = sorted(path.relative_to(self.root).as_posix() for path in self.root.rglob("*") if path.is_file())
+        self.assertEqual(after, before)
+        self.assertEqual(result.status, "ok")
+        self.assertEqual(result.payload["status"], "ok")
+        self.assertNotIn(str(self.root), str(result.payload))
+
+    def test_doctor_blocker_degrades_an_active_runtime_to_read_only(self) -> None:
+        (self.root / "late.sync-conflict.md").write_text("conflict\n", encoding="utf-8")
+
+        doctor = self.runtime.execute(ActionRequest(action="connect.doctor"))
+        write = self.runtime.execute(
+            ActionRequest(action="hot.record", params={"query": "must not write", "origin": "codex"})
+        )
+
+        self.assertEqual(doctor.status, "blocked")
+        self.assertEqual(self.runtime.session.mode.value, "ACTIVE_READ_ONLY")
+        self.assertEqual(write.payload["error_code"], "RKF_READ_ONLY")
+
+    def test_late_doctor_blocker_prevents_every_canonical_write_before_dispatch(self) -> None:
+        (self.root / "late.sync-conflict.md").write_text("conflict\n", encoding="utf-8")
+        before = sorted(path.relative_to(self.root).as_posix() for path in self.root.rglob("*") if path.is_file())
+
+        hot = self.runtime.execute(
+            ActionRequest(action="hot.record", params={"query": "must not write", "origin": "codex"})
+        )
+        inbox = self.runtime.execute(
+            ActionRequest(
+                action="inbox.capture",
+                params={"title": "must not write", "origin": "codex", "clip": "blocked"},
+            )
+        )
+        projection = self.runtime.execute(ActionRequest(action="capture.project_pending"))
+        after = sorted(path.relative_to(self.root).as_posix() for path in self.root.rglob("*") if path.is_file())
+
+        self.assertEqual(hot.payload["error_code"], "RKF_WRITE_DOCTOR_BLOCKED")
+        self.assertEqual(inbox.payload["error_code"], "RKF_READ_ONLY")
+        self.assertEqual(projection.payload["error_code"], "RKF_READ_ONLY")
+        self.assertEqual(after, before)
 
     def test_stats_snapshot_summarizes_review_health_without_writes(self) -> None:
         source_id = self.seed_paper(doi="10.1234/stats.snapshot")

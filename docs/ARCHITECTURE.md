@@ -12,7 +12,7 @@ graph export, ARS handoff proposals, and optional shared-database connections.
 | Inbox Capture | Capture ChatGPT snippets, web clips, cross-project notes, DOI/URL leads, and reader ideas before classification | short public-safe Markdown only |
 | Intake | Capture DOI, URL, topic, idea, question, PDF, or discussion leads | public-safe source records only |
 | Paper Drafts | Create early paper pages even from metadata or abstract state | concise Markdown with maturity fields |
-| Paper Section Boundaries | Separate source-grounded summary, extracted locators, reader notes, AI/agent notes, feedback, and claim-promotion candidates | concise Markdown sections only |
+| Paper Section Boundaries | Keep source identity, methods, findings, locators, limitations, paper-specific questions, and intrinsic links in the paper; keep reader/AI interactions in the reading ledger | concise Markdown sections only |
 | Reading Maturity | Track full-text availability, reading state, human feedback, and trust | frontmatter and summaries only |
 | Reading Ledger | Store public-safe reading events, questions, corrections, and blockers | `state/reading/` operational memory |
 | Claim Boundary | Decide when a reading result can support claims or synthesis | locators, supported pages, feedback, or blockers |
@@ -23,6 +23,12 @@ graph export, ARS handoff proposals, and optional shared-database connections.
 | Session Activation | Keep every new Codex task OFF until the user explicitly activates RKF; preflight storage and writer state before retrieval or capture | `rkf.activate`, `rkf.status`, `rkf.deactivate` |
 | Action Runtime | Execute guarded Codex app requests without routing through the CLI parser, including deterministic retrieval and event-first capture | `query.search`, `capture.route`, structured request/result only |
 | Operational Events | Preserve capture intent before any derived inbox/hot/wiki projection | append-only `state/events/`; single designated projection writer |
+| Provider Discovery | Query allowlisted bibliographic metadata and separate preview, immutable run, and acceptance state | `discover.preview`; `state/search_runs/*/candidates.json` plus `acceptance.json`; candidate-only |
+| Public Dashboard | Render machine-neutral settings and aggregate research demand/pipeline health | exact-hash private preview, then approved `site/data/` snapshot; no source identity or raw query |
+| Migration Preview | Transform paper-page copies and emit diffs, routing proposals, copied ledgers, and a manifest hash before any live write | local ignored report only; separate live-apply approval |
+| Connection Doctor | Inspect roots, writer role, conflict copies, schema, stale aggregates, and PDF checksum divergence | read-only receipt; blockers force read-only operation |
+| Obsidian Views | Generate canonical Bases from Markdown properties for a local Obsidian client | `wiki/views/*.base`; no second database or synced `.obsidian/` state |
+| Maintenance And Cleanup | Plan daily/weekly/monthly reviews and enumerate exact cleanup candidates | public-safe receipts and pending manifests; no automatic promotion/deletion |
 | L0-L3 World Context | Rebuild session context from identity, critical facts, active reading, synthesis, graph links, and validation state | Codex app capsule, public-safe |
 | Critical Facts | Store short public-safe facts with temporal metadata for future agents | `CRITICAL_FACTS.md` |
 | Priority Evolve | Rewrite low-risk existing pages with visible AI Integration Notes and maturity-aware blockers | governed page update |
@@ -46,6 +52,8 @@ new Codex task -> OFF
 啟動 RKF -> read-only preflight -> ACTIVE | ACTIVE_READ_ONLY
 research request -> query.search -> central governed result cards -> project-local fallback
 reusable source/discussion -> capture.route -> immutable event -> writer projection
+paper demand -> discover.preview -> exact-hash run -> selected capture -> reading gates
+dashboard request -> aggregate preview -> exact-hash local publish -> separate deployment approval
 停用 RKF -> OFF
 ```
 
@@ -91,6 +99,10 @@ flowchart TD
 - `GraphEdge`: typed relation among sources, evidence, topics, and wiki pages.
 - `HotQueryEvent`: public-safe query/search demand signal summarized into
   `hot.md`; it is operational memory, not evidence.
+- `DiscoveryRun`: an immutable, exact-hash bibliographic candidate payload.
+  Mutable acceptance decisions live beside it rather than rewriting the run.
+- `PublicDashboardSnapshot`: an aggregate-only, path-redacted site payload.
+  Its public-safe status does not itself grant publication or deployment approval.
 
 ## Boundary Rules
 
@@ -98,9 +110,12 @@ flowchart TD
 - Inbox items are the safest default for mixed source/idea capture. DOI
   injection may create a `SourceRecord` and paper backlink, but must not promote
   claims or overwrite reader notes.
-- Paper pages separate source-grounded summaries from reader interpretation and
-  AI/agent notes. Only locator-backed or otherwise supported source-grounded
-  material can support claim promotion.
+- Paper pages use a paper-centered v1.1 contract: source identity, reading
+  maturity, research question, methods/data, findings, locators, limitations,
+  paper-specific questions, retrieval brief, and intrinsic links. Reader/AI
+  interpretation, broader questions, project/manuscript use, and claim
+  proposals remain in reading-ledger, inbox, question, synthesis, or project
+  layers until reviewed.
 - The Codex app is the only user-facing RKF interaction surface. Markdown pages
   are durable artifacts. New integrations should call `rkf.actions` structured
   requests; the legacy CLI is only an internal shim for agents, tests, and
@@ -112,12 +127,35 @@ flowchart TD
   maturity and evidence-boundary cards; an answer is not a wiki page.
 - `capture.route` classifies material, deduplicates it, and records an immutable
   event before any projection. Capture receipts always state `Promotion: none`.
+- `discover.preview` reads provider metadata without writing RKF state.
+  `discover.record` and `discover.accept` require an active designated-writer
+  session, a passing connection doctor, and exact/selected review boundaries.
+  Acceptance defaults to inbox/SourceRecord capture without a paper draft.
+- `dashboard.preview` writes only a private aggregate review bundle.
+  `dashboard.publish` may update only the exact approved local site snapshot;
+  commit, push, GitHub Pages, and recurring publication remain separate approvals.
 - `inbox.capture` and `hot.record` are writer-side projection actions, not
   normal cross-project entrypoints.
 - Only the registered maintenance writer may turn events into derived
   inbox/hot/wiki files. Other computers queue events or operate read-only. The
   writer uses `capture.project_pending` with per-target checkpoints to fold
   queued or partially projected events exactly once.
+- `paper.migration.preview` works only on copied pages in a local ignored
+  report directory. A manifest hash and zero unresolved routing items are
+  prerequisites for a separate live-migration approval.
+- `paper.migration.apply` and `paper.migration.rollback` are designated-writer
+  actions behind the session and doctor guards. Apply is bound to the reviewed
+  manifest hash, rejects input drift, creates a private raw backup/journal, and
+  automatically restores partial writes. Rollback requires the matching backup
+  ID and hash. Neither path promotes claims or deletes the backup.
+- `connect.doctor` never creates files or resolves conflicts. Any blocker moves
+  an already-active action runtime to `ACTIVE_READ_ONLY`.
+- `views.preview` is read-only; `views.generate` writes five public-safe
+  Obsidian Bases only for the designated maintenance writer, with atomic
+  expected-checksum replacement.
+- `maintenance.preview` and `maintenance.run` preserve `Promotion: none`.
+  `cleanup.manifest.preview` can only create a local pending manifest; it has
+  no apply/delete/archive operation.
 - Search candidates are not stable claim evidence.
 - ARS outputs are not evidence by themselves; they may become reading feedback
   or save/review proposals.
@@ -148,13 +186,22 @@ flowchart TD
 
 RKF separates public memory from private or machine-specific artifacts:
 
-- Git root: framework code, schemas, templates, docs, public-safe knowledge
-  pages, graph exports, examples, and tests.
+- Git root: framework code, schemas, templates, docs, tests, the static dashboard
+  shell, and only explicitly committed public-safe examples/snapshots. It is not
+  assumed to contain the operational wiki.
+- Configured wiki root: the authoritative public-safe knowledge, reading state,
+  hot demand, discovery runs, graph, and governance surface resolved from
+  `rkf.workspace.toml`; it may be outside the checkout.
 - Private evidence root: PDFs, authorized full text, screenshots, browser
   captures, OCR outputs, attachments, and other non-public reading artifacts.
 - Reading state: `state/reading/` contains public-safe operational ledgers.
-- Hot-query state: `hot.md` is the source of truth and the readable 30-day
-  dashboard.
+- Hot-query state: `hot.md` is the operational demand source of truth under the
+  configured wiki root. It feeds but is not identical to the published static dashboard.
+- Static dashboard: `site/` contains the public shell and one reviewed
+  aggregate snapshot; it never reads the live wiki in the browser.
+- Obsidian is a local view client. Each computer may use a local vault whose
+  `wiki/` link targets the Google Drive wiki root; neither that link nor
+  `.obsidian/` settings belong in the canonical data root.
 
 The multi-computer version is an experimental `rkf-connect` concern. The current
 pattern is to keep real shared `RAW` and `wiki` folders in one Google Drive for
@@ -165,7 +212,13 @@ desktop research folder, then link those folders into each local RKF project.
 - `rkf.actions`: session-owned structured Codex app action API. A new
   `RKFActionRuntime` starts OFF; `rkf.activate`, `rkf.status`, and
   `rkf.deactivate` control only that runtime instance. It provides
-  `query.search`, `capture.route`, and writer-only `capture.project_pending`,
+  `query.search`, `capture.route`, `discover.preview`, `discover.status`,
+  exact-hash writer-only `discover.record`, selected writer-only
+  `discover.accept`, `dashboard.preview`, exact-hash local
+  `dashboard.publish`, `paper.migration.preview`, `connect.doctor`,
+  `views.preview`, writer-only `views.generate`, `maintenance.preview`,
+  writer-only `maintenance.run`, and `cleanup.manifest.preview`, plus
+  writer-only `capture.project_pending`,
   then retains guarded support for
   `inbox.capture`, `hot.record`, report/read actions (`world.render`,
   `paper.queue`, `lint.run`, `graph.export`, `index.generate`,

@@ -10,6 +10,7 @@ import secrets
 import unicodedata
 from dataclasses import asdict, dataclass
 from datetime import datetime, timedelta, timezone
+from pathlib import Path
 from typing import Any
 from urllib.parse import parse_qsl, urlencode, urlsplit, urlunsplit
 
@@ -18,6 +19,7 @@ from .events import (
     build_operational_event,
     load_recent_operational_events,
     public_safety_violations,
+    valid_event_envelope,
     write_operational_event,
 )
 
@@ -76,6 +78,7 @@ class CaptureInput:
     reader_note: str = ""
     agent_note: str = ""
     topic_id: str = ""
+    create_paper_draft: bool = True
 
 
 @dataclass(frozen=True)
@@ -100,6 +103,34 @@ class CaptureRoute:
     dedupe: DedupeResult
     materialize: bool
     created: str
+    transaction_recovered: bool = False
+
+
+class CaptureTransactionConflict(RuntimeError):
+    """Raised when a deterministic capture transaction cannot be reused safely."""
+
+
+_CAPTURE_EVENT_PAYLOAD_KEYS = {
+    "title",
+    "text",
+    "doi",
+    "source_url",
+    "authors",
+    "year",
+    "intent",
+    "reader_note",
+    "agent_note",
+    "topic_id",
+    "create_paper_draft",
+    "targets",
+    "reasons",
+    "dedupe_status",
+    "materialize",
+    "matched_id",
+    "content_fingerprint",
+    "normalized_text",
+    "promotion",
+}
 
 
 def _contains(text: str, terms: set[str]) -> bool:
@@ -254,26 +285,18 @@ def dedupe_capture(
     return DedupeResult("new", "", key)
 
 
-def route_capture(
-    ws: Workspace,
+def _normalized_machine_id(value: str) -> str:
+    return re.sub(r"[^a-z0-9-]+", "-", value.lower()).strip("-")
+
+
+def _capture_payload_invariants(
     item: CaptureInput,
     *,
-    machine_id: str,
-    actor: str = "codex",
-    now: datetime | None = None,
-) -> CaptureRoute:
-    instant = now or datetime.now(timezone.utc)
-    decision = classify_capture(item)
-    if decision.level == "blocked":
-        raise SystemExit(f"capture.route blocked: {','.join(decision.reasons)}")
-    if decision.level == "none":
-        raise SystemExit("capture.route did not find a deterministic research trigger")
-
-    dedupe = dedupe_capture(ws, item, now=instant)
-    doi = _canonical_doi(item)
-    fingerprint = _fingerprint(item)
-    action = "capture.review" if dedupe.status == "ambiguous" else "capture.route"
-    payload: dict[str, Any] = {
+    decision: CaptureDecision,
+    doi: str,
+    fingerprint: str,
+) -> dict[str, Any]:
+    return {
         "title": item.title,
         "text": item.text,
         "doi": doi,
@@ -284,15 +307,200 @@ def route_capture(
         "reader_note": item.reader_note,
         "agent_note": item.agent_note,
         "topic_id": item.topic_id,
+        "create_paper_draft": item.create_paper_draft,
         "targets": decision.targets,
         "reasons": decision.reasons,
-        "dedupe_status": dedupe.status,
-        "materialize": dedupe.status == "new",
-        "matched_id": dedupe.matched_id,
         "content_fingerprint": fingerprint,
         "normalized_text": " ".join(item.text.lower().split()),
         "promotion": "none",
     }
+
+
+def _capture_payload(
+    item: CaptureInput,
+    *,
+    decision: CaptureDecision,
+    dedupe: DedupeResult,
+    doi: str,
+    fingerprint: str,
+) -> dict[str, Any]:
+    return {
+        **_capture_payload_invariants(
+            item,
+            decision=decision,
+            doi=doi,
+            fingerprint=fingerprint,
+        ),
+        "dedupe_status": dedupe.status,
+        "materialize": dedupe.status == "new",
+        "matched_id": dedupe.matched_id,
+    }
+
+
+def _transaction_event_matches(
+    ws: Workspace,
+    *,
+    idempotency_key: str,
+) -> list[tuple[Path, dict[str, Any]]]:
+    """Return parseable events carrying one exact transaction key.
+
+    Operational-event loading normally ignores malformed files.  Recovery must
+    be stricter: a parseable envelope that claims this transaction key but is
+    invalid is itself a conflict and must never be bypassed by writing another
+    event.
+    """
+
+    if not ws.paths.events.exists():
+        return []
+    matches: list[tuple[Path, dict[str, Any]]] = []
+    for path in sorted(ws.paths.events.rglob("evt_*.json")):
+        try:
+            event = read_json(path)
+        except (OSError, ValueError, TypeError):
+            continue
+        if not isinstance(event, dict) or event.get("idempotency_key") != idempotency_key:
+            continue
+        if not valid_event_envelope(event):
+            raise CaptureTransactionConflict(
+                "capture transaction has an invalid matching event envelope"
+            )
+        matches.append((path, event))
+    return matches
+
+
+def _recover_capture_transaction(
+    ws: Workspace,
+    item: CaptureInput,
+    *,
+    decision: CaptureDecision,
+    doi: str,
+    fingerprint: str,
+    machine_id: str,
+    actor: str,
+    idempotency_key: str,
+) -> CaptureRoute | None:
+    matches = _transaction_event_matches(
+        ws,
+        idempotency_key=idempotency_key,
+    )
+    if not matches:
+        return None
+    if len(matches) != 1:
+        raise CaptureTransactionConflict(
+            "capture transaction has duplicate matching events"
+        )
+
+    path, event = matches[0]
+    if event["actor"] != actor:
+        raise CaptureTransactionConflict(
+            "capture transaction actor does not match the retry actor"
+        )
+    expected_machine = _normalized_machine_id(machine_id)
+    if not expected_machine or event["machine_id"] != expected_machine:
+        raise CaptureTransactionConflict(
+            "capture transaction writer does not match the retry writer"
+        )
+    expected_target = f"doi:{doi}" if doi else f"fingerprint:{fingerprint}"
+    if (
+        event["origin"] != item.origin.strip()
+        or event["target_identity"] != expected_target
+    ):
+        raise CaptureTransactionConflict(
+            "capture transaction identity does not match the retry input"
+        )
+
+    payload = event["payload"]
+    if set(payload) != _CAPTURE_EVENT_PAYLOAD_KEYS:
+        raise CaptureTransactionConflict(
+            "capture transaction payload shape does not match the current contract"
+        )
+    expected_payload = _capture_payload_invariants(
+        item,
+        decision=decision,
+        doi=doi,
+        fingerprint=fingerprint,
+    )
+    if any(
+        type(payload.get(key)) is not type(value) or payload.get(key) != value
+        for key, value in expected_payload.items()
+    ):
+        raise CaptureTransactionConflict(
+            "capture transaction payload does not match the retry input"
+        )
+
+    dedupe_status = payload.get("dedupe_status")
+    materialize = payload.get("materialize")
+    matched_id = payload.get("matched_id")
+    if (
+        dedupe_status not in {"new", "existing", "ambiguous"}
+        or type(materialize) is not bool
+        or materialize is not (dedupe_status == "new")
+        or not isinstance(matched_id, str)
+        or event["action"]
+        != ("capture.review" if dedupe_status == "ambiguous" else "capture.route")
+    ):
+        raise CaptureTransactionConflict(
+            "capture transaction deduplication state is inconsistent"
+        )
+
+    dedupe = DedupeResult(
+        status=str(dedupe_status),
+        matched_id=matched_id,
+        key=idempotency_key,
+    )
+    return CaptureRoute(
+        event_path=path.relative_to(ws.paths.wiki_root).as_posix(),
+        event_id=str(event["event_id"]),
+        decision=decision,
+        dedupe=dedupe,
+        materialize=materialize,
+        created=str(event["created"]),
+        transaction_recovered=True,
+    )
+
+
+def route_capture(
+    ws: Workspace,
+    item: CaptureInput,
+    *,
+    machine_id: str,
+    actor: str = "codex",
+    now: datetime | None = None,
+    idempotency_key: str = "",
+) -> CaptureRoute:
+    instant = now or datetime.now(timezone.utc)
+    decision = classify_capture(item)
+    if decision.level == "blocked":
+        raise SystemExit(f"capture.route blocked: {','.join(decision.reasons)}")
+    if decision.level == "none":
+        raise SystemExit("capture.route did not find a deterministic research trigger")
+
+    doi = _canonical_doi(item)
+    fingerprint = _fingerprint(item)
+    transaction_key = idempotency_key.strip()
+    if transaction_key:
+        recovered = _recover_capture_transaction(
+            ws,
+            item,
+            decision=decision,
+            doi=doi,
+            fingerprint=fingerprint,
+            machine_id=machine_id,
+            actor=actor,
+            idempotency_key=transaction_key,
+        )
+        if recovered is not None:
+            return recovered
+
+    dedupe = dedupe_capture(ws, item, now=instant)
+    action = "capture.review" if dedupe.status == "ambiguous" else "capture.route"
+    payload = _capture_payload(
+        item,
+        decision=decision,
+        dedupe=dedupe,
+        doi=doi,
+        fingerprint=fingerprint,
+    )
     event = build_operational_event(
         action=action,
         actor=actor,
@@ -301,7 +509,7 @@ def route_capture(
         target_identity=(
             f"doi:{doi}" if doi else f"fingerprint:{fingerprint}"
         ),
-        idempotency_key=dedupe.key,
+        idempotency_key=transaction_key or dedupe.key,
         payload=payload,
         created=instant,
     )
@@ -313,6 +521,7 @@ def route_capture(
         dedupe=dedupe,
         materialize=dedupe.status == "new",
         created=event.created,
+        transaction_recovered=False,
     )
 
 

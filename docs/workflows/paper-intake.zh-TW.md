@@ -1,6 +1,6 @@
 # Paper Intake Workflow
 
-這份流程說明 RKF v0 的日常文獻整理方式：Codex app 是互動介面，Markdown pages 是
+這份流程說明 RKF v1.1 的日常文獻整理方式：Codex app 是互動介面，Markdown pages 是
 durable artifact。使用者不需要手動執行 CLI 才能整理 paper。
 
 ## 使用者入口
@@ -22,17 +22,22 @@ durable artifact。使用者不需要手動執行 CLI 才能整理 paper。
 
 | Section | 放什麼 | 不放什麼 |
 |---|---|---|
-| `Source-Grounded Summary` | 文獻本身支持的研究問題、方法、結果、限制 | 個人建議、跨文獻推論 |
-| `Extracted Evidence And Locators` | page/section/figure/table locator，以及來源明確支持或不支持的範圍 | 未定位的 stable claim |
-| `Reader Notes` | 使用者自己的理解、研究關聯、主觀判斷 | 偽裝成文獻結論的個人看法 |
-| `AI/Agent Notes` | AI 摘要、未驗證推論、需要人工查核的點 | claim evidence |
-| `Questions And Feedback` | public-safe 問題、人為回饋、open blocker | 私人全文、private path |
-| `Claims To Promote` | 候選 claim、必要 locator/blocker、caveat | 沒有邊界的 stable claim |
+| `Source Identity` | DOI、作者、期刊、年份、source record | project/manuscript 使用情境 |
+| `Reading Maturity` | reading/fulltext/human feedback/claim readiness 與 ledger reference | 未驗證的 trust upgrade |
+| `Research Question`、`Methods And Data`、`Main Findings` | 文獻本身的研究問題、方法資料與結果 | 個人建議、跨文獻推論 |
+| `Evidence And Locators` | page/section/figure/table locator，以及來源明確支持或不支持的範圍 | 未定位的 stable claim |
+| `Limitations And Boundaries` | 作者或已核對的限制、evidence boundary | 把限制藏在 project note |
+| `Questions About This Paper` | 只問此 paper 的方法、資料、結果、圖、假設、限制或可重現性 | 更廣泛的研究方向或 manuscript strategy |
+| `Intrinsic Links` | 此 paper 固有的 concept、method、dataset、subject topic | project-specific backlinks 或 cross-paper judgment |
+
+使用者/AI 閱讀互動、project 關聯、tentative idea、broader question 與 claim proposal
+預設走 `state/reading/`、inbox、question、project-synthesis、claim 或 synthesis。它們可以
+指向 paper，但不能重新定義 paper 的重心。
 
 ## Claim Promotion Rule
 
-`Claims To Promote` 裡的內容只是候選。要升級成 claim page 或 synthesis support，
-至少需要下列其中一種支持邊界：
+reading ledger、inbox 或 question 中的 claim proposal 只是候選。要升級成 claim page 或
+synthesis support，至少需要下列其中一種支持邊界：
 
 - locator-backed evidence；
 - 既有 supported RKF wiki page；
@@ -41,7 +46,7 @@ durable artifact。使用者不需要手動執行 CLI 才能整理 paper。
 如果目前只有 explicit review blocker，應保留為候選或 blocked claim draft，清楚標示
 不能升級的原因；不得作為 synthesis support。
 
-Candidate、ARS output、hot query、route note、AI/Agent Notes 都不能單獨作為
+Candidate、ARS output、hot query、route note、AI/Agent reading note 都不能單獨作為
 stable claim evidence。
 
 ## Codex App 的角色

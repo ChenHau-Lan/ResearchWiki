@@ -11,7 +11,7 @@ and maintenance only.
 |---|---|---|---|---|
 | `inbox-capture` | ChatGPT conversation, web clip, URL/DOI lead, cross-project note; 存到 inbox, 網頁剪藏, 對話保存 | inbox item plus optional SourceRecord/paper backlink | Medium | `knowledge/inbox/`, optional `state/sources/` and paper backlink |
 | `capture` | DOI, URL, PDF pointer, topic seed, idea, question; 來源攝取, 加入 DOI/URL/PDF | `SourceRecord` with conservative reading fields | Medium | `state/sources/` |
-| `discover` | literature discovery, search plan, candidates, missing full text; 文獻搜尋, 找 SCI paper, 缺全文 | candidate list, backlog, queue hints | Medium | `state/search_runs/`, review queue |
+| `discover` | literature discovery, topic/hot-query search, paper-radar metadata, candidates; 文獻搜尋, 找 SCI paper, 自動找 paper | exact-hash candidate preview/run and selected capture receipts | Medium | `discover.preview`; designated-writer `discover.record` / `discover.accept`; `state/search_runs/` |
 | `acquire` | user-provided PDF/full text, legal route note, legacy checkpoint; 取得PDF, 使用者提供PDF, 全文狀態 | full-text status update, artifact pointer, or legacy route note | High | `state/sources/`, `state/evidence/`, optional `state/gates/` |
 | `verify-pdf` | PDF/OCR/visual check, identity/readability check, locator capture; PDF檢查, OCR檢查, 定位頁碼 | checked reading artifact and maturity upgrade | High | `state/evidence/` |
 
@@ -45,6 +45,7 @@ and maintenance only.
 | `propagate` | affected-page preview/audit after new evidence or synthesis; propagation review, 受影響頁面 | manual preview/audit fallback | Medium | Codex app report or `state/gates/propagation/` |
 | `graph` | export links and state; 知識圖譜, graph links | graph JSON | Low | `graph/` |
 | `codex-handoff` | create a compact wiki context capsule for another Codex session/project; Codex handoff prompt, context capsule | context capsule | Medium | `prompts/` |
+| `public-dashboard` | research hotspot dashboard, GitHub Pages, RKF settings visualization; 研究熱點網站, 儀表板 | aggregate-only preview, private visual review, and exact-hash local site snapshot | High for publication | `dashboard.preview`; private `dashboard.review`; approved `dashboard.publish` to `site/data/` |
 
 ## `rkf-lint`
 
@@ -68,6 +69,7 @@ and maintenance only.
 | `handoff-bootstrap` | start RKF in another Codex session/project; 在其他Codex session啟動RKF, handoff啟動提示 | reusable bootstrap prompt | Medium | committed prompt template only |
 | `handoff-direct-write` | trusted Codex handoff requests guarded RKF actions after explicit write approval; 其他Codex session搜尋論文並加入wiki | guarded Codex app workflow | High | RKF actions preserve maturity and claim boundaries |
 | `handoff-save-proposal` | handoff found useful question/claim/synthesis; handoff回寫, 保存有意義問題 | RKF save/review proposal | Medium | review queue or proposal text |
+| `connect-project` | make RKF available to another local project; 連結研究專案, project bridge | previewed v2 marker and non-overwriting `RKF/` bridge | Medium | target `.rkf-connect.toml` and missing `RKF/` files only |
 
 ## Bridge Protocol
 

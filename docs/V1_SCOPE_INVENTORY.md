@@ -1,40 +1,36 @@
 # RKF v1 Scope Inventory
 
-This inventory implements the scope decision in GitHub issues #15–#18. The
-app-facing registry is `rkf.actions.available_actions()`.
+The canonical, reviewable inventory is
+[`docs/operations/v1-scope-inventory.yaml`](operations/v1-scope-inventory.yaml).
+It is a JSON-compatible YAML 1.2 document so the standard Python `json` module
+can validate it without adding a runtime dependency.
 
-| Surface | Classification | v1 disposition |
-|---|---|---|
-| `rkf.activate`, `rkf.status`, `rkf.deactivate` | keep | task-scoped activation with project and activation lineage |
-| `connect-project`, v2 marker, `RKF/` bridge | keep | central RKF access without copying a wiki |
-| `connect.validate` | keep | marker, central availability, version and redaction validation |
-| `workflow.add` | keep | DOI, URL, PDF pointer, note and selected-provider intake |
-| `workflow.ask` | keep | deterministic retrieval; optional semantic providers follow it |
-| `workflow.read` | keep | locator-backed Evidence and human verification |
-| `workflow.compare-synthesize` | keep | Claim and Synthesis; review passes are internal options |
-| `workflow.review` | keep | research actions, data-quality findings and project activity |
-| graph, index, world and handoff helpers | merge | internal retrieval/lineage projections; not app-facing |
-| inbox, source and discovery helpers | merge | internal implementation of Add |
-| challenge, reconcile, emerge, evolve and propagation | merge | internal Compare & Synthesize passes |
-| static site renderer and safety scanner | temporary-shim | maintainer-only through v1.x; removal/replacement target v2.0 |
-| paper migration preview/apply/rollback | temporary-shim | internal release recovery through v1.1; remove after backup window |
-| discovery run lifecycle | temporary-shim | internal provider compatibility through v1.1; not app-facing |
-| legacy CLI | temporary-shim | tests/maintenance only; removal target v2.0 |
-| multi-machine writer/sync doctor | delete | replaced by local/cross-project `connect.validate` |
-| Obsidian Bases | delete | optional integration may return outside core |
-| maintenance planner and cleanup manifest | delete | not part of the research product |
-| morning/nightly/weekly/health prompts | delete | no default automation package |
-| Hot Query mode/manual `hot.md` truth | delete | action event log is canonical; demand views are derived |
-| meeting, seminar and overview object types | delete | use typed Note, Topic or Synthesis |
-| editable `CRITICAL_FACTS.md` truth | delete | verified-claim projection only |
+Every entry uses exactly one Phase 0 classification:
 
-## Optional integrations in v1
+- `keep` — remains part of the v1 contract or an essential internal invariant.
+- `merge` — behavior remains, but only under a target workflow or internal
+  service; it is not a parallel product entry.
+- `delete` — remove the runtime, prompt, template, test, or document after its
+  stated dependency is cleared.
+- `temporary-shim` — compatibility-only and required to name a removal version.
 
-- `FullTextProvider`: minimal typed result and external adapter boundary. A full
-  `paper-fetch` acquisition engine is vNext (#18).
-- `AppraisalProvider`: digest/appraisal passes feed Read without becoming new
-  modes; discipline-specific profiles are optional.
-- `RetrievalProvider`: semantic retrieval follows exact identifier/title and
-  deterministic keyword search. It never promotes trust.
+The inventory records current name/path, target workflow or service, migration
+impact, test/docs impact, removal version, owner, and follow-up issue. CI checks
+that every action returned by `rkf.actions.available_actions()` is classified,
+that the visible workflow set is exact, and that no shim lacks a removal target.
 
-No optional provider is required for the deterministic core.
+## Frozen v1 surface
+
+The only visible research workflows are Add, Ask, Read, Compare & Synthesize,
+and Review. Connect & Activate is the one access layer. Graph/index/handoff and
+static-site behavior are internal services. Intake helpers merge into Add;
+critique/synthesis passes merge into Compare & Synthesize; queue/status/quality
+projections merge into Review.
+
+Cross-project connection, stable project/activation/action lineage, event-first
+capture, idempotency, and public/private safety checks are explicitly retained.
+Multi-computer synchronization is a separate deleted product and must not be
+confused with cross-project connection.
+
+Branch retention and deletion evidence is recorded separately in
+[`docs/operations/v1-branch-audit.md`](operations/v1-branch-audit.md).

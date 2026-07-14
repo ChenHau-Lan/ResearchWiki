@@ -4,6 +4,21 @@ Last updated: 2026-07-14
 
 ## RKF v1.1 Scope Simplification
 
+- Phase 0 uses `docs/operations/v1-scope-inventory.yaml` as the canonical,
+  machine-readable classification authority. It is JSON-compatible YAML 1.2,
+  requires owner/follow-up/migration/test impact for every entry, and requires
+  an explicit removal version for every `temporary-shim`.
+- The public README path is installation → preview/apply `connect-project` →
+  task-scoped activation → Add → Ask → Read → Compare & Synthesize → Review.
+  The actual bootstrap CLI is flag-based: preview with
+  `python3 tools/bootstrap_rkf.py`, apply with `--apply`, then run
+  `python3 tools/check_install.py --strict`. Positional `preview`/`apply`
+  examples are invalid and must not return to the docs.
+- The 2026-07-14 branch audit deleted the fully merged remote branches
+  `codex/rkf-observatory` and `codex/rkf-auto-evolution-docs-cleanup`. Every
+  other retained remote branch had at least one commit not in `origin/main`, or
+  was the active v1 branch. The local GitHub CLI token was invalid, so automatic
+  post-merge branch deletion remains unverified and open in #19.
 - GitHub issues #15–#18 define the current v1 contract. The published
   `v1.0.0` tag remains immutable; the compatible implementation target is
   `v1.1.0`.
@@ -42,13 +57,15 @@ Last updated: 2026-07-14
 
 ## Current State
 
-- RKF v1 baseline is active with governed paper, synthesis, topic, hot-query,
-  world-context, reading-ledger, inbox-capture, and public-safety flows.
+- The v1.1 target exposes only the five governed workflows plus Connect &
+  Activate. Older hot-query, world-context, discovery lifecycle, dashboard,
+  migration, maintenance, view, and cleanup routes are internal compatibility
+  or deletion candidates, not parallel user-facing products.
 - The repository root does not necessarily store the live `knowledge/` tree.
   Resolve operational wiki state through `rkf.workspace.toml` and the configured
   `wiki_root`.
-- `hot.md` is the preferred public-safe demand summary when present in the live
-  wiki root.
+- `hot.md`, when present in the live wiki root, is a legacy operational demand
+  signal only; it is not canonical evidence or a v1 product entry.
 - The repo contains `docs/LITERATURE_MATRIX.md` and `docs/AI_USE_LOG.md`; use
   them for public-safe literature synthesis notes and AI-use/disclosure traces.
 - README files are the public front door; `MODE_REGISTRY.md` is the active mode
@@ -290,6 +307,11 @@ warning-only because 57 existing PDFs still lack governed identity mapping.
 An ordinary repo-only sandbox cannot prove write access to external shared
 storage, so unattended runs must still stop if their execution profile reports
 writer storage unavailable.
+
+2026-07-14 Phase 0 scope-freeze verification completed with 305 unit tests,
+Python compilation, all/topic/graph lint, `public_safety_scan.py`, documentation
+command/link/inventory checks, and `git diff --check`. The GitHub issue record
+was updated without closing #15–#19 or claiming unmerged work as complete.
 
 The latest private aggregate preview for the finalized dashboard schema is
 `20260713T093756Z_5eb6a1d2f68b`, exact hash

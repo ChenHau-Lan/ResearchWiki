@@ -1,64 +1,68 @@
 # Research Knowledge Framework（RKF）
 
-RKF 把論文轉成可回到原文位置、可看出支持與反駁證據，並經人工確認的研究知識。
+RKF 把論文轉成能回到原文確切位置、經人工確認、並可跨論文比較的研究知識。
 
 > Paper → locator-backed Evidence → human-reviewed Claim → Synthesis
 
-目前相容更新目標為 `v1.1.0`；既有公開 `v1.0.0` tag 不重寫。
+RKF 適合希望在 Codex 中建立長期、source-aware 閱讀與 synthesis 流程的研究者。
+它不是 PDF library、paywall bypass、自動 claim 產生器，也不能取代研究者閱讀原文。
 
-## 五條研究工作流
+相容更新目標為 `v1.1.0`；已發布的 `v1.0.0` tag 保持不變。
+Paper reading maturity 會以分開的 access state 與 review state 明確呈現；只有
+metadata 不代表研究者已讀過 paper。
+Ask 可以 retrieve governed wiki context，但 retrieval 本身不會把 candidate 或
+model answer 提升成 Evidence。
 
-1. **Add**：加入 DOI、URL、PDF pointer、Zotero item、note 或選定 paper。
-2. **Ask**：限定 paper/topic 查詢；有證據的回答必須附 locator，否則明確回報證據不足。
-3. **Read**：記錄 annotation、correction、Evidence 與 human verification。
-4. **Compare & Synthesize**：整理 agreement、contradiction 與 evidence gap。
-5. **Review**：顯示下一步研究行動與 connected-project activity。
+## 安裝中央 RKF checkout
 
-## 從其他專案使用 RKF
-
-先 preview/apply `connect-project`，建立 v2 `.rkf-connect.toml` 與輕量 `RKF/` bridge。
-Bridge 不複製第二份 wiki。每個 Codex task 仍從 OFF 開始，必須明確說「啟動 RKF」。
-
-每個 project 有隨機且穩定的 `project_id`；每次啟動有 `activation_id`；每個 action
-都留下 append-only、path-redacted event。Review 可追查哪個 project、哪次 activation
-查詢或修改了研究物件。Raw prompt 預設不保存。
-
-## v1 核心 action
-
-```text
-rkf.activate / rkf.status / rkf.deactivate / connect.validate
-workflow.add
-workflow.ask
-workflow.read
-workflow.compare-synthesize
-workflow.review
+```bash
+git clone git@github.com:ChenHau-Lan/ResearchWiki.git
+cd ResearchWiki
+python3 tools/bootstrap_rkf.py
+python3 tools/bootstrap_rkf.py --apply
+python3 tools/check_install.py --strict
 ```
 
-Python modules 與 legacy CLI 只保留為 internal compatibility surface，不是新手入口。
+第一個 bootstrap 指令只做 read-only preview。確認內容後才執行 `--apply`。
+連接研究專案前，strict check 必須以 `ready: true` 結束。
 
-## Optional providers
+## 連接另一個研究專案
 
-v1 只定義全文取得、appraisal 與 semantic retrieval 的小型 contract；沒有安裝 adapter 時，
-deterministic core 仍可完整使用。`paper-fetch`、`paper-review-and-digest`、`vault-search`
-是整合參考，不會把 browser login、重依賴或另一套 UI 搬進 core。完整 Scientific Artifact
-Acquisition Engine 留在 vNext。
+先 preview marker 與輕量 bridge，再 apply 完全相同的請求：
+
+```bash
+python3 tools/rkf_auto_connect.py connect-project /path/to/research-project
+python3 tools/rkf_auto_connect.py connect-project /path/to/research-project --apply
+```
+
+這會建立 v2 `.rkf-connect.toml` 與小型 `RKF/` bridge，不會複製中央 wiki。
+每個新的 Codex task 仍從 RKF OFF 開始；task 開始時說「啟動 RKF」，完成後說
+「停用 RKF」。
+
+## 在 10 分鐘內完成第一個閉環
+
+請用一篇公開或 synthetic paper 走完此流程，並依序在 Codex 輸入：
+
+| 工作流 | 自然語言請求 | 預期結果 |
+|---|---|---|
+| **Add** | 「啟動 RKF，將 DOI `10.0000/example` 作為 candidate 加入，不要提升成 evidence。」 | 產生去重後的 capture receipt，包含 `Promotion: none` 與 project/activation lineage。 |
+| **Ask** | 「Ask RKF 這篇 paper 對目標關係報告了什麼；沒有 locator 就明確說證據不足。」 | 回傳有 source boundary 的結果；支持 claim 的回答附 exact locator，否則回報 insufficient evidence。 |
+| **Read** | 「Read 這篇 paper，將 p. 8, Fig. 3 的結果記為 supporting Evidence，先保持 unreviewed。」 | 產生包含 paper ID、locator、stance 與明確 verification state 的 Evidence card。 |
+| **Compare & Synthesize** | 「將這筆 Evidence 與另一篇已確認 paper 比較，列出 agreement、contradiction、gap 與 provisional conclusion。」 | 產生連結 Evidence IDs 的 Claim 或 Synthesis，並保留尚未解決的 gap。 |
+| **Review** | 「Review 這個 project：顯示缺 locator、待確認 evidence、disputed claims 與下一個閱讀行動。」 | 產生可執行 review，以及遮蔽路徑的 activation timeline。 |
+
+這五條工作流就是完整的 v1 研究介面。Internal helper 與 compatibility code 不會形成
+額外的產品模式。
 
 ## 安全邊界
 
-- Candidate、metadata 與 LLM output 不是 stable evidence。
+- Candidate metadata 與 model output 不是 stable evidence。
 - Verified claim 必須有 locator-backed、human-verified Evidence。
-- PDF、article text、secret、private path 與 raw prompt 不公開。
-- 不繞過 paywall、CAPTCHA 或 access control。
-- 取得 PDF 不等於可讀、已讀或已支持 claim。
+- PDF、article text、secret、token、absolute path、private index 與 raw prompt
+  不進 public repository 或 public output。
+- RKF 不繞過 paywall、CAPTCHA 或 access control。
 
-## 文件
+Architecture、compatibility/removal 決策、release operation 與 public synthetic demo
+統一由單一 [Maintainer reference](docs/MAINTAINER_REFERENCE.md) 進入。
 
-- [快速開始](docs/GETTING_STARTED.zh-TW.md)
-- [架構](docs/ARCHITECTURE.md)
-- [v1 scope inventory](docs/V1_SCOPE_INVENTORY.md)
-- [工作流 registry](MODE_REGISTRY.md)
-- [Public guided demo](https://chenhau-lan.github.io/ResearchWiki/)
-
-## 版本管理
-
-`v1.0.0` 保持不變；本次相容 schema 與 workflow 更新目標為 `v1.1.0`。
+[English](README.md) · License: MIT

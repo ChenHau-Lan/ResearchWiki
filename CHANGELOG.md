@@ -2,6 +2,12 @@
 
 ## Unreleased
 
+- Complete v1 Phase 0 scope freeze: align the English and Traditional Chinese
+  README around install → Connect & Activate → the five-workflow 10-minute
+  loop; add a dependency-free machine-readable keep/merge/delete/temporary-shim
+  inventory with owner, migration/test impact, follow-up issue, and mandatory
+  shim removal versions; and record branch-retention evidence. Confirm
+  `v1.1.0` as the release target without moving the published `v1.0.0` tag.
 - Define the compatible RKF `v1.1.0` product surface as five workflows—Add,
   Ask, Read, Compare & Synthesize, and Review—plus task-scoped Connect &
   Activate. Add canonical paper/evidence/claim/synthesis enums, conservative

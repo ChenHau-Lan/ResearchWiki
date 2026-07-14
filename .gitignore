@@ -10,6 +10,7 @@ framework.local.yaml
 *.local.toml
 
 .rkf_private/
+.rkf_lineage/
 .rkf_data/
 output/pdf/
 

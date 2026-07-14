@@ -163,8 +163,8 @@ class RKFAutoConnectTests(unittest.TestCase):
         )
 
         self.assertEqual(activate.action, "rkf.activate")
-        self.assertEqual(query.action, "query.search")
-        self.assertEqual(capture.action, "capture.route")
+        self.assertEqual(query.action, "workflow.ask")
+        self.assertEqual(capture.action, "workflow.add")
         self.assertEqual(capture.params["doi"], "10.1234/cloud.lead")
         self.assertNotIn("/" + "Users/", repr(capture.params))
 
@@ -406,7 +406,7 @@ class RKFAutoConnectTests(unittest.TestCase):
         self.assertFalse((project / "RKF").exists())
         self.assertEqual(list(project.glob(".rkf-connect.*.tmp")), [])
 
-    def test_semantically_matching_v2_marker_preserves_comments_and_extra_fields(self) -> None:
+    def test_legacy_v2_marker_without_project_id_requires_manual_upgrade(self) -> None:
         project = self.root / "CommentedProject"
         project.mkdir()
         marker = project / ".rkf-connect.toml"
@@ -423,10 +423,11 @@ class RKFAutoConnectTests(unittest.TestCase):
         marker.write_text(original, encoding="utf-8")
 
         preview = auto.preview_project_connection(project)
-        result = auto.connect_project(project)
+        with self.assertRaises(SystemExit):
+            auto.connect_project(project)
 
-        self.assertFalse(preview["marker"]["would_change"])
-        self.assertEqual(result["status"], "connected")
+        self.assertTrue(preview["marker"]["would_change"])
+        self.assertTrue(preview["marker"]["requires_manual_edit"])
         self.assertEqual(marker.read_text(encoding="utf-8"), original)
 
     def test_existing_v2_policy_change_requires_manual_edit(self) -> None:
@@ -651,7 +652,7 @@ class RKFAutoConnectTests(unittest.TestCase):
 
         self.assertEqual(status, 0)
         payload = json.loads(stdout.getvalue())
-        self.assertEqual(payload["action"], "capture.route")
+        self.assertEqual(payload["action"], "workflow.add")
         self.assertEqual(payload["params"]["doi"], "10.1234/cloud.lead")
 
     def test_legacy_command_array_subcommands_are_removed(self) -> None:

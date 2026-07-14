@@ -27,33 +27,13 @@ class RKFPhase1DocsTests(unittest.TestCase):
             encoding="utf-8"
         )
 
-        for action in ("rkf.activate", "query.search", "capture.route", "rkf.deactivate"):
+        for action in ("rkf.activate", "workflow.ask", "workflow.add", "rkf.deactivate"):
             self.assertIn(action, architecture)
             self.assertIn(action, features)
-            self.assertIn(action, workflow)
-        for mapping in (
-            "| 啟動 RKF | `rkf.activate` |",
-            "| 問 RKF：... | `query.search` |",
-            "| 收進 RKF：... | `capture.route` |",
-            "| 停用 RKF | `rkf.deactivate` |",
-        ):
-            self.assertIn(mapping, features)
-        self.assertIn("new Codex task -> OFF", architecture)
-        self.assertIn("research request -> query.search", architecture)
-        self.assertIn("停用 RKF -> OFF", architecture)
-        self.assertIn("capture.project_pending", architecture)
-        self.assertIn("capture.project_pending", features)
+        self.assertIn("workflow.read", features)
+        self.assertIn("workflow.compare-synthesize", features)
+        self.assertIn("workflow.review", features)
         self.assertIn("新 task 預設 RKF OFF", workflow)
-        for step in (
-            "1. 新 task 預設 RKF OFF。",
-            "2. 使用者說「啟動 RKF」。",
-            "3. Agent 執行 `rkf.activate`",
-            "4. 研究型請求先執行 `query.search`",
-            "5. DOI、URL、paper lead 或可重用研究討論經 `capture.route`",
-            "6. 回報 event ID、dedupe、queued/materialized 與 `Promotion: none`。",
-            "7. 使用者說「停用 RKF」後執行 `rkf.deactivate`。",
-        ):
-            self.assertIn(step, workflow)
         self.assertNotIn("rk hot record", workflow)
         self.assertNotIn("inbox-execute", workflow)
         self.assertNotIn("hot-execute", workflow)

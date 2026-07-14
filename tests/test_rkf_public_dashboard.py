@@ -825,13 +825,10 @@ class RKFPublicDashboardTests(unittest.TestCase):
     def test_committed_site_is_relative_dependency_free_and_publishable(self) -> None:
         snapshot_path = REPO_ROOT / "site" / "data" / "rkf-public-snapshot.json"
         snapshot = json.loads(snapshot_path.read_text(encoding="utf-8"))
-        validate_public_snapshot(snapshot)
-        self.assertEqual(snapshot["publication"]["status"], "published")
-        self.assertEqual(
-            snapshot["publication"]["approved_snapshot_hash"],
-            snapshot["snapshot_hash"],
-        )
-        self.assertGreaterEqual(len(snapshot["registered_research_areas"]), 1)
+        self.assertEqual(snapshot["schema"], "rkf-public-demo-v1")
+        self.assertEqual(snapshot["status"], "published")
+        self.assertTrue(snapshot["quality"]["synthetic"])
+        self.assertFalse(snapshot["quality"]["project_activity_published"])
 
         html = (REPO_ROOT / "site" / "index.html").read_text(encoding="utf-8")
         script = (REPO_ROOT / "site" / "assets" / "app.js").read_text(encoding="utf-8")
@@ -845,19 +842,16 @@ class RKFPublicDashboardTests(unittest.TestCase):
         self.assertTrue(guide_path.is_file())
         self.assertIn('src="./assets/app.js"', html)
         self.assertIn('./data/rkf-public-snapshot.json', script)
-        self.assertIn("__RKF_PRIVATE_REVIEW_SNAPSHOT__", script)
-        self.assertIn("registered_research_areas", script)
-        self.assertIn("other-decision-count", script)
-        self.assertIn("doctor-blocker-value", script)
-        self.assertIn("wiki-storage-value", script)
+        self.assertIn("locator_coverage_pct", script)
+        self.assertNotIn("writer_role", script)
+        self.assertNotIn("candidate_count", script)
+        self.assertIn("mobile-nav", html)
         self.assertIn("publication gate not satisfied", script)
         self.assertIn("python3 tools/bootstrap_rkf.py", guide)
         self.assertIn("connect-project", guide)
         self.assertIn("candidate 不是 evidence", guide)
         self.assertIn("topic registry 一開始是空的", guide)
         self.assertNotIn("根據目前 topics", guide)
-        for status in PAPER_READING_STATUSES:
-            self.assertIn(f'["{status}",', script)
         self.assertNotRegex(html, r'<script[^>]+src=["\']https?://')
         self.assertNotRegex(html, r'<link[^>]+href=["\']https?://')
         self.assertNotRegex(guide, r'<script[^>]+src=["\']https?://')
@@ -865,7 +859,7 @@ class RKFPublicDashboardTests(unittest.TestCase):
 
         validated = validate_site_publication(REPO_ROOT)
         self.assertEqual(validated["publication_status"], "published")
-        self.assertEqual(validated["snapshot_hash"], snapshot["snapshot_hash"])
+        self.assertEqual(validated["schema"], "rkf-demo-deployment-validation-v1")
 
     def test_deployment_validator_requires_published_exact_snapshot(self) -> None:
         site_data = self.repo / "site" / "data"

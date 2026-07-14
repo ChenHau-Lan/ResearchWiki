@@ -1,0 +1,23 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://example.org/rkf/rkf_v1.schema.json",
+  "title": "RKF v1 Canonical Data Model",
+  "$defs": {
+    "accessState": {"enum": ["metadata", "abstract", "partial", "fulltext"]},
+    "reviewState": {"enum": ["unread", "skimmed", "read", "annotated", "reproduced"]},
+    "evidenceStance": {"enum": ["supports", "opposes", "contextualizes"]},
+    "verificationState": {"enum": ["unreviewed", "human-verified", "rejected"]},
+    "claimStatus": {"enum": ["proposed", "supported", "disputed", "verified", "retired"]},
+    "projectId": {"type": "string", "pattern": "^prj_[a-f0-9]{24}$"},
+    "activationId": {"type": "string", "pattern": "^act_[a-f0-9]{24}$"},
+    "locator": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["kind", "value"],
+      "properties": {
+        "kind": {"enum": ["page", "section", "figure", "table", "paragraph"]},
+        "value": {"type": "string", "minLength": 1}
+      }
+    }
+  }
+}

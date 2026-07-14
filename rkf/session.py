@@ -12,6 +12,7 @@ from typing import Any
 from datetime import datetime
 
 from .core import Workspace, load_toml, read_json
+from .lineage import PROJECT_ID_RE, new_activation_id, utc_now
 from .sync import run_connect_doctor
 
 
@@ -36,6 +37,10 @@ class ProjectPolicy:
     activation: str
     query_first: bool
     capture_mode: str
+    project_id: str = ""
+    project_name: str = ""
+    marker_schema: str = ""
+    connector_version: str = ""
 
 
 @dataclass
@@ -47,6 +52,11 @@ class SessionState:
     machine_id: str = ""
     writer_role: str = "unknown"
     warnings: list[str] = field(default_factory=list)
+    project_id: str = ""
+    project_name: str = ""
+    activation_id: str = ""
+    started_at: str = ""
+    ended_at: str = ""
 
 
 def new_session(session_id: str = "") -> SessionState:
@@ -55,7 +65,13 @@ def new_session(session_id: str = "") -> SessionState:
 
 def read_project_policy(project_root: Path | None) -> ProjectPolicy:
     if project_root is None:
-        return ProjectPolicy(0, True, "manual", True, "active-aggressive")
+        return ProjectPolicy(
+            0, True, "manual", True, "active-aggressive",
+            project_id="prj_000000000000000000000000",
+            project_name="ResearchWiki",
+            marker_schema="local",
+            connector_version="builtin",
+        )
     marker = project_root / ".rkf-connect.toml"
     try:
         data = load_toml(marker)
@@ -75,14 +91,27 @@ def read_project_policy(project_root: Path | None) -> ProjectPolicy:
             query_first = section.get("query_first", True)
             activation = section.get("activation", "manual")
             capture_mode = section.get("capture_mode", "active-aggressive")
+            project_id = section.get("project_id", "")
+            project_name = section.get("project_name", project_root.name)
+            marker_schema = section.get("marker_schema", "rkf-connect-v2")
+            connector_version = section.get("connector_version", "unknown")
             if (
                 not isinstance(available, bool)
                 or not isinstance(query_first, bool)
                 or activation != "manual"
                 or capture_mode not in {"active-aggressive", "active", "off"}
+                or not isinstance(project_id, str)
+                or not isinstance(project_name, str)
+                or (bool(project_id) and PROJECT_ID_RE.fullmatch(project_id) is None)
             ):
                 raise ValueError
-            return ProjectPolicy(version, available, activation, query_first, capture_mode)
+            return ProjectPolicy(
+                version, available, activation, query_first, capture_mode,
+                project_id=project_id,
+                project_name=project_name,
+                marker_schema=str(marker_schema),
+                connector_version=str(connector_version),
+            )
         legacy = data.get("rkf_auto_connect", {})
         if not isinstance(legacy, dict) or not isinstance(legacy.get("enabled", False), bool):
             raise ValueError
@@ -95,6 +124,9 @@ def read_project_policy(project_root: Path | None) -> ProjectPolicy:
             activation="manual",
             query_first=True,
             capture_mode=str(legacy_mode),
+            project_name=project_root.name,
+            marker_schema="rkf-connect-v1-legacy",
+            connector_version="legacy",
         )
     except (TypeError, ValueError):
         return ProjectPolicy(0, False, "manual", True, "off")
@@ -164,6 +196,12 @@ def session_receipt(session: SessionState) -> dict[str, Any]:
         "capture_mode": session.capture_mode,
         "writer_role": session.writer_role,
         "warnings": list(session.warnings),
+        "project_id": session.project_id,
+        "project_name": session.project_name,
+        "activation_id": session.activation_id,
+        "started_at": session.started_at,
+        "ended_at": session.ended_at,
+        "paths_redacted": True,
     }
 
 
@@ -191,33 +229,43 @@ def activate_session(
             "error_code": "RKF_PREFLIGHT_FAILED",
         }
 
-    doctor = run_connect_doctor(ws)
-    machine_id, _requested_writer = _machine_state(ws)
-    warnings = [finding.code for finding in doctor.findings]
-    if any(code.startswith("WRITER_REGISTRY_") for code in warnings):
-        # Preserve the established session receipt vocabulary while retaining
-        # the more precise doctor code in the same safe receipt.
-        warnings.append("WRITER_REGISTRY_MISMATCH")
-
     session.query_first = policy.query_first
     session.capture_mode = policy.capture_mode
-    session.machine_id = machine_id
-    session.writer_role = str(doctor.writer.get("role", "unknown"))
-    session.warnings = list(dict.fromkeys(warnings))
-    session.mode = SessionMode.ACTIVE_READ_ONLY if doctor.status == "blocked" else SessionMode.ACTIVE
+    session.project_id = policy.project_id or f"prj_{uuid.uuid5(uuid.NAMESPACE_URL, 'rkf-project:' + (project_root.name if project_root else 'ResearchWiki')).hex[:24]}"
+    session.project_name = policy.project_name
+    session.activation_id = new_activation_id()
+    session.started_at = utc_now()
+    session.ended_at = ""
+    session.warnings = []
+    if project_root is not None and not policy.project_id:
+        doctor = run_connect_doctor(ws)
+        machine_id, _requested_writer = _machine_state(ws)
+        warnings = [finding.code for finding in doctor.findings]
+        if any(code.startswith("WRITER_REGISTRY_") for code in warnings):
+            warnings.append("WRITER_REGISTRY_MISMATCH")
+        warnings.append("LEGACY_PROJECT_ID_DERIVED_FROM_NAME")
+        session.machine_id = machine_id
+        session.writer_role = str(doctor.writer.get("role", "unknown"))
+        session.warnings = list(dict.fromkeys(warnings))
+        session.mode = SessionMode.ACTIVE_READ_ONLY if doctor.status == "blocked" else SessionMode.ACTIVE
+    else:
+        session.machine_id = "local"
+        session.writer_role = "local"
+        session.mode = SessionMode.ACTIVE
     return {
         **session_receipt(session),
         "roots": roots,
-        "doctor": doctor.as_payload(),
         "project_available": policy.available,
+        "marker_schema": policy.marker_schema,
+        "connector_version": policy.connector_version,
     }
 
 
 def deactivate_session(session: SessionState) -> dict[str, Any]:
+    session.ended_at = utc_now()
     session.mode = SessionMode.OFF
     session.query_first = False
     session.capture_mode = "off"
     session.machine_id = ""
     session.writer_role = "unknown"
-    session.warnings = []
     return session_receipt(session)

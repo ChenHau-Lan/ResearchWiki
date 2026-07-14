@@ -14,15 +14,14 @@
         "claim",
         "topic",
         "synthesis",
-        "overview",
-        "project-synthesis",
-        "meeting",
-        "seminar"
+        "project-synthesis"
       ]
     },
     "status": { "enum": ["draft", "reviewed", "needs-verification", "deprecated"] },
     "source_id": { "type": "string" },
     "source_status": { "type": "string" },
+    "access_state": { "enum": ["metadata", "abstract", "partial", "fulltext"] },
+    "review_state": { "enum": ["unread", "skimmed", "read", "annotated", "reproduced"] },
     "reading_status": {
       "enum": [
         "metadata-only",

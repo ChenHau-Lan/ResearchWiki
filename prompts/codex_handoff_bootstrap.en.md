@@ -30,8 +30,8 @@ below. Do not bypass the Codex app or structured action boundary. If write
 access is unavailable, or the claim boundary is incomplete, do
 not edit stable wiki knowledge directly. Return a proposal instead.
 
-For hot-query tracking, request the `hot.record` RKF action or return a short
-hot-query proposal. Do not create separate hot-query files or a handoff inbox.
+For reusable research demand, request `workflow.add` or return a short Add
+proposal. Do not create separate hot-query files or a handoff inbox.
 
 Low-risk direct updates may use `evolve` only when the page will show an AI
 Integration Note and conservative maturity. `reconcile` may write blockers for

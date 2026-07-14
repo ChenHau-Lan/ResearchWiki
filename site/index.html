@@ -3,240 +3,36 @@
   <head>
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1" />
-    <meta
-      name="description"
-      content="RKF Observatory：只呈現公開安全聚合資料的研究熱點與知識成熟度儀表板。"
-    />
-    <title>RKF Observatory · Research Knowledge Framework</title>
+    <meta name="description" content="RKF：把 paper 轉成 locator-backed、human-reviewed research knowledge。" />
+    <title>RKF · Locator-backed Research Knowledge</title>
     <link rel="icon" href="./favicon.svg" type="image/svg+xml" />
     <link rel="stylesheet" href="./assets/styles.css" />
     <script src="./assets/app.js" defer></script>
   </head>
   <body>
     <a class="skip-link" href="#main">跳到主要內容</a>
-
     <header class="site-header">
-      <a class="brand" href="#top" aria-label="RKF Observatory 首頁">
-        <span class="brand-mark" aria-hidden="true">R</span>
-        <span>
-          <strong>RKF Observatory</strong>
-          <small>Research Knowledge Framework</small>
-        </span>
-      </a>
-      <nav aria-label="頁面導覽">
-        <a href="#hotspots">研究熱點</a>
-        <a href="#pipeline">知識管線</a>
-        <a href="#framework">系統設定</a>
-        <a href="#start">快速開始</a>
-      </nav>
+      <a class="brand" href="#top" aria-label="RKF 首頁"><span class="brand-mark" aria-hidden="true">R</span><span><strong>RKF</strong><small>Research Knowledge Framework</small></span></a>
+      <nav aria-label="頁面導覽"><a href="#demo">Guided demo</a><a href="#workflow">Workflows</a><a href="#quality">Quality</a><a href="#start">開始使用</a></nav>
+      <details class="mobile-nav"><summary>導覽</summary><a href="#demo">Guided demo</a><a href="#workflow">Workflows</a><a href="#quality">Quality</a><a href="#start">開始使用</a></details>
       <span class="status-pill" id="publication-status">載入中</span>
     </header>
-
     <main id="main">
       <section class="hero" id="top">
-        <div class="hero-copy">
-          <p class="eyebrow">PUBLIC-SAFE RESEARCH SIGNALS</p>
-          <h1>
-            <span class="hero-line">看見研究往哪裡走，</span>
-            <span class="hero-line">不跨越證據邊界。</span>
-          </h1>
-          <p class="hero-lede">
-            RKF Observatory 將研究需求、paper intake、閱讀成熟度與框架健康度整理成公開安全的聚合訊號。
-            它不公開問題原文、paper identity、路徑或文章內容。
-          </p>
-          <div class="hero-meta">
-            <span><i class="signal-dot" aria-hidden="true"></i><b id="freshness-label">正在讀取快照</b></span>
-            <span id="snapshot-label">—</span>
-          </div>
-        </div>
-        <aside class="signal-card" aria-label="近期香港研究需求摘要">
-          <div class="signal-card-topline">
-            <span>ACTIVE WINDOW</span>
-            <span id="window-label">30 DAYS</span>
-          </div>
-          <strong class="signal-number" id="demand-total">—</strong>
-          <p>research demand signals</p>
-          <div class="signal-split">
-            <span><b id="linked-demand">—</b> 已連結 topic</span>
-            <span><b id="untriaged-demand">—</b> 待分類</span>
-          </div>
-        </aside>
+        <div class="hero-copy"><p class="eyebrow">EVIDENCE-GOVERNED SYNTHESIS</p><h1><span class="hero-line">Turn papers into</span><span class="hero-line">locator-backed research knowledge.</span></h1><p class="hero-lede">RKF 讓 Evidence 回到 page、section、figure、table 或 paragraph；讓 Claim 清楚顯示支持與反駁，並把 human verification 留在核心。</p><p><a class="text-link" href="#demo">查看完整 demo →</a>　<a class="text-link" href="./getting-started.html">本機安裝 →</a></p></div>
+        <aside class="signal-card"><div class="signal-card-topline"><span>CORE PROMISE</span><span>RKF v1</span></div><strong class="signal-number">5</strong><p>research workflows</p><div class="signal-split"><span>Add · Ask · Read</span><span>Compare · Review</span></div></aside>
       </section>
-
-      <section class="boundary-strip" aria-label="證據邊界提醒">
-        <span class="boundary-label">BOUNDARY</span>
-        <p><strong>Demand ≠ evidence.</strong> Candidate ≠ claim. 這裡顯示的是研究導航訊號，不是已驗證結論。</p>
-        <span class="boundary-lock">Aggregate only</span>
+      <section id="quality" class="boundary-strip"><span class="boundary-label">DATA QUALITY</span><p id="quality-message">正在讀取公開 demo 品質資訊。</p><span class="boundary-lock">Synthetic / public-safe</span></section>
+      <section class="metric-row" aria-label="公開研究品質指標"><article class="metric-card"><span>LOCATOR COVERAGE</span><strong id="locator-coverage">—</strong><small>demo evidence with exact locator</small></article><article class="metric-card"><span>HUMAN-VERIFIED EVIDENCE</span><strong id="verified-evidence">—</strong><small>explicit verification only</small></article><article class="metric-card"><span>VERIFIED / DISPUTED CLAIMS</span><strong id="claim-counts">—</strong><small>trust is never automatic</small></article><article class="metric-card"><span>UNRESOLVED GAPS</span><strong id="gap-count">—</strong><small>next research actions</small></article></section>
+      <section class="dashboard-grid" id="demo">
+        <article class="panel pipeline-panel"><header class="panel-heading"><div><p class="eyebrow">GUIDED DEMO</p><h2>Paper → Evidence → Claim → Synthesis</h2></div><span class="panel-note">synthetic data</span></header><ol class="pipeline"><li><span class="step-index">01</span><strong>Paper</strong><b>3</b><small>public/synthetic</small></li><li><span class="step-index">02</span><strong>Evidence</strong><b>4</b><small>exact locators</small></li><li><span class="step-index">03</span><strong>Claim</strong><b>2</b><small>support + oppose</small></li><li><span class="step-index">04</span><strong>Synthesis</strong><b>1</b><small>gap preserved</small></li></ol></article>
+        <article class="panel"><header class="panel-heading"><div><p class="eyebrow">RESEARCH QUESTION</p><h2>示範：環境條件是否改變觀測關係？</h2></div></header><p>Paper A 的 Fig. 3 支持關係；Paper B 的 Table 2 顯示條件依賴；Paper C 的 Methods §2 提供範圍限制。RKF 不把三篇摘要合併成單一肯定句，而是保留 opposing/context evidence 與未解決 gap。</p></article>
+        <article class="panel"><header class="panel-heading"><div><p class="eyebrow">EVIDENCE MATRIX</p><h2>可回到原文位置</h2></div></header><dl class="compact-stats"><div><dt>Paper A · Fig. 3</dt><dd>supports</dd></div><div><dt>Paper B · Table 2</dt><dd>opposes</dd></div><div><dt>Paper C · Methods §2</dt><dd>context</dd></div><div><dt>Human verification</dt><dd>2 / 4</dd></div></dl></article>
+        <article class="panel"><header class="panel-heading"><div><p class="eyebrow">SYNTHESIS</p><h2>結論保持 provisional</h2></div></header><p>目前證據支持「在示範條件內存在關係」，但不足以泛化。下一步是尋找跨條件重複測量與一致 locator 的 paper，而不是提高 confidence label。</p></article>
       </section>
-
-      <section class="metric-row" aria-label="RKF 總覽">
-        <article class="metric-card">
-          <span>KNOWLEDGE OBJECTS</span>
-          <strong id="knowledge-count">—</strong>
-          <small id="topic-count">— registered topics</small>
-        </article>
-        <article class="metric-card">
-          <span>PAPER PIPELINE</span>
-          <strong id="paper-count">—</strong>
-          <small id="source-count">— governed sources</small>
-        </article>
-        <article class="metric-card">
-          <span>ACTIVE READING QUEUE</span>
-          <strong id="queue-count">—</strong>
-          <small>items needing the next safe step</small>
-        </article>
-        <article class="metric-card">
-          <span>RESEARCH GRAPH</span>
-          <strong id="graph-count">—</strong>
-          <small id="edge-count">— governed relationships</small>
-        </article>
-      </section>
-
-      <section class="dashboard-grid">
-        <article class="panel hotspot-panel" id="hotspots">
-          <header class="panel-heading">
-            <div>
-              <p class="eyebrow">DEMAND MAP</p>
-              <h2>目前研究熱點</h2>
-            </div>
-            <span class="panel-note">topic-level · no raw queries</span>
-          </header>
-          <div id="hotspot-list" class="hotspot-list" aria-live="polite"></div>
-          <div class="registered-areas-block">
-            <div class="registered-areas-heading">
-              <strong>已註冊研究領域</strong>
-              <span>registry context · not recent demand</span>
-            </div>
-            <div id="registered-area-list" class="registered-area-list" aria-live="polite"></div>
-          </div>
-        </article>
-
-        <article class="panel intake-panel">
-          <header class="panel-heading">
-            <div>
-              <p class="eyebrow">DISCOVERY INTAKE</p>
-              <h2>Paper 攝取狀態</h2>
-            </div>
-          </header>
-          <div class="intake-total">
-            <strong id="candidate-count">—</strong>
-            <span>candidate metadata</span>
-          </div>
-          <dl class="compact-stats">
-            <div><dt>Discovery runs</dt><dd id="run-count">—</dd></div>
-            <div><dt>Accepted</dt><dd id="accepted-count">—</dd></div>
-            <div><dt>Duplicates</dt><dd id="duplicate-count">—</dd></div>
-            <div><dt>Needs review</dt><dd id="ambiguous-count">—</dd></div>
-            <div><dt>Legacy / unclassified</dt><dd id="other-decision-count">—</dd></div>
-          </dl>
-          <p class="quiet-note">候選紀錄只保留書目識別所需的 metadata；進入 RKF 後仍須通過閱讀、locator 與人工審查 gates。</p>
-        </article>
-
-        <article class="panel pipeline-panel" id="pipeline">
-          <header class="panel-heading">
-            <div>
-              <p class="eyebrow">GOVERNED FLOW</p>
-              <h2>從探索到可用知識</h2>
-            </div>
-            <span class="panel-note">promotion is never automatic</span>
-          </header>
-          <ol class="pipeline" aria-label="RKF paper knowledge pipeline">
-            <li>
-              <span class="step-index">01</span>
-              <strong>Discover</strong>
-              <b id="pipeline-discover">—</b>
-              <small>candidate-only</small>
-            </li>
-            <li>
-              <span class="step-index">02</span>
-              <strong>Register</strong>
-              <b id="pipeline-register">—</b>
-              <small>SourceRecords</small>
-            </li>
-            <li>
-              <span class="step-index">03</span>
-              <strong>Read</strong>
-              <b id="pipeline-read">—</b>
-              <small>paper drafts</small>
-            </li>
-            <li>
-              <span class="step-index">04</span>
-              <strong>Support</strong>
-              <b id="pipeline-support">—</b>
-              <small>claim-ready</small>
-            </li>
-          </ol>
-        </article>
-
-        <article class="panel maturity-panel">
-          <header class="panel-heading">
-            <div>
-              <p class="eyebrow">READING MATURITY</p>
-              <h2>理解深度</h2>
-            </div>
-          </header>
-          <div id="reading-bars" class="bar-list"></div>
-        </article>
-
-        <article class="panel maturity-panel">
-          <header class="panel-heading">
-            <div>
-              <p class="eyebrow">CLAIM READINESS</p>
-              <h2>主張就緒度</h2>
-            </div>
-          </header>
-          <div id="claim-bars" class="bar-list"></div>
-        </article>
-
-        <article class="panel framework-panel" id="framework">
-          <header class="panel-heading">
-            <div>
-              <p class="eyebrow">MACHINE-NEUTRAL CONFIG</p>
-              <h2>框架設定與健康度</h2>
-            </div>
-            <span class="health-badge" id="connection-health">—</span>
-          </header>
-          <div class="framework-layout">
-            <dl class="system-facts">
-              <div><dt>Knowledge schema</dt><dd id="schema-value">—</dd></div>
-              <div><dt>Review cadence</dt><dd id="cadence-value">—</dd></div>
-              <div><dt>Writer role</dt><dd id="writer-value">—</dd></div>
-              <div><dt>Lint findings</dt><dd id="lint-value">—</dd></div>
-              <div><dt>Doctor blockers</dt><dd id="doctor-blocker-value">—</dd></div>
-              <div><dt>Doctor warnings</dt><dd id="doctor-warning-value">—</dd></div>
-            </dl>
-            <div class="framework-controls">
-              <div class="storage-list" aria-label="RKF storage handle status">
-                <div class="storage-item"><span>Wiki storage</span><b id="wiki-storage-value">—</b></div>
-                <div class="storage-item"><span>RAW storage</span><b id="raw-storage-value">—</b></div>
-                <div class="storage-item"><span>Private evidence</span><b id="private-storage-value">—</b></div>
-              </div>
-              <div class="gate-list" id="gate-list" aria-label="RKF evidence gates"></div>
-            </div>
-          </div>
-          <p class="quiet-note">Storage 只顯示「是否已設定」；不會顯示本機或雲端路徑、machine ID 或 registry 內容。</p>
-        </article>
-      </section>
-
-      <section class="start-section" id="start">
-        <div class="start-intro">
-          <p class="eyebrow">BEGINNER PATH</p>
-          <h2>從 GitHub clone 到第一個研究連結</h2>
-          <p>先建立自己的本機資料層，再把研究專案連到中央 RKF。專案內的 bridge 只是入口，不會複製出第二套 wiki。</p>
-          <a class="text-link" href="./getting-started.html">閱讀快速安裝教學 <span aria-hidden="true">→</span></a>
-        </div>
-        <ol class="start-steps">
-          <li><span>1</span><div><strong>Clone & bootstrap</strong><p>取得公開 repository，建立 portable workspace 與本機 storage handles。</p></div></li>
-          <li><span>2</span><div><strong>Connect a project</strong><p>先 preview，再建立 v2 availability marker 與輕量 RKF bridge。</p></div></li>
-          <li><span>3</span><div><strong>Activate per task</strong><p>每個 Codex task 都從 OFF 開始；明確啟動後才可使用 guarded actions。</p></div></li>
-          <li><span>4</span><div><strong>Capture, read, review</strong><p>Candidate 先進 intake；只有通過成熟度與證據 gates 的內容才可升級。</p></div></li>
-        </ol>
-      </section>
+      <section class="start-section" id="workflow"><div class="start-intro"><p class="eyebrow">FIVE WORKFLOWS</p><h2>研究者只需要五個入口</h2><p>內部 graph、index、world、review passes 與 providers 服務這五條流程，不再成為平行產品。</p></div><ol class="start-steps"><li><span>1</span><div><strong>Add</strong><p>DOI、URL、PDF pointer、note 或 selected paper。</p></div></li><li><span>2</span><div><strong>Ask</strong><p>Deterministic retrieval first；有 claim 就附 locator。</p></div></li><li><span>3</span><div><strong>Read</strong><p>Annotation、correction、Evidence、verification。</p></div></li><li><span>4</span><div><strong>Compare & Synthesize</strong><p>Agreement、contradiction、gap、next action。</p></div></li><li><span>5</span><div><strong>Review</strong><p>下一步研究行動與 connected-project lineage。</p></div></li></ol></section>
+      <section class="start-section" id="start"><div class="start-intro"><p class="eyebrow">CONNECT & ACTIVATE</p><h2>從任何專案使用中央 RKF</h2><p>Preview/apply connection；每個 task 明確 activate；每個 action 保留 project/activation lineage，但不公開 raw prompt 或 private path。</p><a class="text-link" href="./getting-started.html">閱讀快速安裝教學 →</a></div></section>
     </main>
-
-    <footer>
-      <p><strong>RKF Observatory</strong> · A public-safe window into governed research memory.</p>
-      <p id="footer-snapshot">Snapshot loading…</p>
-    </footer>
+    <footer><p><strong>RKF</strong> · Locator-backed, human-reviewed research knowledge.</p><p id="footer-snapshot">Demo metadata loading…</p></footer>
   </body>
 </html>

@@ -51,13 +51,13 @@ class RKFDocumentationTests(unittest.TestCase):
         self.assertEqual(escaped, [], "local documentation links must stay in the repository")
         self.assertEqual(missing, [], "local documentation links must resolve")
 
-    def test_clean_install_discovery_starts_without_a_preexisting_topic(self) -> None:
+    def test_clean_install_starts_with_the_five_workflows(self) -> None:
         english = (REPO / "docs" / "GETTING_STARTED.md").read_text(encoding="utf-8")
         chinese = (REPO / "docs" / "GETTING_STARTED.zh-TW.md").read_text(encoding="utf-8")
 
-        self.assertIn("topic registry is initially empty", english)
-        self.assertIn("第一次請先用明確、public-safe 的 query", chinese)
-        self.assertNotIn("針對 cloud-microphysics", chinese)
+        self.assertIn("Complete the first paper loop", english)
+        self.assertIn("完成第一個 paper 閉環", chinese)
+        self.assertIn("Compare & Synthesize", english)
 
     def test_discovery_docs_describe_deterministic_retry_recovery(self) -> None:
         workflow = (
@@ -69,21 +69,14 @@ class RKFDocumentationTests(unittest.TestCase):
         self.assertIn("fail closed", workflow)
         self.assertNotIn("後續若要把這個窗口完全關閉", workflow)
 
-    def test_dashboard_docs_include_private_visual_review_before_publish(self) -> None:
+    def test_beginner_docs_do_not_expose_legacy_dashboard_actions(self) -> None:
         english = (REPO / "docs" / "GETTING_STARTED.md").read_text(encoding="utf-8")
         chinese = (REPO / "docs" / "GETTING_STARTED.zh-TW.md").read_text(
             encoding="utf-8"
         )
-        workflow = (
-            REPO / "docs" / "workflows" / "public-dashboard.zh-TW.md"
-        ).read_text(encoding="utf-8")
-
-        command = "build_public_dashboard.py review --preview-id PREVIEW_ID"
-        self.assertIn(command, english)
-        self.assertIn(command, chinese)
-        self.assertIn(command, workflow)
-        self.assertIn("PRIVATE REVIEW · NOT PUBLISHED", chinese)
-        self.assertIn("不修改 `site/`", workflow)
+        self.assertNotIn("build_public_dashboard.py", english)
+        self.assertNotIn("build_public_dashboard.py", chinese)
+        self.assertIn("Optional provider", english)
 
 
 if __name__ == "__main__":

@@ -1,6 +1,31 @@
 # PROJECT_MEMORY
 
-Last updated: 2026-07-13
+Last updated: 2026-07-14
+
+## RKF v1.1 Scope Simplification
+
+- GitHub issues #15–#18 define the current v1 contract. The published
+  `v1.0.0` tag remains immutable; the compatible implementation target is
+  `v1.1.0`.
+- The app-facing registry is limited to Connect & Activate plus five workflows:
+  `workflow.add`, `workflow.ask`, `workflow.read`,
+  `workflow.compare-synthesize`, and `workflow.review`.
+- Canonical paper state is split into `access_state` and `review_state`.
+  `rkf/schema.py` contains conservative legacy mappings; unexpected values are
+  findings, never a normal `other` KPI.
+- New v2 project markers contain a random stable `project_id`. Each activation
+  and action receives append-only, path-redacted lineage under ignored local
+  state. Raw prompt, private path and secret values are excluded. Retrying the
+  same action in one activation reuses the ActionEvent.
+- Canonical Evidence requires an exact page/section/figure/table/paragraph
+  locator. `verified` claims require human-verified Evidence. Candidate metadata
+  and LLM output remain insufficient.
+- `paper-fetch`, `paper-review-and-digest`, and `vault-search` inform optional
+  provider contracts only. The complete Scientific Artifact Acquisition Engine
+  remains vNext work.
+- The public site is a synthetic/public-safe guided demo. It must not expose
+  writer, storage, doctor, project activity, raw candidate/run, graph vanity,
+  raw prompt, paper identity, or private-path data.
 
 ## Project Summary
 

@@ -15,6 +15,7 @@ implementation and historical surfaces that remain outside beginner onboarding.
 ## Operations and advanced references
 
 - [Branch hygiene audit](operations/v1-branch-audit.md)
+- Canonical schema gate: `python3 tools/validate_rkf_schema.py`
 - [Cross-project workflow](workflows/rkf-auto-connect.zh-TW.md)
 - [Maintainer feature map](FEATURES_AND_COMMANDS.zh-TW.md)
 - [Public synthetic demo](https://chenhau-lan.github.io/ResearchWiki/)

@@ -25,6 +25,8 @@ jobs:
         run: python3 -m unittest discover -s tests
       - name: Topic lint
         run: python3 tools/rk.py topic lint
+      - name: Canonical schema
+        run: python3 tools/validate_rkf_schema.py
       - name: RKF lint
         run: python3 tools/rk.py lint
       - name: Public safety scan

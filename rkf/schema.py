@@ -43,6 +43,11 @@ REVIEW_STATES = canonical_enum("reviewState")
 EVIDENCE_STANCES = canonical_enum("evidenceStance")
 VERIFICATION_STATES = canonical_enum("verificationState")
 CLAIM_STATUSES = canonical_enum("claimStatus")
+READ_INTENTS = canonical_enum("readIntent")
+READING_SCOPES = canonical_enum("readingScope")
+PROVIDER_STATUSES = canonical_enum("providerStatus")
+ACTIVATION_MODES = canonical_enum("activationMode")
+APPRAISAL_STATUSES = canonical_enum("appraisalStatus")
 
 
 LEGACY_READING_MAP: dict[str, tuple[str, str]] = {

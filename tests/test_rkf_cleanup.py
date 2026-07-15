@@ -146,7 +146,7 @@ class RKFCleanupActionTests(unittest.TestCase):
         self.tmp.cleanup()
 
     def test_preview_requires_activation_and_writes_only_private_report(self) -> None:
-        fresh = RKFActionRuntime(workspace=self.workspace, project_root=self.root)
+        fresh = RKFActionRuntime(workspace=self.workspace, project_root=self.root, allow_internal_actions=True)
         before = file_snapshot(self.root)
 
         blocked = fresh.execute(ActionRequest(action="cleanup.manifest.preview"))
@@ -167,7 +167,7 @@ class RKFCleanupActionTests(unittest.TestCase):
         self.assertTrue((self.root / ".rkf_private" / "cleanup_manifests").exists())
 
     def test_preview_rejects_a_report_root_inside_canonical_storage(self) -> None:
-        runtime = RKFActionRuntime(workspace=self.workspace, project_root=self.root)
+        runtime = RKFActionRuntime(workspace=self.workspace, project_root=self.root, allow_internal_actions=True)
         runtime.execute(ActionRequest(action="rkf.activate"))
         before = file_snapshot(self.root)
 
@@ -185,7 +185,7 @@ class RKFCleanupActionTests(unittest.TestCase):
     def test_preview_rejects_a_private_root_symlink_to_canonical_storage(self) -> None:
         link = self.root / ".rkf_private"
         link.symlink_to(self.wiki, target_is_directory=True)
-        runtime = RKFActionRuntime(workspace=self.workspace, project_root=self.root)
+        runtime = RKFActionRuntime(workspace=self.workspace, project_root=self.root, allow_internal_actions=True)
         runtime.execute(ActionRequest(action="rkf.activate"))
         before = file_snapshot(self.root)
 
@@ -200,7 +200,7 @@ class RKFCleanupActionTests(unittest.TestCase):
         external.mkdir()
         link = self.root / ".rkf_private"
         link.symlink_to(external, target_is_directory=True)
-        runtime = RKFActionRuntime(workspace=self.workspace, project_root=self.root)
+        runtime = RKFActionRuntime(workspace=self.workspace, project_root=self.root, allow_internal_actions=True)
         runtime.execute(ActionRequest(action="rkf.activate"))
 
         result = runtime.execute(ActionRequest(action="cleanup.manifest.preview"))
@@ -225,7 +225,7 @@ class RKFCleanupActionTests(unittest.TestCase):
             encoding="utf-8",
         )
         workspace = Workspace(root)
-        runtime = RKFActionRuntime(workspace=workspace, project_root=root)
+        runtime = RKFActionRuntime(workspace=workspace, project_root=root, allow_internal_actions=True)
         runtime.execute(ActionRequest(action="rkf.activate"))
         before = file_snapshot(root)
 

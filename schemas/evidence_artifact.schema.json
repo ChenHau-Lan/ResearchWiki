@@ -3,11 +3,34 @@
   "$id": "https://example.org/rkf/evidence_artifact.schema.json",
   "title": "EvidenceArtifact",
   "type": "object",
+  "additionalProperties": false,
   "required": ["schema", "evidence_id", "source_id", "artifact_type", "status", "qc_status", "public_safe_pointer"],
   "properties": {
     "schema": { "const": "rkf-evidence-artifact-v1" },
     "evidence_id": { "type": "string" },
-    "source_id": { "type": "string" },
+    "artifact_id": { "type": "string", "pattern": "^art_[a-f0-9]{24}$" },
+    "source_id": {
+      "type": "string",
+      "description": "Backward-compatible mirror of the source relation used by the latest registration."
+    },
+    "paper_id": {
+      "type": "string",
+      "description": "Backward-compatible mirror of the Paper relation used by the latest registration."
+    },
+    "source_ids": {
+      "type": "array",
+      "description": "Canonical set of source relations for this checksum-deduplicated artifact.",
+      "items": { "type": "string", "minLength": 1 },
+      "minItems": 1,
+      "uniqueItems": true
+    },
+    "paper_ids": {
+      "type": "array",
+      "description": "Canonical set of Paper relations for this checksum-deduplicated artifact.",
+      "items": { "type": "string", "minLength": 1 },
+      "minItems": 1,
+      "uniqueItems": true
+    },
     "artifact_type": { "enum": ["pdf", "html_snapshot", "screenshot", "metadata", "attachment"] },
     "status": { "type": "string" },
     "qc_status": { "enum": ["not_started", "pending", "codex_qc_done", "human_qc_done", "failed"] },
@@ -15,6 +38,27 @@
     "public_safe_pointer": { "type": "string" },
     "authorized_route": { "type": "string" },
     "locators": { "type": "array", "items": { "type": "string" } },
+    "qc_notes": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["date", "note"],
+        "properties": {
+          "date": { "type": "string", "pattern": "^[0-9]{4}-[0-9]{2}-[0-9]{2}$" },
+          "note": { "type": "string", "minLength": 1 }
+        }
+      }
+    },
+    "sha256": { "type": "string", "pattern": "^[a-f0-9]{64}$" },
+    "provider": { "type": "string" },
+    "provider_version": { "type": "string" },
+    "route": { "type": "string" },
+    "readability_state": { "enum": ["unreviewed", "readable", "unreadable"] },
+    "locator_state": { "enum": ["unreviewed", "available", "missing"] },
+    "origin_project_id": { "type": "string", "pattern": "^prj_[a-f0-9]{24}$" },
+    "activation_id": { "type": "string", "pattern": "^act_[a-f0-9]{24}$" },
+    "public_safe": { "const": true },
     "created": { "type": "string" },
     "updated": { "type": "string" }
   }

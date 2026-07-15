@@ -4,6 +4,8 @@ type: paper
 status: draft
 source_id:
 source_status: paper_draft
+access_state: metadata
+review_state: unread
 reading_state: metadata-only
 reading_status: metadata-only
 fulltext_status: needs-user-pdf

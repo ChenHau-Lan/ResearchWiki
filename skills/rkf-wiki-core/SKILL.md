@@ -1,88 +1,49 @@
 ---
 name: rkf-wiki-core
-description: Operate the RKF LLM Wiki memory: retrieve governed wiki context, coordinate ARS reasoning, save durable discussion results, evolve low-risk pages with AI Integration Notes, challenge answers using existing RKF knowledge, track paper reading queues, export graph, and create compact Codex handoff context capsules. Use when the task mentions LLM Wiki, knowledge base memory, query, save, evolve, challenge, graph, paper queue, nudge, reading feedback, wiki context capsule, Codex handoff, 問知識庫, 回寫wiki, 保存討論結果, 查詢wiki, 知識圖譜, paper推播, or context capsule. Use rkf-connect for multi-computer shared folders or handoff access.
+description: Route governed RKF retrieval through v1 Ask. Use when the user asks what RKF knows about a paper, topic, method, finding, or research question. Search exact identifiers and titles first, preserve evidence maturity, require locators for claim-supporting answers, and report insufficient evidence when support is missing.
 ---
 
-# RKF Wiki Core
+# RKF Ask
 
-Use this skill for LLM Wiki operations that do not acquire evidence. It keeps
-useful discussion from disappearing into chat history while preserving reading
-maturity and claim boundaries.
+Use this skill for source-bounded questions over governed RKF state. Retrieval
+does not persist an answer, create Evidence, or upgrade a Claim.
 
-## Modes
+## Workflow Routing
 
-| Mode | Use For | Output |
+| User intent | Structured action | Result |
 |---|---|---|
-| `query` | Retrieve governed RKF context and, when useful, ask ARS to reason over it | answer plus save/synthesis proposal |
-| `hot-query` | Track repeated public-safe research questions and paper-search demand | generated `hot.md` summary |
-| `paper-status` | Inspect registered papers by reading state, full-text status, and feedback | maturity/status report |
-| `paper-feedback` | Record user questions, corrections, annotations, or trust changes | ledger event and maturity update |
-| `paper-queue` | List papers needing PDF, human feedback, repeated-question review, or synthesis review | prioritized queue |
-| `paper-nudge` | Produce scheduled public-safe paper reminders | nudge text |
-| `world` | Reconstruct L0-L3 workspace context at the start of a session | critical facts, active reading, readiness, graph links |
-| `save` | Save durable non-paper knowledge with boundary | knowledge object |
-| `evolve` | Directly integrate low-risk existing-page updates | page rewrite with AI Integration Note |
-| `challenge` | Use existing RKF pages to argue against a target | counterpoints and maturity downgrade suggestions |
-| `propagate` | Identify pages affected by new evidence or synthesis | preview/audit review gate |
-| `graph` | Export typed source/evidence/wiki links | `graph/research_graph.json` |
-| `codex-handoff` | Generate compact wiki context prompt for another Codex session/project | context capsule |
+| Ask about a paper or topic | `workflow.ask` | exact-first, source-bounded answer |
+| Ask for claim support | `workflow.ask` | Evidence IDs and exact locators, or insufficient evidence |
+| Ask about disagreement | `workflow.ask` | supporting, opposing, and contextual Evidence kept separate |
+| Ask what is unknown | `workflow.ask` | explicit gaps and recommended next reading action |
 
 ## Trigger Phrases
 
-Use this skill when the user says things like:
+- "What does RKF know about this paper?"
+- "Ask RKF what the sources report about this relationship."
+- "Which Evidence supports or opposes this Claim?"
+- "Answer only if RKF has an exact locator."
+- "What is still unknown, and what should I read next?"
+- "問 RKF 這篇 paper 的主要 finding。"
+- "根據 governed RKF context 回答；沒有 locator 就說證據不足。"
+- "哪些 Evidence 支持或反對這個 Claim？"
 
-- "What does my wiki know about this?"
-- "Use the wiki and ARS to analyze this question."
-- "Save this discussion back to the wiki."
-- "Show me papers that need my feedback."
-- "Which registered paper should I read next?"
-- "Generate today paper nudge."
-- "Record my correction for this paper."
-- "Show me the current RKF status before we continue."
-- "Evolve this page with an AI Integration Note."
-- "Challenge this synthesis using my own wiki."
-- "Which pages might this new evidence affect? Do not rewrite them yet."
-- "Export the research graph."
-- "Make a context capsule for another Codex session."
-- "問我的知識庫"
-- "根據 wiki 脈絡分析這個問題"
-- "把剛剛值得保留的內容回寫 wiki"
-- "列出需要我提供 PDF 或 feedback 的 paper"
-- "做一份 Codex handoff context"
-- "產生知識圖譜"
+## Ask Flow
 
-## Query Flow
-
-1. Retrieve relevant topic, source, paper, concept, question, claim, synthesis,
-   and reading-ledger summaries from RKF.
-2. Let ARS reason over the governed context when the user asks for analysis,
-   recommendation, critique, or research direction.
-3. Return the answer with evidence gaps and maturity gaps.
-4. Save only if the result meets the synthesis/save heuristic.
-
-## Save Heuristic
-
-Save only when the result will matter later: a decision, reusable explanation,
-source-backed claim, open question, topic boundary, evidence gap, maturity
-change, human correction, or review blocker.
+1. Require an active, validated task.
+2. Search exact paper ID, DOI, title, and alias before deterministic keywords.
+3. Filter results by object type, maturity, and evidence boundary.
+4. For a claim-supporting answer, return Evidence IDs and exact locators.
+5. Preserve contradiction, context, limitations, and unresolved gaps.
+6. If support is insufficient, say so and recommend a Read or Review action.
 
 ## Rules
 
-- Retrieval is not persistence.
-- Hot-query recording is operational demand tracking, not evidence or a saved
-  knowledge object.
-- Reading ledgers are operational memory, not stable claim evidence by
-  themselves.
-- Save must choose a target layer.
-- Saving must not overwrite existing knowledge unless the update path is
-  explicit.
-- `evolve` may rewrite low-risk existing-page sections, but every rewrite must
-  leave an AI Integration Note and conservative maturity state.
-- `propagate` is a manual preview/audit fallback for affected-page review.
-- `challenge` produces critique only; it must not be saved as stable knowledge
-  without a later evidence-boundary review.
-- A query answer is not a wiki page until saved.
-- Do not save unsupported chat claims as stable knowledge.
-- Codex handoff results return as save/review/synthesis proposals by default.
-- Use `rkf-connect` when the task is about Drive links, cross-computer setup, or
-  handoff access rather than a plain context capsule.
+- Retrieval is not persistence or trust promotion.
+- Candidate metadata and model output cannot support a stable Claim.
+- Optional retrieval providers are internal and exact-first behavior remains the
+  fallback.
+- Never expose private index contents, raw prompts, PDFs, article text, secrets,
+  or private paths.
+- If the user wants to capture, annotate, synthesize, or audit rather than ask,
+  route the request to the matching v1 workflow.

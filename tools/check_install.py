@@ -15,9 +15,6 @@ if str(REPO_ROOT) not in sys.path:
     sys.path.insert(0, str(REPO_ROOT))
 
 from rkf.core import Workspace, load_toml
-from rkf.sync import run_connect_doctor
-
-
 CODEX_SKILL_NAME = "rkf-auto-connect"
 CODEX_SKILL_FILES = (Path("SKILL.md"), Path("agents/openai.yaml"))
 CODEX_SKILL_DIRS = (Path("agents"),)
@@ -169,6 +166,7 @@ def inspect_install(
     *,
     connector_path: Path | None = None,
     codex_skill_dir: Path | None = None,
+    legacy_compatibility: bool = False,
 ) -> dict[str, object]:
     try:
         root = repo_root.resolve()
@@ -229,53 +227,56 @@ def inspect_install(
                     else "one or more configured storage handles are unavailable",
                 )
             )
-            machine = workspace.config.get("machine", {}) if isinstance(workspace.config, dict) else {}
-            requested_writer = bool(machine.get("maintenance_writer", False)) if isinstance(machine, dict) else False
-            if requested_writer:
-                writable = handles_ready and all(os.access(path, os.W_OK) for path in handles)
-                checks.append(
-                    Check(
-                        "writer_storage_access",
-                        "pass" if writable else "fail",
-                        "designated writer storage is writable"
-                        if writable
-                        else "designated writer storage is not writable",
+            if legacy_compatibility:
+                from rkf.sync import run_connect_doctor
+
+                machine = workspace.config.get("machine", {}) if isinstance(workspace.config, dict) else {}
+                requested_writer = bool(machine.get("maintenance_writer", False)) if isinstance(machine, dict) else False
+                if requested_writer:
+                    writable = handles_ready and all(os.access(path, os.W_OK) for path in handles)
+                    checks.append(
+                        Check(
+                            "writer_storage_access",
+                            "pass" if writable else "fail",
+                            "legacy designated-writer storage is writable"
+                            if writable
+                            else "legacy designated-writer storage is not writable",
+                        )
                     )
-                )
-            try:
-                doctor = run_connect_doctor(workspace)
-            except (OSError, RuntimeError, UnicodeDecodeError, ValueError, TypeError):
-                checks.append(
-                    Check(
-                        "connection_doctor",
-                        "fail",
-                        "connection doctor could not complete safely",
+                try:
+                    doctor = run_connect_doctor(workspace)
+                except (OSError, RuntimeError, UnicodeDecodeError, ValueError, TypeError):
+                    checks.append(
+                        Check(
+                            "connection_doctor",
+                            "fail",
+                            "legacy connection doctor could not complete safely",
+                        )
                     )
-                )
-            else:
-                blocker_count = sum(
-                    finding.severity == "blocker" for finding in doctor.findings
-                )
-                doctor_status = {
-                    "ok": "pass",
-                    "warning": "warn",
-                    "blocked": "fail",
-                }[doctor.status]
-                checks.append(
-                    Check(
-                        "connection_doctor",
-                        doctor_status,
-                        (
-                            "connection doctor passed"
-                            if doctor.status == "ok"
-                            else (
-                                f"connection doctor reported {len(doctor.findings)} warning(s)"
-                                if doctor.status == "warning"
-                                else f"connection doctor reported {blocker_count} blocker(s)"
-                            )
-                        ),
+                else:
+                    blocker_count = sum(
+                        finding.severity == "blocker" for finding in doctor.findings
                     )
-                )
+                    doctor_status = {
+                        "ok": "pass",
+                        "warning": "warn",
+                        "blocked": "fail",
+                    }[doctor.status]
+                    checks.append(
+                        Check(
+                            "connection_doctor",
+                            doctor_status,
+                            (
+                                "legacy connection doctor passed"
+                                if doctor.status == "ok"
+                                else (
+                                    f"legacy connection doctor reported {len(doctor.findings)} warning(s)"
+                                    if doctor.status == "warning"
+                                    else f"legacy connection doctor reported {blocker_count} blocker(s)"
+                                )
+                            ),
+                        )
+                    )
     try:
         skill_count = sum(
             path.is_file() and not path.is_symlink()
@@ -345,6 +346,11 @@ def main(argv: list[str] | None = None) -> int:
     parser.add_argument("--connector-path")
     parser.add_argument("--codex-skill-dir")
     parser.add_argument("--strict", action="store_true")
+    parser.add_argument(
+        "--legacy-compatibility",
+        action="store_true",
+        help="also run retired multi-computer writer/doctor checks",
+    )
     parser.add_argument("--json", action="store_true")
     args = parser.parse_args(argv)
     try:
@@ -352,6 +358,7 @@ def main(argv: list[str] | None = None) -> int:
             Path(args.repo_root),
             connector_path=Path(args.connector_path).expanduser() if args.connector_path else None,
             codex_skill_dir=Path(args.codex_skill_dir).expanduser() if args.codex_skill_dir else None,
+            legacy_compatibility=args.legacy_compatibility,
         )
     except (OSError, RuntimeError, UnicodeDecodeError, ValueError, TypeError):
         result = _redacted_runtime_failure()

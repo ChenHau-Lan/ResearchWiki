@@ -98,6 +98,42 @@ class RKFDocumentationTests(unittest.TestCase):
             for name in forbidden:
                 self.assertNotIn(name, text, f"{name} leaked into {document.name}")
 
+    def test_public_quickstart_exposes_only_the_frozen_v1_surface(self) -> None:
+        quickstart = (REPO / "site" / "getting-started.html").read_text(encoding="utf-8")
+        favicon = (REPO / "site" / "favicon.svg").read_text(encoding="utf-8")
+
+        self.assertIn("Connect &amp; Activate", quickstart)
+        workflows = (
+            "workflow.add",
+            "workflow.ask",
+            "workflow.read",
+            "workflow.compare-synthesize",
+            "workflow.review",
+        )
+        positions = [quickstart.index(workflow) for workflow in workflows]
+        self.assertEqual(positions, sorted(positions))
+        self.assertIn("Paper → locator-backed Evidence → human-reviewed Claim → Synthesis", quickstart)
+        self.assertIn("每個新的 Codex task 都從 RKF OFF 開始", quickstart)
+
+        forbidden = (
+            "observatory",
+            "dashboard",
+            "candidate preview",
+            "discover.preview",
+            "discover.record",
+            "discover.accept",
+            "world.render",
+            "hot.record",
+            "maintenance.preview",
+            "views.preview",
+            "multi-computer",
+            "obsidian",
+        )
+        lowered = quickstart.lower()
+        for phrase in forbidden:
+            self.assertNotIn(phrase, lowered, f"{phrase} leaked into the public quickstart")
+        self.assertNotIn("observatory", favicon.lower())
+
     def test_readmes_are_aligned_and_include_executable_onboarding(self) -> None:
         english = (REPO / "README.md").read_text(encoding="utf-8")
         chinese = (REPO / "README.zh-TW.md").read_text(encoding="utf-8")

@@ -711,7 +711,7 @@ class RKFPublicDashboardTests(unittest.TestCase):
         self.assertEqual(list(internal.iterdir()), [])
 
     def test_dashboard_actions_require_activation_and_exact_hash(self) -> None:
-        runtime = RKFActionRuntime(workspace=self.workspace, project_root=self.repo)
+        runtime = RKFActionRuntime(workspace=self.workspace, project_root=self.repo, allow_internal_actions=True)
         before = file_snapshot(self.root)
 
         blocked = runtime.execute(ActionRequest(action="dashboard.preview"))
@@ -849,8 +849,10 @@ class RKFPublicDashboardTests(unittest.TestCase):
         self.assertIn("publication gate not satisfied", script)
         self.assertIn("python3 tools/bootstrap_rkf.py", guide)
         self.assertIn("connect-project", guide)
-        self.assertIn("candidate 不是 evidence", guide)
-        self.assertIn("topic registry 一開始是空的", guide)
+        self.assertIn("Candidate metadata 與 model output 不是 stable Evidence", guide)
+        self.assertIn("workflow.add", guide)
+        self.assertIn("workflow.review", guide)
+        self.assertNotIn("topic registry 一開始是空的", guide)
         self.assertNotIn("根據目前 topics", guide)
         self.assertNotRegex(html, r'<script[^>]+src=["\']https?://')
         self.assertNotRegex(html, r'<link[^>]+href=["\']https?://')
@@ -958,7 +960,7 @@ class RKFPublicDashboardTests(unittest.TestCase):
         self.assertNotIn(str(self.root), output.getvalue())
 
     def test_action_rejects_non_integer_window_without_exception(self) -> None:
-        runtime = RKFActionRuntime(workspace=self.workspace, project_root=self.repo)
+        runtime = RKFActionRuntime(workspace=self.workspace, project_root=self.repo, allow_internal_actions=True)
         self.assertEqual(runtime.execute(ActionRequest(action="rkf.activate")).status, "ok")
 
         result = runtime.execute(

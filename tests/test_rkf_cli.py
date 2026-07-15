@@ -2,6 +2,7 @@
 from __future__ import annotations
 
 import os
+import re
 import subprocess
 import sys
 import tempfile
@@ -853,7 +854,7 @@ class RKFCliTests(unittest.TestCase):
         self.assertNotIn("ResearchWiki" + "Codex", active_docs)
         self.assertNotIn("raw/" + "full_text", active_docs)
 
-    def test_five_mode_skills_plus_installable_auto_connect_and_no_ars_bridge_skill(self) -> None:
+    def test_skill_routers_cover_only_the_frozen_v1_surface(self) -> None:
         skill_files = sorted(path.relative_to(REPO).as_posix() for path in (REPO / "skills").glob("*/SKILL.md"))
         self.assertEqual(
             skill_files,
@@ -866,9 +867,73 @@ class RKFCliTests(unittest.TestCase):
                 "skills/rkf-wiki-core/SKILL.md",
             ],
         )
-        mode_skill_files = [path for path in skill_files if path != "skills/rkf-auto-connect/SKILL.md"]
-        self.assertEqual(len(mode_skill_files), 5)
         self.assertFalse((REPO / "skills" / "rkf-ars-bridge" / "SKILL.md").exists())
+
+        required_routes = {
+            "skills/rkf-auto-connect/SKILL.md": (
+                "rkf.activate",
+                "connect.validate",
+                "rkf.status",
+                "rkf.deactivate",
+                "workflow.add",
+                "workflow.ask",
+                "workflow.read",
+                "workflow.compare-synthesize",
+                "workflow.review",
+            ),
+            "skills/rkf-connect/SKILL.md": (
+                "rkf.activate",
+                "connect.validate",
+                "rkf.status",
+                "rkf.deactivate",
+            ),
+            "skills/rkf-evidence-vault/SKILL.md": ("workflow.add", "workflow.read"),
+            "skills/rkf-knowledge-synthesis/SKILL.md": ("workflow.compare-synthesize",),
+            "skills/rkf-lint/SKILL.md": ("workflow.review",),
+            "skills/rkf-wiki-core/SKILL.md": ("workflow.ask",),
+        }
+        active_skill_docs = [REPO / "skills" / "README.md"] + [REPO / path for path in skill_files]
+        forbidden_patterns = (
+            r"## Modes\b",
+            r"\bhot-query\b",
+            r"\bhot\.record\b",
+            r"\bworld(?:\.render)?\b",
+            r"\bgraph(?:\.export)?\b",
+            r"\bdashboard\b",
+            r"\bdiscover(?:y|ed|ing)?\b",
+            r"\bmulti-computer\b",
+            r"\bshared-database\b",
+            r"\bmaintenance\b",
+            r"\bobsidian\b",
+            r"\bviews\.preview\b",
+            r"\bpaper\.migration\b",
+            r"\bevolve\b",
+            r"\bchallenge\b",
+            r"\bemerge\b",
+            r"\breconcile\b",
+            r"\bpaper-queue\b",
+            r"\bpaper-nudge\b",
+            r"\btopic-review\b",
+        )
+
+        for path, routes in required_routes.items():
+            text = (REPO / path).read_text(encoding="utf-8")
+            self.assertIn("## Workflow Routing", text, path)
+            self.assertIn("## Trigger Phrases", text, path)
+            for route in routes:
+                self.assertIn(route, text, f"{route} missing from {path}")
+
+        for document in active_skill_docs:
+            text = document.read_text(encoding="utf-8")
+            for pattern in forbidden_patterns:
+                self.assertIsNone(
+                    re.search(pattern, text, flags=re.IGNORECASE),
+                    f"legacy app-facing term {pattern!r} leaked into {document.relative_to(REPO)}",
+                )
+
+        skill_index = (REPO / "skills" / "README.md").read_text(encoding="utf-8")
+        self.assertIn("do not define additional product modes", skill_index)
+        self.assertIn("internal implementation details", skill_index)
 
     def test_skills_are_plain_language_and_manuals_use_codex_workflows(self) -> None:
         skill_text = "\n".join(

@@ -435,8 +435,10 @@ private transcripts here.
 - every new Codex task starts with RKF OFF
 - say `啟動 RKF` before central query or capture
 - mode: `{mode}`
-- activated research requests use `query.search` before project-local retrieval
-- reusable source/discussion material uses `capture.route`
+- use `workflow.ask` for governed retrieval after activation
+- use `workflow.add` for reusable source/discussion material
+- use `workflow.read`, `workflow.compare-synthesize`, and `workflow.review` for
+  locator-backed evidence, claims/syntheses, and next actions
 - stable claims still need locators, supported RKF pages, or human feedback
 
 ## Files
@@ -452,9 +454,10 @@ def _bridge_template_hot(*, project_name: str) -> str:
 
 Scope: project-local demand queue for `{project_name}`; not stable evidence.
 
-Use this file for research questions, search strings, DOI leads, and recurring
-needs that should be routed to the central RKF `hot.md` through
-`capture.route` after RKF is activated in the current task.
+Use this file for project-local research questions, search strings, DOI leads,
+and recurring needs. Route selected material through `workflow.add` after RKF
+is activated; this file remains a convenience pointer, not canonical evidence
+or a separate Hot Query product.
 
 ## Candidate Questions
 
@@ -498,7 +501,8 @@ entries short, public-safe, and pointer-oriented.
 
 - Do not treat this file as source evidence.
 - Do not paste article text, private paths, secrets, or whole transcripts.
-- Promote only through RKF review, reading feedback, or source-backed pages.
+- Promote only through locator-backed `workflow.read`, human review, and
+  `workflow.compare-synthesize`.
 """
 
 

@@ -9,8 +9,8 @@ RKF is for researchers who want a durable, source-aware reading and synthesis
 workflow in Codex. It is not a PDF library, a paywall bypass, an autonomous
 claim generator, or a replacement for reading the source.
 
-The compatible release target is `v1.1.0`. The published `v1.0.0` tag remains
-immutable.
+The current compatible release is `v1.1.0`. The earlier `v1.0.0` baseline
+remains documented in the changelog; no historical tag is fabricated or moved.
 Paper reading maturity remains explicit through separate access and review
 states; metadata availability never implies that a paper was read.
 Ask can retrieve governed wiki context, but retrieval alone never promotes a

@@ -59,7 +59,7 @@ class RKFDiscoveryActionTests(unittest.TestCase):
             encoding="utf-8",
         )
         self.workspace = Workspace(self.root)
-        self.runtime = RKFActionRuntime(workspace=self.workspace, project_root=self.root)
+        self.runtime = RKFActionRuntime(workspace=self.workspace, project_root=self.root, allow_internal_actions=True)
         activated = self.runtime.execute(ActionRequest(action="rkf.activate"))
         self.assertEqual(activated.status, "ok")
 
@@ -104,7 +104,7 @@ class RKFDiscoveryActionTests(unittest.TestCase):
         )
 
     def test_preview_requires_activation_and_does_not_write_run_state(self) -> None:
-        fresh = RKFActionRuntime(workspace=self.workspace, project_root=self.root)
+        fresh = RKFActionRuntime(workspace=self.workspace, project_root=self.root, allow_internal_actions=True)
 
         blocked = fresh.execute(
             ActionRequest(
@@ -383,6 +383,7 @@ class RKFDiscoveryActionTests(unittest.TestCase):
         retry_runtime = RKFActionRuntime(
             workspace=self.workspace,
             project_root=self.root,
+            allow_internal_actions=True,
         )
         self.assertEqual(
             retry_runtime.execute(ActionRequest(action="rkf.activate")).status,

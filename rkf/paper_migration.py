@@ -10,6 +10,7 @@ from __future__ import annotations
 import difflib
 import json
 import re
+from collections import Counter
 from datetime import datetime
 from dataclasses import dataclass
 from hashlib import sha256
@@ -17,6 +18,8 @@ from pathlib import Path
 from typing import Any
 
 from .core import Workspace, first_heading, frontmatter, parse_frontmatter
+from .discovery import audit_legacy_discovery
+from .schema import ACCESS_STATES, REVIEW_STATES, enum_findings, normalize_paper_state
 
 
 CANONICAL_HEADINGS = (
@@ -32,7 +35,7 @@ CANONICAL_HEADINGS = (
     "Intrinsic Links",
 )
 
-LEGACY_READING_MAP = {
+LEGACY_READING_MIRROR_MAP = {
     "abstract-only": "abstract-read",
     "fulltext-available": "partial-fulltext",
     "first-pass-pdf-qc": "partial-fulltext",
@@ -145,6 +148,7 @@ class PreviewReport:
     unresolved_count: int
     validation_error_count: int
     ready_for_live_apply: bool
+    legacy_discovery_count: int = 0
 
 
 class MigrationPreviewError(RuntimeError):
@@ -177,17 +181,35 @@ def parse_sections(body: str) -> list[Section]:
 
 
 def map_legacy_maturity(meta: dict[str, Any]) -> dict[str, Any]:
-    """Return conservative paper-v1.1 maturity fields for legacy frontmatter."""
+    """Return canonical v1 state plus temporary legacy compatibility mirrors."""
 
     legacy_state = str(meta.get("reading_state") or meta.get("reading_status") or "metadata-only")
-    reading_state = LEGACY_READING_MAP.get(legacy_state, legacy_state)
-    if not reading_state:
-        reading_state = "metadata-only"
+    normalized = normalize_paper_state(meta)
+    mirror_by_canonical = {
+        ("metadata", "unread"): "metadata-only",
+        ("abstract", "unread"): "abstract-read",
+        ("abstract", "read"): "abstract-read",
+        ("partial", "skimmed"): "partial-fulltext",
+        ("partial", "read"): "partial-fulltext",
+        ("fulltext", "unread"): "fulltext-available",
+        ("fulltext", "skimmed"): "first-pass-pdf-qc",
+        ("fulltext", "read"): "fulltext-read",
+        ("fulltext", "annotated"): "human-reviewed",
+        ("fulltext", "reproduced"): "reproduced",
+    }
+    reading_state = LEGACY_READING_MIRROR_MAP.get(legacy_state)
+    if reading_state is None:
+        reading_state = mirror_by_canonical.get(
+            (normalized["access_state"], normalized["review_state"]),
+            "metadata-only",
+        )
     fulltext_status = str(meta.get("fulltext_status") or "")
     if not fulltext_status:
         fulltext_status = "fulltext-read" if reading_state == "fulltext-read" else "needs-user-pdf"
     return {
         "schema": "rkf-paper-v1.1",
+        "access_state": normalized["access_state"],
+        "review_state": normalized["review_state"],
         "reading_state": reading_state,
         "reading_status": reading_state,
         "fulltext_status": fulltext_status,
@@ -212,11 +234,16 @@ def validate_paper_v1_1(text: str) -> list[str]:
     source_id = str(meta.get("source_id") or "")
     if not SAFE_SOURCE_ID_RE.fullmatch(source_id):
         errors.append("source_id must be a safe non-path identifier")
-    if meta.get("reading_state") != meta.get("reading_status"):
+    if meta.get("access_state") not in ACCESS_STATES:
+        errors.append("access_state must use the canonical RKF v1 enum")
+    if meta.get("review_state") not in REVIEW_STATES:
+        errors.append("review_state must use the canonical RKF v1 enum")
+    if (meta.get("reading_state") or meta.get("reading_status")) and meta.get("reading_state") != meta.get("reading_status"):
         errors.append("reading_status must equal reading_state")
     for key in (
         "source_id",
-        "reading_state",
+        "access_state",
+        "review_state",
         "fulltext_status",
         "human_feedback_level",
         "understanding_confidence",
@@ -369,6 +396,8 @@ def _canonical_meta(meta: dict[str, Any]) -> dict[str, Any]:
         "status": str(meta.get("status") or "draft"),
         "source_id": source_id,
         "source_status": str(meta.get("source_status") or "paper_draft"),
+        "access_state": mapped["access_state"],
+        "review_state": mapped["review_state"],
         "reading_state": mapped["reading_state"],
         "reading_status": mapped["reading_status"],
         "fulltext_status": mapped["fulltext_status"],
@@ -492,7 +521,7 @@ def transform_paper_markdown(text: str, *, page_id: str) -> TransformResult:
     for heading in CANONICAL_HEADINGS:
         rendered_sections.append(f"## {heading}\n\n{_content_or_placeholder([canonical[heading]])}")
     output = frontmatter(_canonical_meta(meta)) + f"# {title}\n\n" + "\n\n".join(rendered_sections) + "\n"
-    issues = tuple(validate_paper_v1_1(output))
+    issues = tuple(enum_findings(meta) + validate_paper_v1_1(output))
     return TransformResult(
         text=output,
         input_checksum=sha256_bytes(text.encode("utf-8")),
@@ -599,7 +628,7 @@ def _preview_ledger(
             "summary": "Preview-only RKF paper migration; Promotion: none.",
             "public_safe": True,
             "details": {
-                "transform": "rkf-paper-migration-v1.1-preview",
+                "transform": "rkf-paper-migration-v1.1-canonical-preview",
                 "input_checksum": result.input_checksum,
                 "output_checksum": result.output_checksum,
                 "promotion": "none",
@@ -648,12 +677,21 @@ def run_preview(
     before = _snapshot(inputs)
     paper_root = ws.paths.knowledge / "papers"
     pages: list[PreviewPage] = []
+    before_reading_counts: Counter[str] = Counter()
+    after_access_counts: Counter[str] = Counter()
+    after_review_counts: Counter[str] = Counter()
     transformed: list[tuple[Path, str, bytes, str, TransformResult]] = []
     for path in inputs:
         relative_path = path.relative_to(paper_root).as_posix()
         input_bytes = path.read_bytes()
         text = input_bytes.decode("utf-8")
+        input_meta, _input_body = parse_frontmatter(text)
+        before_reading_counts[
+            str(input_meta.get("reading_state") or input_meta.get("reading_status") or "missing")
+        ] += 1
         result = transform_paper_markdown(text, page_id=f"papers/{path.relative_to(paper_root).with_suffix('').as_posix()}")
+        after_access_counts[str(result.meta.get("access_state", "missing"))] += 1
+        after_review_counts[str(result.meta.get("review_state", "missing"))] += 1
         transformed.append((path, relative_path, input_bytes, text, result))
         pages.append(
             PreviewPage(
@@ -682,9 +720,18 @@ def run_preview(
         if block.review_status == "needs-human-routing"
     )
     validation_error_count = sum(len(page.issues) for page in pages)
+    legacy_discovery = audit_legacy_discovery(ws)
+    validation_error_count += int(legacy_discovery["validation_error_count"])
+    paper_state_migration = {
+        "before_legacy_reading_counts": dict(sorted(before_reading_counts.items())),
+        "after_access_state_counts": dict(sorted(after_access_counts.items())),
+        "after_review_state_counts": dict(sorted(after_review_counts.items())),
+        "unresolved_count": validation_error_count - int(legacy_discovery["validation_error_count"]),
+        "rollback_notes": "Live apply requires the exact manifest hash and retains byte-exact originals in the private backup journal.",
+    }
     manifest_core = {
         "schema": "rkf-paper-migration-preview-v1",
-        "transform": "rkf-paper-migration-v1.1-preview",
+        "transform": "rkf-paper-migration-v1.1-canonical-preview",
         "expected_count": expected_count,
         "input_count": len(inputs),
         "output_count": len(transformed),
@@ -695,6 +742,8 @@ def run_preview(
         "ready_for_live_apply": (
             unresolved_count == 0 and validation_error_count == 0 and len(inputs) == len(transformed)
         ),
+        "legacy_discovery": legacy_discovery,
+        "paper_state_migration": paper_state_migration,
         "pages": manifest_pages,
     }
     manifest_hash = _stable_manifest_hash(manifest_core)
@@ -765,6 +814,8 @@ def run_preview(
         "routing_count": manifest_core["routing_count"],
         "unresolved_count": unresolved_count,
         "validation_error_count": validation_error_count,
+        "legacy_discovery": legacy_discovery,
+        "paper_state_migration": paper_state_migration,
         "ready_for_live_apply": manifest_core["ready_for_live_apply"],
         "promotion": "none",
     }
@@ -783,4 +834,5 @@ def run_preview(
         unresolved_count=unresolved_count,
         validation_error_count=validation_error_count,
         ready_for_live_apply=bool(manifest_core["ready_for_live_apply"]),
+        legacy_discovery_count=int(legacy_discovery["isolated_candidate_count"]),
     )

@@ -33,7 +33,7 @@ class RKFActionsTests(unittest.TestCase):
             encoding="utf-8",
         )
         self.workspace = Workspace(self.root)
-        self.runtime = RKFActionRuntime(workspace=self.workspace, project_root=self.root)
+        self.runtime = RKFActionRuntime(workspace=self.workspace, project_root=self.root, allow_internal_actions=True)
         activated = self.runtime.execute(ActionRequest(action="rkf.activate"))
         self.assertEqual(activated.status, "ok")
 
@@ -41,7 +41,7 @@ class RKFActionsTests(unittest.TestCase):
         self.tmp.cleanup()
 
     def test_new_runtime_blocks_all_non_control_actions_before_io(self) -> None:
-        runtime = RKFActionRuntime(workspace=self.workspace, project_root=self.root)
+        runtime = RKFActionRuntime(workspace=self.workspace, project_root=self.root, allow_internal_actions=True)
         before = sorted(path.relative_to(self.root) for path in self.root.rglob("*") if path.is_file())
 
         result = runtime.execute(ActionRequest(action="world.render"))
@@ -56,6 +56,7 @@ class RKFActionsTests(unittest.TestCase):
             workspace=self.workspace,
             project_root=self.root,
             session_id="task-actions",
+            allow_internal_actions=True,
         )
 
         activated = runtime.execute(ActionRequest(action="rkf.activate"))
@@ -70,7 +71,7 @@ class RKFActionsTests(unittest.TestCase):
 
     def test_read_only_session_blocks_writes_but_allows_reads(self) -> None:
         (self.root / "paper.sync-conflict.md").write_text("conflict\n", encoding="utf-8")
-        runtime = RKFActionRuntime(workspace=self.workspace, project_root=self.root)
+        runtime = RKFActionRuntime(workspace=self.workspace, project_root=self.root, allow_internal_actions=True)
         runtime.execute(ActionRequest(action="rkf.activate"))
 
         read_result = runtime.execute(ActionRequest(action="world.render"))
@@ -87,7 +88,7 @@ class RKFActionsTests(unittest.TestCase):
 
     def test_query_search_is_available_only_after_activation(self) -> None:
         self.seed_paper(doi="10.1234/query.action")
-        fresh = RKFActionRuntime(workspace=self.workspace, project_root=self.root)
+        fresh = RKFActionRuntime(workspace=self.workspace, project_root=self.root, allow_internal_actions=True)
 
         blocked = fresh.execute(
             ActionRequest(
@@ -137,7 +138,7 @@ class RKFActionsTests(unittest.TestCase):
             paper_path = create_paper_note(workspace, record)
             before = paper_path.read_bytes()
             report_root = repo / ".rkf_private" / "migration_reports"
-            runtime = RKFActionRuntime(workspace=workspace, project_root=repo)
+            runtime = RKFActionRuntime(workspace=workspace, project_root=repo, allow_internal_actions=True)
 
             blocked = runtime.execute(
                 ActionRequest(

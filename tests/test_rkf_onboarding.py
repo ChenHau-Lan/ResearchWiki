@@ -153,7 +153,7 @@ class RKFOnboardingTests(unittest.TestCase):
     def test_clean_bootstrap_can_preview_discovery_with_an_explicit_query(self) -> None:
         bootstrap_rkf.bootstrap_local(self.repo, apply=True)
         workspace = Workspace(self.repo)
-        runtime = RKFActionRuntime(workspace=workspace, project_root=self.repo)
+        runtime = RKFActionRuntime(workspace=workspace, project_root=self.repo, allow_internal_actions=True)
 
         activated = runtime.execute(ActionRequest(action="rkf.activate"))
         preview = runtime.execute(
@@ -868,6 +868,7 @@ class RKFOnboardingTests(unittest.TestCase):
         result = check_install.inspect_install(
             self.repo,
             connector_path=self.root / "missing-connector.toml",
+            legacy_compatibility=True,
         )
 
         checks = {item["name"]: item for item in result["checks"]}
@@ -875,6 +876,17 @@ class RKFOnboardingTests(unittest.TestCase):
         self.assertEqual(checks["storage_handles"]["status"], "fail")
         self.assertEqual(checks["connection_doctor"]["status"], "fail")
         self.assertNotIn(str(self.root), json.dumps(result))
+
+    def test_default_install_diagnostic_omits_retired_writer_and_doctor_product(self) -> None:
+        result = check_install.inspect_install(
+            self.repo,
+            connector_path=self.root / "missing-connector.toml",
+            codex_skill_dir=self.root / "missing-skill",
+        )
+
+        names = {item["name"] for item in result["checks"]}
+        self.assertNotIn("writer_storage_access", names)
+        self.assertNotIn("connection_doctor", names)
 
     def test_connect_project_preview_is_non_mutating_and_apply_preserves_notes(self) -> None:
         project = self.root / "ResearchProject"

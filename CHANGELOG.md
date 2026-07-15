@@ -1,13 +1,42 @@
 # Changelog
 
-## Unreleased
+## v1.1.0 - 2026-07-15
+
+- Apply the explicitly approved 57-paper canonical migration for manifest
+  `bb4ef62bcb0c533bf023838f9468b180dcb36441da8f674789cbf5405e340aff`,
+  create 57 reading ledgers, and retain the 114-entry private checksum-verified
+  rollback journal. Cleanup and backup removal remain separately gated.
+- Complete the repository-safe v1 runtime slice: expand the canonical schema
+  to Paper/Evidence/Claim/Synthesis, provider, Read, retrieval, project,
+  activation, and action contracts; make activation closure append-only; add
+  object-origin Review filters and evidence matrices; enforce full-text digest
+  and deterministic appraisal gates; add optional full-text/appraisal/retrieval
+  adapters with PDF magic validation, SHA-256 dedupe, Paper access updates,
+  structured argument maps, external-command smoke tests, and safe fallback;
+  and reject non-v1 actions from the
+  default runtime. Migration-only tools remain behind an explicit internal
+  compatibility flag until the applied 57-paper migration rollback window is
+  closed and its backup disposition is separately approved.
+- Fail closed across the final research boundary: Read now requires a valid
+  canonical Paper and scope no broader than its access state; Claim and
+  Synthesis revalidate Evidence content fingerprints and ActionEvent receipts;
+  public-safe Ask rejects drifted canonical objects and semantic results that
+  lack canonical locators; read-only Ask keeps private action lineage without
+  writing a shared retrieval run; checksum artifacts preserve all Paper/source
+  relations; and canonical state, retrieval, artifact, Review, and lineage
+  paths reject symlink escape. Private artifact and lineage storage now uses
+  owner-only permissions.
+- Make the default strict install diagnostic v1-native: retired
+  designated-writer and multi-computer doctor checks now run only with the
+  explicit maintainer `--legacy-compatibility` flag.
 
 - Complete v1 Phase 0 scope freeze: align the English and Traditional Chinese
   README around install → Connect & Activate → the five-workflow 10-minute
   loop; add a dependency-free machine-readable keep/merge/delete/temporary-shim
   inventory with owner, migration/test impact, follow-up issue, and mandatory
-  shim removal versions; and record branch-retention evidence. Confirm
-  `v1.1.0` as the release target without moving the published `v1.0.0` tag.
+  shim removal versions; and record branch-retention evidence. Establish
+  `v1.1.0` as the first verifiable public tag without fabricating or moving a
+  historical `v1.0.0` tag.
 - Define the compatible RKF `v1.1.0` product surface as five workflows—Add,
   Ask, Read, Compare & Synthesize, and Review—plus task-scoped Connect &
   Activate. Add canonical paper/evidence/claim/synthesis enums, conservative

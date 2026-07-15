@@ -98,7 +98,7 @@ class RKFSessionTests(unittest.TestCase):
         before = sorted(path.relative_to(self.root) for path in self.root.rglob("*") if path.is_file())
         session = new_session("task-002")
 
-        receipt = activate_session(session, self.workspace, project_root=self.project)
+        receipt = activate_session(session, self.workspace, project_root=self.project, legacy_compatibility=True)
 
         after = sorted(path.relative_to(self.root) for path in self.root.rglob("*") if path.is_file())
         self.assertEqual(after, before)
@@ -111,7 +111,7 @@ class RKFSessionTests(unittest.TestCase):
         (self.wiki / "paper.sync-conflict.md").write_text("conflict\n", encoding="utf-8")
         session = new_session("task-003")
 
-        receipt = activate_session(session, self.workspace, project_root=self.project)
+        receipt = activate_session(session, self.workspace, project_root=self.project, legacy_compatibility=True)
 
         self.assertEqual(session.mode, SessionMode.ACTIVE_READ_ONLY)
         self.assertIn("SYNC_CONFLICT", receipt["warnings"])
@@ -120,14 +120,14 @@ class RKFSessionTests(unittest.TestCase):
         self.raw.rmdir()
         session = new_session("task-004")
 
-        receipt = activate_session(session, self.workspace, project_root=self.project)
+        receipt = activate_session(session, self.workspace, project_root=self.project, legacy_compatibility=True)
 
         self.assertEqual(session.mode, SessionMode.OFF)
         self.assertEqual(receipt["error_code"], "RKF_PREFLIGHT_FAILED")
 
     def test_deactivate_clears_active_scope(self) -> None:
         session = new_session("task-005")
-        activate_session(session, self.workspace, project_root=self.project)
+        activate_session(session, self.workspace, project_root=self.project, legacy_compatibility=True)
 
         receipt = deactivate_session(session)
 
@@ -142,7 +142,7 @@ class RKFSessionTests(unittest.TestCase):
         )
         session = new_session("task-bad-marker")
 
-        receipt = activate_session(session, self.workspace, project_root=self.project)
+        receipt = activate_session(session, self.workspace, project_root=self.project, legacy_compatibility=True)
 
         self.assertEqual(session.mode, SessionMode.OFF)
         self.assertEqual(receipt["error_code"], "RKF_PROJECT_UNAVAILABLE")
@@ -163,6 +163,7 @@ class RKFSessionTests(unittest.TestCase):
             session,
             Workspace(self.root),
             project_root=self.project,
+            legacy_compatibility=True,
         )
 
         self.assertEqual(session.mode, SessionMode.ACTIVE_READ_ONLY)
@@ -175,7 +176,7 @@ class RKFSessionTests(unittest.TestCase):
         )
         marker_session = new_session("task-semantic-marker")
         marker_receipt = activate_session(
-            marker_session, self.workspace, project_root=self.project
+            marker_session, self.workspace, project_root=self.project, legacy_compatibility=True
         )
         self.assertEqual(marker_session.mode, SessionMode.OFF)
         self.assertEqual(marker_receipt["error_code"], "RKF_PROJECT_UNAVAILABLE")
@@ -195,7 +196,7 @@ class RKFSessionTests(unittest.TestCase):
         )
         registry_session = new_session("task-semantic-registry")
         registry_receipt = activate_session(
-            registry_session, Workspace(self.root), project_root=self.project
+            registry_session, Workspace(self.root), project_root=self.project, legacy_compatibility=True
         )
         self.assertEqual(registry_session.mode, SessionMode.ACTIVE_READ_ONLY)
         self.assertIn("WRITER_REGISTRY_MISMATCH", registry_receipt["warnings"])
@@ -207,7 +208,7 @@ class RKFSessionTests(unittest.TestCase):
         )
         date_only_session = new_session("task-date-only-registry")
         date_only_receipt = activate_session(
-            date_only_session, Workspace(self.root), project_root=self.project
+            date_only_session, Workspace(self.root), project_root=self.project, legacy_compatibility=True
         )
         self.assertEqual(date_only_session.mode, SessionMode.ACTIVE_READ_ONLY)
         self.assertIn("WRITER_REGISTRY_MISMATCH", date_only_receipt["warnings"])
@@ -233,7 +234,7 @@ class RKFSessionTests(unittest.TestCase):
         )
         session = new_session("task-alternate-registry")
 
-        receipt = activate_session(session, Workspace(self.root), project_root=self.project)
+        receipt = activate_session(session, Workspace(self.root), project_root=self.project, legacy_compatibility=True)
 
         self.assertEqual(session.mode, SessionMode.ACTIVE_READ_ONLY)
         self.assertIn("WRITER_REGISTRY_MISMATCH", receipt["warnings"])

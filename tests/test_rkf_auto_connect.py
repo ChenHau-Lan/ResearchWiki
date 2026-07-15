@@ -237,39 +237,23 @@ class RKFAutoConnectTests(unittest.TestCase):
             request=auto.build_query_request(config=config, query="cloud evidence"),
             runtime=runtime,
         )
-        discovered = auto.execute_action_request(
+        validated = auto.execute_action_request(
             config=config,
-            request=auto.ActionRequest(
-                action="discover.preview",
-                params={
-                    "query": "aerosol ice-phase cloud observations",
-                    "providers": ["paper-radar"],
-                    "paper_radar_records": [
-                        {
-                            "id": "connected-e2e-fixture",
-                            "title": "Connected Project Candidate",
-                            "authors": ["Public Researcher"],
-                            "year": 2026,
-                            "doi": "10.1234/connected-e2e",
-                            "url": "https://doi.org/10.1234/connected-e2e",
-                        }
-                    ],
-                },
-            ),
+            request=auto.ActionRequest(action="connect.validate"),
             runtime=runtime,
         )
-        dashboard = auto.execute_action_request(
+        review = auto.execute_action_request(
             config=config,
-            request=auto.ActionRequest(action="dashboard.preview"),
+            request=auto.ActionRequest(action="workflow.review"),
             runtime=runtime,
         )
 
         self.assertEqual(connected["status"], "connected")
         self.assertEqual(activated.status, "ok")
         self.assertEqual(queried.status, "ok")
-        self.assertEqual(discovered.status, "ok")
-        self.assertEqual(discovered.payload["candidate_count"], 1)
-        self.assertEqual(dashboard.status, "ok")
+        self.assertEqual(validated.status, "ok")
+        self.assertEqual(validated.payload["status"], "connected")
+        self.assertEqual(review.status, "ok")
         self.assertEqual(runtime.project_root, project.resolve())
 
     def test_action_runtime_refuses_an_unconnected_external_project(self) -> None:
@@ -480,7 +464,10 @@ class RKFAutoConnectTests(unittest.TestCase):
         readme = (project / "RKF" / "README.md").read_text(encoding="utf-8")
         hot = (project / "RKF" / "hot.md").read_text(encoding="utf-8")
         self.assertIn("starts with RKF OFF", readme)
-        self.assertIn("capture.route", hot)
+        self.assertIn("workflow.ask", readme)
+        self.assertIn("workflow.add", hot)
+        self.assertNotIn("query.search", readme)
+        self.assertNotIn("capture.route", hot)
 
     def test_write_bridge_folder_preserves_existing_files(self) -> None:
         project = self.root / "SomeProject"

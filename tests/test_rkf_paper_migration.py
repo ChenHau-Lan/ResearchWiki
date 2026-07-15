@@ -121,6 +121,8 @@ schema: rkf-paper-v1.1
 type: paper
 status: draft
 source_id: doi_canonical
+access_state: metadata
+review_state: unread
 reading_state: metadata-only
 reading_status: metadata-only
 fulltext_status: needs-user-pdf
@@ -193,6 +195,8 @@ class RKFPaperMigrationTests(unittest.TestCase):
         self.assertIn("page 4, Fig. 2", result.text)
         self.assertIn("10.1234/example", result.text)
         self.assertEqual(result.input_checksum, sha256_bytes(LEGACY_PAPER.encode("utf-8")))
+        self.assertEqual(result.meta["access_state"], "abstract")
+        self.assertEqual(result.meta["review_state"], "unread")
         self.assertEqual(result.meta["reading_state"], "abstract-read")
         self.assertEqual(result.meta["reading_status"], "abstract-read")
 
@@ -267,13 +271,16 @@ class RKFPaperMigrationTests(unittest.TestCase):
             sha256_bytes(b"- Preamble locator: p. 1"),
         )
 
-    def test_preview_validator_rejects_missing_v1_1_section_and_maturity_mirror(self) -> None:
-        invalid = CANONICAL_PAPER.replace("reading_status: metadata-only", "reading_status: abstract-read").replace(
+    def test_preview_validator_rejects_invalid_canonical_state_section_and_maturity_mirror(self) -> None:
+        invalid = CANONICAL_PAPER.replace("access_state: metadata", "access_state: other").replace(
+            "reading_status: metadata-only", "reading_status: abstract-read"
+        ).replace(
             "## Intrinsic Links", "## Legacy Links"
         )
 
         errors = validate_paper_v1_1(invalid)
 
+        self.assertIn("access_state must use the canonical RKF v1 enum", errors)
         self.assertIn("reading_status must equal reading_state", errors)
         self.assertIn("missing canonical paper section Intrinsic Links", errors)
 
@@ -303,6 +310,8 @@ paper_relations:
         )
 
         self.assertIn("schema: rkf-paper-v1.1", template)
+        self.assertIn("access_state: metadata", template)
+        self.assertIn("review_state: unread", template)
         for heading in (
             "Source Identity",
             "Reading Maturity",
@@ -387,6 +396,9 @@ class RKFPreviewTests(unittest.TestCase):
         self.assertTrue((report.report_dir / "manifest.json").exists())
         self.assertTrue((report.report_dir / "summary.json").exists())
         self.assertEqual(len(list((report.report_dir / "diffs").glob("*.diff"))), 57)
+        manifest = json.loads((report.report_dir / "manifest.json").read_text(encoding="utf-8"))
+        self.assertEqual(manifest["paper_state_migration"]["before_legacy_reading_counts"], {"abstract-only": 57})
+        self.assertEqual(manifest["paper_state_migration"]["after_access_state_counts"], {"abstract": 57})
 
     def test_ambiguous_routing_blocks_readiness_and_manifest_hash_is_stable(self) -> None:
         broad_path = self.paper_root / "paper-00.md"
@@ -410,6 +422,47 @@ class RKFPreviewTests(unittest.TestCase):
         self.assertEqual(first.manifest_hash, second.manifest_hash)
         self.assertEqual(broad_page["routed_blocks"][1]["review_status"], "needs-human-routing")
         self.assertEqual(broad_page["routed_blocks"][1]["proposed_target"], "knowledge/questions")
+
+    def test_preview_classifies_legacy_candidates_as_isolated_without_identity_output(self) -> None:
+        legacy_dir = self.wiki / "state" / "search_runs" / "legacy-fixture"
+        legacy_dir.mkdir(parents=True)
+        legacy_dir.joinpath("candidates.json").write_text(
+            json.dumps(
+                {
+                    "schema": "rkf-discovery-run-v1",
+                    "query": "private fixture query",
+                    "topic_id": "fixture-topic",
+                    "live": False,
+                    "gate": "candidates_are_not_evidence",
+                    "created": "2026-07-13",
+                    "candidates": [
+                        {
+                            "source_id": "private-source",
+                            "title": "Private Candidate",
+                            "year": 2026,
+                            "doi": "10.1234/private",
+                            "evidence_role": "candidate only",
+                            "status": "metadata_ok",
+                        }
+                    ],
+                }
+            ),
+            encoding="utf-8",
+        )
+
+        report = run_preview(
+            self.workspace,
+            report_root=self.repo / ".rkf_private" / "migration_reports",
+            expected_count=57,
+        )
+        manifest = json.loads((report.report_dir / "manifest.json").read_text(encoding="utf-8"))
+        serialized = json.dumps(manifest, sort_keys=True)
+
+        self.assertEqual(report.legacy_discovery_count, 1)
+        self.assertEqual(manifest["legacy_discovery"]["isolated_candidate_count"], 1)
+        self.assertEqual(manifest["legacy_discovery"]["after_active_legacy_candidate_count"], 0)
+        self.assertNotIn("Private Candidate", serialized)
+        self.assertNotIn("private fixture query", serialized)
 
     def test_preview_copies_existing_ledger_before_appending_migration_event(self) -> None:
         ledger_root = self.wiki / "state" / "reading"

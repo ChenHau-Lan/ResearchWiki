@@ -1,81 +1,44 @@
 ---
 name: rkf-knowledge-synthesis
-description: Write and maintain RKF paper drafts, questions, concepts, locator-backed claims, topics, and synthesis from governed reading state. Use for Compare & Synthesize, paper notes, evidence matrices, topic review, contradictions, gaps, 整理成wiki, 論文筆記, 文獻摘要, 概念頁, 問題頁, 主題治理, topic整理, topic建議, or 綜整.
+description: Route cross-paper comparison and synthesis through RKF v1 Compare & Synthesize. Use when the user wants to compare locator-backed Evidence, identify agreement, contradiction, context, or gaps, and create an Evidence-linked Claim or Synthesis without hiding uncertainty.
 ---
 
 # RKF Knowledge Synthesis
 
-Use this skill for the knowledge side of RKF. Paper pages are active reading
-objects: they may begin as conservative drafts from metadata, abstracts, partial
-full text, or user-provided PDFs. Non-paper pages must state their evidence
-boundary, maturity boundary, or review blocker.
+Use this skill when a question crosses papers or Evidence cards. One-paper
+annotation belongs to Read; source-bounded retrieval belongs to Ask. This skill
+starts only when the user wants comparison or a durable cross-source judgment.
 
-## Modes
+## Workflow Routing
 
-| Mode | Use For | Output |
+| User intent | Structured action | Result |
 |---|---|---|
-| `distill-paper` | Create or update one paper reading draft | `knowledge/papers/*.md` with maturity fields |
-| `save-question` | Preserve research question, uncertainty, or search plan | question page |
-| `save-concept` | Preserve reusable method, mechanism, dataset, instrument, or variable | concept page |
-| `save-claim` | Preserve a supported or reviewable claim | claim page or review item |
-| `synthesize` | Save cross-source judgment, research recommendation, or durable answer | synthesis page with maturity fields |
-| `emerge` | Find unnamed patterns from reading queue, hot queries, feedback gaps, and topic state | low-maturity synthesis draft |
-| `topic-governance` | Topic ID, aliases, scope, include/exclude, default search | topic registry/page |
-| `topic-review` | Regularly inspect topic drift, stale candidates, duplicate topics, and search quality | topic review report and update proposal |
+| Compare Evidence | `workflow.compare-synthesize` | evidence matrix with support, opposition, and context |
+| Form a reviewable Claim | `workflow.compare-synthesize` | Claim linked to exact Evidence IDs |
+| Build a Synthesis | `workflow.compare-synthesize` | agreements, contradictions, gaps, provisional conclusion, next action |
+| Reassess an existing conclusion | `workflow.compare-synthesize` | updated evidence links and explicit unresolved differences |
 
 ## Trigger Phrases
 
-Use this skill when the user says things like:
+- "Compare these Evidence cards across papers."
+- "Which findings agree, contradict, or only provide context?"
+- "Create a provisional Claim linked to the supporting and opposing Evidence."
+- "Synthesize these papers, but preserve the unresolved gap."
+- "Reassess this conclusion after adding the new Evidence."
+- "比較這些 Evidence，列出 agreement、contradiction 與 gap。"
+- "建立 provisional Claim，不要隱藏 opposing Evidence。"
+- "整理成 Synthesis，並指出下一個閱讀行動。"
 
-- "Turn this source into a paper draft."
-- "Summarize this paper into my wiki."
-- "Record what we currently understand about this paper."
-- "Make a concept/question/synthesis page."
-- "Connect these papers into a recommendation."
-- "Find unnamed patterns from my current wiki."
-- "Run nightly synthesis but keep it low maturity."
-- "Save this query answer as durable synthesis."
-- "Review this topic and suggest merge/split/search-string updates."
-- "把這篇 paper 先整理成 draft"
-- "幫我做論文筆記"
-- "整理成概念頁 / 問題頁 / 綜整頁"
-- "定期查看 topic / 整理 topic / 給 topic 建議"
-- "針對這些文獻提出研究建議並保存"
+## Synthesis Rules
 
-## Synthesis Heuristic
-
-Use `synthesize` when an answer crosses multiple sources, supports a research
-decision, will likely be asked again, exposes evidence gaps, changes topic
-direction, or reflects repeated human interaction. Otherwise return a query
-answer or save a smaller question/concept.
-
-Use `emerge` when the user wants pattern discovery from existing RKF state. The
-output starts as `synthesis_maturity: draft`,
-`source_coverage: partial` or unknown, and `claim_readiness: not-ready`.
-
-## Topic Review Heuristic
-
-Use `topic-review` when a topic is active, has many candidates, has ambiguous
-aliases, mixes unrelated scopes, repeats concepts, has stale synthesis, or
-needs better search strings. Suggest merges, splits, alias changes,
-include/exclude rules, canonical pages, and candidate backlog cleanup.
-
-## Rules
-
-- A paper draft reports one source and its current reading state.
-- A paper draft may be metadata-only, abstract-read, partial-fulltext, or
-  fulltext-read; the page must say which.
-- A paper page can mature through user questions, AI answers, human corrections,
-  annotations, checked locators, and synthesis review.
-- Cross-source judgment belongs in synthesis.
-- Auto-synthesis does not require candidate records, but it also does not
-  promote stable claims.
-- Query answers are not wiki pages until deliberately saved.
-- Every promoted claim needs a locator, human feedback, or existing wiki source.
-  Explicit review blockers keep claims unpromoted until reviewed.
-- Trusted synthesis must record source coverage, human feedback level, and
-  claim readiness.
-- Topic changes should preserve stable IDs when possible; propose redirects or
-  aliases before splitting established pages.
-- ARS outputs are proposals, not evidence. Apply the bridge protocol before
-  saving ARS-derived material.
+- Every supported, disputed, or verified Claim must link locator-backed
+  Evidence.
+- A verified Claim requires at least one human-verified Evidence card.
+- Preserve supporting, opposing, and contextual Evidence separately.
+- Keep a conclusion provisional when coverage, verification, or scope is
+  incomplete.
+- ARS reports and model reasoning are proposals, not Evidence.
+- Do not move project ideas or manuscript extensions into a paper-centered
+  finding; keep the paper's own question and scope intact.
+- If the request is actually a queue, missing-locator, or trust audit, route it
+  to `workflow.review`.

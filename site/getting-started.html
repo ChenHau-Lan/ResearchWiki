@@ -5,9 +5,9 @@
     <meta name="viewport" content="width=device-width, initial-scale=1" />
     <meta
       name="description"
-      content="從 GitHub clone、preview bootstrap 到連結第一個研究專案的 RKF 快速安裝教學。"
+      content="從 GitHub clone、preview bootstrap 到完成 RKF v1 五條研究工作流的快速開始教學。"
     />
-    <title>RKF 快速安裝 · Research Knowledge Framework</title>
+    <title>RKF v1 快速開始 · Research Knowledge Framework</title>
     <link rel="icon" href="./favicon.svg" type="image/svg+xml" />
     <link rel="stylesheet" href="./assets/styles.css" />
   </head>
@@ -15,40 +15,40 @@
     <a class="skip-link" href="#main">跳到主要內容</a>
 
     <header class="site-header guide-header">
-      <a class="brand" href="./index.html" aria-label="返回 RKF Observatory">
+      <a class="brand" href="./index.html" aria-label="返回 RKF 首頁">
         <span class="brand-mark" aria-hidden="true">R</span>
         <span>
-          <strong>RKF Quickstart</strong>
+          <strong>RKF v1 Quickstart</strong>
           <small>Research Knowledge Framework</small>
         </span>
       </a>
-      <a class="guide-back" href="./index.html">← 返回 Observatory</a>
+      <a class="guide-back" href="./index.html">← 返回 RKF 首頁</a>
     </header>
 
     <main class="guide-main" id="main">
       <section class="guide-hero">
         <p class="eyebrow">BEGINNER PATH · PREVIEW FIRST</p>
         <h1>
-          <span class="guide-hero-line">從 GitHub 開始，</span>
-          <span class="guide-hero-line">連結第一個研究專案。</span>
+          <span class="guide-hero-line">連接一個研究專案，</span>
+          <span class="guide-hero-line">完成第一個 evidence loop。</span>
         </h1>
         <p>
-          RKF 核心只需要 Git、Python 3.9+ 與 Codex app。先預覽每項變更，確認 receipt，
-          再建立本機資料層與專案 bridge。
+          RKF v1 的完整研究介面只有 Add、Ask、Read、Compare &amp; Synthesize、Review，
+          外加 task-scoped Connect &amp; Activate。先預覽每項 setup 變更，再明確 apply。
         </p>
         <div class="guide-callout">
-          <strong>三個不會發生的事</strong>
-          <span>不會把 private wiki 發布上網、不會複製第二套 wiki、不會讓 RKF 永久保持啟動。</span>
+          <strong>核心承諾</strong>
+          <span>Paper → locator-backed Evidence → human-reviewed Claim → Synthesis</span>
         </div>
       </section>
 
-      <ol class="guide-steps" aria-label="RKF 安裝步驟">
+      <ol class="guide-steps" aria-label="RKF v1 快速開始步驟">
         <li class="guide-step">
           <span class="guide-step-number">01</span>
           <div>
             <p class="eyebrow">CLONE</p>
-            <h2>取得 RKF</h2>
-            <p>若使用自己的 fork，請替換第一行的 repository URL。</p>
+            <h2>取得中央 RKF checkout</h2>
+            <p>若使用自己的 fork，請替換 repository URL。</p>
             <pre><code>git clone https://github.com/ChenHau-Lan/ResearchWiki.git
 cd ResearchWiki</code></pre>
           </div>
@@ -58,10 +58,10 @@ cd ResearchWiki</code></pre>
           <span class="guide-step-number">02</span>
           <div>
             <p class="eyebrow">PREVIEW → APPLY</p>
-            <h2>建立本機 workspace</h2>
-            <p>第一行只預覽；確認沒有 blockers 後，第二行才建立 ignored 的本機設定並安裝 connector。</p>
+            <h2>初始化中央 RKF</h2>
+            <p>第一行只預覽；確認內容後才執行 <code>--apply</code>，最後要求 strict check 回傳 ready。</p>
             <pre><code>python3 tools/bootstrap_rkf.py
-python3 tools/bootstrap_rkf.py --apply --install-connector
+python3 tools/bootstrap_rkf.py --apply
 python3 tools/check_install.py --strict</code></pre>
           </div>
         </li>
@@ -69,54 +69,55 @@ python3 tools/check_install.py --strict</code></pre>
         <li class="guide-step">
           <span class="guide-step-number">03</span>
           <div>
-            <p class="eyebrow">CONNECT A PROJECT</p>
-            <h2>連結研究專案</h2>
-            <p>把範例路徑與名稱換成自己的專案。先 preview，再執行相同命令加上 <code>--apply</code>。</p>
-            <pre><code>python3 tools/rkf_auto_connect.py connect-project "/path/to/MyResearchProject" --project-name "MyResearchProject"
-python3 tools/rkf_auto_connect.py connect-project "/path/to/MyResearchProject" --project-name "MyResearchProject" --apply</code></pre>
+            <p class="eyebrow">CONNECT &amp; ACTIVATE</p>
+            <h2>連接研究專案</h2>
+            <p>先 preview marker 與輕量 bridge，再 apply 完全相同的請求。</p>
+            <pre><code>python3 tools/rkf_auto_connect.py connect-project /path/to/research-project
+python3 tools/rkf_auto_connect.py connect-project /path/to/research-project --apply</code></pre>
+            <p>每個新的 Codex task 都從 RKF OFF 開始。需要時說「啟動 RKF」，完成後說「停用 RKF」。</p>
           </div>
         </li>
 
         <li class="guide-step">
           <span class="guide-step-number">04</span>
           <div>
-            <p class="eyebrow">ACTIVATE PER TASK</p>
-            <h2>在 Codex 開始使用</h2>
-            <p>每個新的 Codex task 都從 RKF OFF 開始。需要時明確說：</p>
+            <p class="eyebrow">10-MINUTE PAPER LOOP</p>
+            <h2>依序完成五條 workflow</h2>
             <div class="prompt-list">
-              <code>啟動 RKF</code>
-              <code>把這段研究想法收進 RKF inbox</code>
-              <code>以明確 public-safe query 建立 paper candidate preview，先不要攝取</code>
-              <code>建立 aggregate-only dashboard preview，不要發布</code>
-              <code>把 dashboard preview render 成 private review page，不要更新 site</code>
+              <code>啟動 RKF，確認這個 project 的 connection。</code>
+              <code>workflow.add：Add 這個 DOI 作為 candidate；Promotion: none。</code>
+              <code>workflow.ask：回答這個研究問題；沒有 locator 就說證據不足。</code>
+              <code>workflow.read：記錄 p. 8, Fig. 3 的 Evidence，先保持 unreviewed。</code>
+              <code>workflow.compare-synthesize：列出 agreement、contradiction、gap 與 provisional conclusion。</code>
+              <code>workflow.review：顯示缺 locator、待確認 Evidence、disputed claims 與下一個閱讀行動。</code>
+              <code>停用 RKF。</code>
             </div>
-            <p>乾淨安裝的 topic registry 一開始是空的；建立並審核自己的 topic 後，才改用其 search strings。</p>
           </div>
         </li>
       </ol>
 
       <section class="guide-boundary" aria-labelledby="boundary-title">
         <div>
-          <p class="eyebrow">PUBLIC-SAFETY CHECK</p>
+          <p class="eyebrow">EVIDENCE &amp; PRIVACY BOUNDARY</p>
           <h2 id="boundary-title">開始前守住四條界線</h2>
         </div>
         <ul>
-          <li>不要把 PDF、article text、private Drive path、token 或 API key 放進 repository。</li>
-          <li><code>RKF/</code> bridge 是入口，不是第二套 wiki 或 evidence store。</li>
-          <li>Discovery candidate 不是 evidence，也不會自動升級成 claim。</li>
-          <li>Dashboard 的 public-safe aggregate 仍需 exact-hash approval 才能發布。</li>
+          <li>Candidate metadata 與 model output 不是 stable Evidence。</li>
+          <li>Verified Claim 必須連到 exact-locator、human-verified Evidence。</li>
+          <li>PDF、article text、private path、secret、token 與 raw prompt 不進 public output。</li>
+          <li>Project marker 只表示 RKF available；每個 task 仍須明確 activate。</li>
         </ul>
       </section>
 
       <p class="guide-platform-note">
-        Windows 可將 <code>python3</code> 換成 <code>py -3</code>。Shared Drive 與多電腦 writer setup
-        屬於進階流程，請先完成本機單機安裝。
+        Windows 可將 <code>python3</code> 換成 <code>py -3</code>。Compatibility helpers
+        是 implementation detail，不會增加使用者需要理解的 workflow。
       </p>
     </main>
 
     <footer>
-      <p><strong>RKF Quickstart</strong> · Preview first, then apply.</p>
-      <p><a href="./index.html">返回 RKF Observatory</a></p>
+      <p><strong>RKF v1 Quickstart</strong> · Locator-backed, human-reviewed research knowledge.</p>
+      <p><a href="./index.html">返回 RKF 首頁</a></p>
     </footer>
   </body>
 </html>

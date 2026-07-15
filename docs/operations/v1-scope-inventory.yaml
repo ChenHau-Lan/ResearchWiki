@@ -4,6 +4,30 @@
   "scope_issue": 15,
   "execution_issue": 16,
   "phase_issue": 19,
+  "implementation_status": {
+    "as_of": "2026-07-15",
+    "default_runtime": "five workflows plus Connect & Activate; compatibility actions require an explicit internal-runtime flag",
+    "canonical_model": "Paper, Evidence, Claim, Synthesis, ProjectConnection, append-only ActivationEvent, and idempotent ActionEvent",
+    "optional_adapters": "full-text acquisition, appraisal, and semantic retrieval remain replaceable providers behind deterministic core behavior",
+    "migration_preview": {
+      "transform": "rkf-paper-migration-v1.1-canonical-preview",
+      "manifest_hash": "bb4ef62bcb0c533bf023838f9468b180dcb36441da8f674789cbf5405e340aff",
+      "input_count": 57,
+      "isolated_legacy_discovery_candidates": 64,
+      "unresolved_count": 0,
+      "validation_error_count": 0,
+      "ready_for_live_apply": true,
+      "live_apply": {
+        "status": "applied",
+        "applied_on": "2026-07-15",
+        "backup_id": "paper-v1.1-bb4ef62bcb0c533bf023838f9468b180dcb36441da8f674789cbf5405e340aff",
+        "backup_status": "retained for rollback review window",
+        "paper_checksums_valid": 57,
+        "reading_ledgers_applied": 57,
+        "journal_entries_valid": 114
+      }
+    }
+  },
   "allowed_classifications": ["keep", "merge", "delete", "temporary-shim"],
   "user_workflows": [
     "Connect & Activate",

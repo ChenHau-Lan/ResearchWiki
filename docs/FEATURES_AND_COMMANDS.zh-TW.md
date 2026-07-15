@@ -6,11 +6,11 @@
 | 需求 | Structured action | 主要結果 |
 |---|---|---|
 | 啟動／檢查／停用 | `rkf.activate`、`connect.validate`、`rkf.status`、`rkf.deactivate` | project/activation receipt 與 lineage |
-| 加入資料 | `workflow.add` | event-first capture；Promotion: none |
-| 查詢 | `workflow.ask` | deterministic results；有 claim 時需 locator |
-| 閱讀與確認 | `workflow.read` | canonical Evidence card |
-| 比較與整合 | `workflow.compare-synthesize` | Claim 或 Synthesis |
-| 今天要做什麼 | `workflow.review` | gaps、pending verification、disputed claims、project activity |
+| 加入資料 | `workflow.add` | event-first capture；可選 `FullTextProvider` acquisition；Promotion: none |
+| 查詢 | `workflow.ask` | exact-first deterministic results；optional retrieval 失敗時安全降級；有 claim 時需 locator |
+| 閱讀與確認 | `workflow.read` | canonical Evidence card，或 `digest \| appraise \| both` scope-gated Read run |
+| 比較與整合 | `workflow.compare-synthesize` | Claim、Synthesis 與 evidence matrix |
+| 今天要做什麼 | `workflow.review` | next paper、gaps、pending verification、failed checks、project/activation/object timeline |
 
 自然語言例子：
 
@@ -20,6 +20,10 @@
 - 「Read 這篇，記錄 p. 8 Fig. 3 的 opposing evidence，先標 unreviewed。」
 - 「Compare & Synthesize 這些 claims，列出 contradiction 與 gap。」
 - 「Review 這個 project 最近做過哪些 RKF actions。」
+
+`workflow.review` 可依 `project_id`、`activation_id`、action、status 或
+`target_object_id` 篩選。Optional provider 的完整 v1 邊界見
+[`docs/references/v1-provider-contracts.md`](references/v1-provider-contracts.md)。
 
 舊的 world/stats/queue/graph、discovery lifecycle、dashboard、Obsidian、maintenance、
 cleanup 與 migration 名稱不是 v1 使用者入口。相容與移除版本見 `docs/V1_SCOPE_INVENTORY.md`。

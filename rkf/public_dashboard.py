@@ -41,7 +41,12 @@ from .core import (
     recent_hot_events,
 )
 from .sync import atomic_write_text, run_connect_doctor, sha256_file
-from .discovery import DiscoveryError, load_acceptance_state, load_discovery_run
+from .discovery import (
+    DiscoveryError,
+    load_acceptance_state,
+    load_discovery_run,
+    validate_legacy_discovery_run,
+)
 
 
 PUBLIC_DASHBOARD_SCHEMA = "rkf-public-dashboard-v1"
@@ -86,18 +91,6 @@ SECRET_RE = re.compile(r"(?:api[_-]?key|access[_-]?token|private[_-]?key|passwor
 ABSOLUTE_PATH_RE = re.compile(r"(?:^|\s)/(?:[^/\s]+/)+[^/\s]+")
 WINDOWS_PATH_RE = re.compile(r"\b[A-Za-z]:[\\/](?:[^\\/\s]+[\\/])+[^\\/\s]+")
 TOKENISH_RE = re.compile(r"\b(?:sk|ghp|github_pat|xox[baprs])[-_][A-Za-z0-9_-]{12,}\b", re.IGNORECASE)
-LEGACY_DISCOVERY_RUN_KEYS = (
-    {"schema", "query", "topic_id", "live", "candidates", "gate", "created"},
-    {"schema", "query", "topic_ids", "live", "candidates", "gate", "created"},
-)
-LEGACY_DISCOVERY_CANDIDATE_KEYS = {
-    frozenset({"source_id", "title", "year", "doi", "evidence_role", "status"}),
-    frozenset({"source_id", "title", "year", "doi", "evidence_role", "status", "journal"}),
-}
-LEGACY_DISCOVERY_GATES = {
-    "candidates_are_not_evidence",
-    "candidates_and_metadata_are_not_stable_claim_evidence",
-}
 
 
 class DashboardSafetyError(ValueError):
@@ -196,43 +189,10 @@ def _source_records(ws: Workspace) -> list[dict[str, Any]]:
 def _legacy_discovery_candidate_count(payload: dict[str, Any]) -> int:
     """Validate the deprecated v1 shape without exposing or trusting decisions."""
 
-    if (
-        payload.get("schema") != "rkf-discovery-run-v1"
-        or set(payload) not in LEGACY_DISCOVERY_RUN_KEYS
-        or not isinstance(payload.get("query"), str)
-        or len(payload["query"]) > 500
-        or not isinstance(payload.get("live"), bool)
-        or payload.get("gate") not in LEGACY_DISCOVERY_GATES
-        or not isinstance(payload.get("created"), str)
-    ):
-        raise DashboardSafetyError("legacy discovery state is invalid")
-    topic_value = payload.get("topic_ids", payload.get("topic_id", ""))
-    if not (
-        isinstance(topic_value, str)
-        or (
-            isinstance(topic_value, list)
-            and all(isinstance(value, str) for value in topic_value)
-        )
-    ):
-        raise DashboardSafetyError("legacy discovery state is invalid")
-    candidates = payload.get("candidates")
-    if not isinstance(candidates, list) or len(candidates) > 1000:
-        raise DashboardSafetyError("legacy discovery state is invalid")
-    for candidate in candidates:
-        if (
-            not isinstance(candidate, dict)
-            or frozenset(candidate) not in LEGACY_DISCOVERY_CANDIDATE_KEYS
-            or candidate.get("status") != "metadata_ok"
-            or any(
-                not isinstance(candidate.get(key), str)
-                for key in ("source_id", "title", "doi", "evidence_role")
-            )
-            or not isinstance(candidate.get("year"), (str, int))
-            or isinstance(candidate.get("year"), bool)
-            or ("journal" in candidate and not isinstance(candidate.get("journal"), str))
-        ):
-            raise DashboardSafetyError("legacy discovery state is invalid")
-    return len(candidates)
+    try:
+        return validate_legacy_discovery_run(payload)
+    except DiscoveryError as exc:
+        raise DashboardSafetyError("legacy discovery state is invalid") from exc
 
 
 def _discovery_aggregates(ws: Workspace) -> dict[str, Any]:

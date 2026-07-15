@@ -1,54 +1,52 @@
 ---
 name: rkf-evidence-vault
-description: Capture DOI/URL/topic/PDF leads, stage candidate discovery, track full-text availability, request user PDFs when needed, and verify paper-reading artifacts for claim readiness. Use when the task mentions source intake, DOI, URL, PDF, article acquisition, evidence vault, full text, missing PDF, PDF/OCR/visual check, legal access, candidate discovery, 文獻搜尋, 找文章, 下載PDF, 取得PDF, 缺PDF, 全文狀態, 證據庫, 來源攝取, or PDF檢查.
+description: Route paper leads and reading evidence through RKF v1 Add and Read. Use for adding a DOI, URL, PDF pointer, note, or selected paper as a candidate, and for recording exact-locator Evidence with explicit verification state. Candidate metadata never becomes Evidence automatically.
 ---
 
 # RKF Evidence Vault
 
-Use this skill for the source and reading-artifact side of RKF. It creates
-source records, candidate backlogs, full-text route notes, user-PDF requests,
-and verified reading artifacts. It does not decide cross-source synthesis.
+Use this skill for the source-to-Evidence portion of the RKF v1 path. Add can
+start from a DOI, URL, PDF pointer, note, or selected paper. Read records what
+was actually inspected at an exact source location.
 
-## Modes
+## Workflow Routing
 
-| Mode | Use For | Output |
+| User intent | Structured action | Result |
 |---|---|---|
-| `capture` | DOI, URL, PDF pointer, topic seed, idea, or question | `SourceRecord` with conservative reading fields |
-| `discover` | Search plan, candidate list, missing full text, or paper backlog | candidate backlog and queue hints |
-| `acquire` | Record user-provided full text/PDF or legacy route review | full-text status update, artifact pointer, or legacy route note |
-| `verify-pdf` | Confirm artifact identity, legality, readability, and locators | checked paper-reading artifact and maturity upgrade |
+| Add a source lead or note | `workflow.add` | deduplicated candidate receipt with `Promotion: none` |
+| Record a source finding | `workflow.read` | Evidence card with paper ID, locator, stance, and verification |
+| Correct an Evidence card | `workflow.read` | explicit correction with preserved lineage |
+| Mark human verification | `workflow.read` | verification transition tied to the inspected locator |
 
 ## Trigger Phrases
 
-Use this skill when the user says things like:
+- "Add this DOI as a candidate; do not promote it."
+- "Add this URL or PDF pointer to RKF."
+- "Read this paper and record p. 8, Fig. 3 as supporting Evidence."
+- "Correct the locator on this Evidence card."
+- "Mark this Evidence human-verified after I confirm it."
+- "把這個 DOI 收進 RKF，先保持 candidate。"
+- "記錄 section 2、Table 1 的 opposing Evidence。"
+- "這筆 Evidence 我已人工核對。"
 
-- "Find papers about..."
-- "Show which papers still need PDFs."
-- "Capture this DOI/URL/PDF."
-- "Can we legally get the PDF?"
-- "Mark this as full text unavailable."
-- "Check whether this PDF or scan is usable for claims."
-- "幫我找這個主題的文獻"
-- "列出還缺 PDF 或全文的文獻"
-- "把這個 DOI / URL / PDF 加到知識庫"
-- "下載或取得合法 PDF"
-- "確認這份 PDF / 掃描檔能不能支持 claims"
+## Add Rules
 
-## Rules
-
-- Metadata and search candidates can start paper drafts, but are not evidence
-  for stable claims.
-- Candidate backlogs are for discovery and reading triage, not a required stage
-  for `emerge` or synthesis drafts.
-- Missing full text should set `fulltext_status: needs-user-pdf` and enter the
-  active paper queue.
-- Acquisition checkpoints are legacy compatibility, not the normal path.
-- User-provided PDFs may update `fulltext_status` and reading maturity without a
-  prior checkpoint.
-- For scanned or image-only PDFs, record visual locators, OCR confidence, and
-  human reading notes; do not claim full-read text evidence when OCR is weak.
+- Candidate metadata, abstracts, provider receipts, and model output are not
+  stable Evidence.
+- Keep `Promotion: none` unless a later Read action records locator-backed
+  Evidence.
 - Do not bypass paywalls, CAPTCHA, robots, or access restrictions.
-- Do not create durable article-text Markdown. Temporary reading extraction may
-  be used to read and summarize, then discarded.
-- Stop at review if source identity, legality, readability, or locator support
-  is uncertain.
+- Do not store PDFs, full article text, credentials, or private paths in public
+  RKF state.
+
+## Read Rules
+
+- Evidence requires a page, section, figure, table, or paragraph locator.
+- Record stance and verification separately; source access does not imply human
+  verification.
+- Scanned or image-only material needs a visual locator and an honest
+  readability/OCR limitation.
+- If identity, legality, readability, or locator support is uncertain, stop with
+  a Review finding instead of upgrading trust.
+- Optional source and full-text providers are internal adapters. Provider
+  success never changes Evidence or Claim trust by itself.

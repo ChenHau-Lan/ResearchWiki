@@ -8,8 +8,14 @@
     "evidenceStance": {"enum": ["supports", "opposes", "contextualizes"]},
     "verificationState": {"enum": ["unreviewed", "human-verified", "rejected"]},
     "claimStatus": {"enum": ["proposed", "supported", "disputed", "verified", "retired"]},
+    "readIntent": {"enum": ["digest", "appraise", "both"]},
+    "readingScope": {"enum": ["metadata", "abstract", "partial", "fulltext"]},
+    "providerStatus": {"enum": ["obtained", "manual-required", "unavailable", "retryable", "blocked"]},
+    "activationMode": {"enum": ["ACTIVE", "ACTIVE_READ_ONLY", "OFF"]},
+    "appraisalStatus": {"enum": ["completed", "retryable", "blocked"]},
     "projectId": {"type": "string", "pattern": "^prj_[a-f0-9]{24}$"},
     "activationId": {"type": "string", "pattern": "^act_[a-f0-9]{24}$"},
+    "eventId": {"type": "string", "pattern": "^(aevt|actevt)_[a-f0-9]{24}$"},
     "locator": {
       "type": "object",
       "additionalProperties": false,
@@ -17,6 +23,206 @@
       "properties": {
         "kind": {"enum": ["page", "section", "figure", "table", "paragraph"]},
         "value": {"type": "string", "minLength": 1}
+      }
+    },
+    "paper": {
+      "type": "object",
+      "required": ["paper_id", "access_state", "review_state"],
+      "properties": {
+        "paper_id": {"type": "string", "minLength": 1},
+        "access_state": {"$ref": "#/$defs/accessState"},
+        "review_state": {"$ref": "#/$defs/reviewState"}
+      }
+    },
+    "evidence": {
+      "type": "object",
+      "additionalProperties": true,
+      "required": ["schema", "evidence_id", "paper_id", "locator", "summary", "stance", "verification_state", "reading_scope", "origin_project_id", "activation_id", "content_fingerprint", "public_safe"],
+      "properties": {
+        "schema": {"const": "rkf-evidence-v1"},
+        "evidence_id": {"type": "string", "pattern": "^ev_[a-f0-9]{20}$"},
+        "paper_id": {"type": "string", "minLength": 1},
+        "locator": {"$ref": "#/$defs/locator"},
+        "summary": {"type": "string", "minLength": 1},
+        "stance": {"$ref": "#/$defs/evidenceStance"},
+        "verification_state": {"$ref": "#/$defs/verificationState"},
+        "reading_scope": {"$ref": "#/$defs/readingScope"},
+        "origin_project_id": {"$ref": "#/$defs/projectId"},
+        "activation_id": {"$ref": "#/$defs/activationId"},
+        "content_fingerprint": {"type": "string", "pattern": "^[a-f0-9]{64}$"},
+        "public_safe": {"const": true}
+      }
+    },
+    "claim": {
+      "type": "object",
+      "additionalProperties": true,
+      "required": ["schema", "claim_id", "statement", "supporting_evidence_ids", "opposing_evidence_ids", "context_evidence_ids", "status", "origin_project_id", "activation_id", "content_fingerprint", "public_safe"],
+      "properties": {
+        "schema": {"const": "rkf-claim-v1"},
+        "claim_id": {"type": "string", "pattern": "^clm_[a-f0-9]{20}$"},
+        "statement": {"type": "string", "minLength": 1},
+        "supporting_evidence_ids": {"type": "array", "items": {"type": "string"}, "uniqueItems": true},
+        "opposing_evidence_ids": {"type": "array", "items": {"type": "string"}, "uniqueItems": true},
+        "context_evidence_ids": {"type": "array", "items": {"type": "string"}, "uniqueItems": true},
+        "status": {"$ref": "#/$defs/claimStatus"},
+        "origin_project_id": {"$ref": "#/$defs/projectId"},
+        "activation_id": {"$ref": "#/$defs/activationId"},
+        "content_fingerprint": {"type": "string", "pattern": "^[a-f0-9]{64}$"},
+        "public_safe": {"const": true}
+      }
+    },
+    "synthesis": {
+      "type": "object",
+      "additionalProperties": true,
+      "required": ["schema", "synthesis_id", "research_question", "included_claim_ids", "agreements", "contradictions", "evidence_gaps", "origin_project_id", "activation_id", "content_fingerprint", "public_safe"],
+      "properties": {
+        "schema": {"const": "rkf-synthesis-v1"},
+        "synthesis_id": {"type": "string", "pattern": "^syn_[a-f0-9]{20}$"},
+        "research_question": {"type": "string", "minLength": 1},
+        "included_claim_ids": {"type": "array", "items": {"type": "string"}, "uniqueItems": true},
+        "agreements": {"type": "array", "items": {"type": "string"}, "uniqueItems": true},
+        "contradictions": {"type": "array", "items": {"type": "string"}, "uniqueItems": true},
+        "evidence_gaps": {"type": "array", "items": {"type": "string"}, "uniqueItems": true},
+        "origin_project_id": {"$ref": "#/$defs/projectId"},
+        "activation_id": {"$ref": "#/$defs/activationId"},
+        "content_fingerprint": {"type": "string", "pattern": "^[a-f0-9]{64}$"},
+        "public_safe": {"const": true}
+      }
+    },
+    "projectConnection": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["project_id", "project_name", "marker_schema", "connector_version", "connected_at", "status", "paths_redacted"],
+      "properties": {
+        "project_id": {"$ref": "#/$defs/projectId"},
+        "project_name": {"type": "string", "minLength": 1},
+        "marker_schema": {"const": "rkf-connect-v2"},
+        "connector_version": {"type": "string", "minLength": 1},
+        "connected_at": {"type": "string", "format": "date-time"},
+        "status": {"enum": ["connected", "blocked", "disconnected"]},
+        "paths_redacted": {"const": true}
+      }
+    },
+    "activationEvent": {
+      "type": "object",
+      "additionalProperties": true,
+      "required": ["activation_id", "project_id", "project_name", "timestamp", "transition", "mode", "paths_redacted"],
+      "properties": {
+        "activation_id": {"$ref": "#/$defs/activationId"},
+        "project_id": {"$ref": "#/$defs/projectId"},
+        "project_name": {"type": "string", "minLength": 1},
+        "timestamp": {"type": "string", "format": "date-time"},
+        "transition": {"enum": ["started", "closed", "expired", "failed"]},
+        "mode": {"$ref": "#/$defs/activationMode"},
+        "marker_schema": {"type": "string"},
+        "connector_version": {"type": "string"},
+        "blocker_codes": {"type": "array", "items": {"type": "string"}, "uniqueItems": true},
+        "paths_redacted": {"const": true}
+      }
+    },
+    "actionEvent": {
+      "type": "object",
+      "additionalProperties": true,
+      "required": ["event_id", "activation_id", "origin_project_id", "action", "timestamp", "status", "input_fingerprint", "idempotency_key", "affected_object_ids", "promotion", "paths_redacted"],
+      "properties": {
+        "event_id": {"$ref": "#/$defs/eventId"},
+        "activation_id": {"$ref": "#/$defs/activationId"},
+        "origin_project_id": {"$ref": "#/$defs/projectId"},
+        "action": {"type": "string", "minLength": 1},
+        "timestamp": {"type": "string", "format": "date-time"},
+        "status": {"type": "string", "minLength": 1},
+        "input_fingerprint": {"type": "string", "pattern": "^[a-f0-9]{64}$"},
+        "idempotency_key": {"type": "string", "minLength": 1},
+        "affected_object_ids": {"type": "array", "items": {"type": "string"}, "uniqueItems": true},
+        "object_fingerprints": {
+          "type": "object",
+          "additionalProperties": {"type": "string", "pattern": "^[a-f0-9]{64}$"}
+        },
+        "promotion": {"type": "string"},
+        "paths_redacted": {"const": true}
+      }
+    },
+    "fullTextProviderResult": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["status", "provider", "provider_version", "elapsed_ms", "tried_routes", "pdf_magic_validated", "blocker_codes", "private_artifact_available"],
+      "properties": {
+        "status": {"$ref": "#/$defs/providerStatus"},
+        "provider": {"type": "string", "minLength": 1},
+        "provider_version": {"type": "string", "minLength": 1},
+        "route": {"type": "string"},
+        "tried_routes": {"type": "array", "items": {"type": "string"}},
+        "artifact_sha256": {"type": "string", "pattern": "^$|^[a-f0-9]{64}$"},
+        "elapsed_ms": {"type": "integer", "minimum": 0},
+        "entitlement_state": {"enum": ["unknown", "covered", "not-covered"]},
+        "pdf_magic_validated": {"type": "boolean"},
+        "blocker_codes": {"type": "array", "items": {"type": "string"}, "uniqueItems": true},
+        "private_artifact_available": {"type": "boolean"}
+      }
+    },
+    "argumentMap": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["paper_id", "evidence_ids", "citation_warnings", "inference_flags", "appraisal_flags"],
+      "properties": {
+        "paper_id": {"type": "string", "minLength": 1},
+        "evidence_ids": {"type": "array", "items": {"type": "string"}, "uniqueItems": true},
+        "citation_warnings": {"type": "array", "items": {"type": "object"}},
+        "inference_flags": {"type": "array", "items": {"type": "object"}},
+        "appraisal_flags": {"type": "array", "items": {"type": "string"}, "uniqueItems": true}
+      }
+    },
+    "appraisalProviderResult": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["status", "provider", "provider_version", "profile", "flags", "warnings", "failures"],
+      "properties": {
+        "status": {"$ref": "#/$defs/appraisalStatus"},
+        "provider": {"type": "string", "minLength": 1},
+        "provider_version": {"type": "string", "minLength": 1},
+        "profile": {"type": "string", "pattern": "^[a-z0-9][a-z0-9-]{0,63}$"},
+        "flags": {"type": "array", "items": {"type": "string"}, "uniqueItems": true},
+        "warnings": {"type": "array", "items": {"type": "string"}, "uniqueItems": true},
+        "failures": {"type": "array", "items": {"type": "string"}, "uniqueItems": true}
+      }
+    },
+    "retrievalRun": {
+      "type": "object",
+      "additionalProperties": true,
+      "required": ["retrieval_run_id", "project_id", "activation_id", "query_fingerprint", "provider", "result_object_ids", "paths_redacted"],
+      "properties": {
+        "retrieval_run_id": {"type": "string", "pattern": "^rrun_[a-f0-9]{24}$"},
+        "project_id": {"$ref": "#/$defs/projectId"},
+        "activation_id": {"$ref": "#/$defs/activationId"},
+        "query_fingerprint": {"type": "string", "pattern": "^[a-f0-9]{64}$"},
+        "provider": {"type": "string", "minLength": 1},
+        "provider_version": {"type": "string"},
+        "index_generation": {"type": "string"},
+        "elapsed_ms": {"type": "integer", "minimum": 0},
+        "result_object_ids": {"type": "array", "items": {"type": "string"}},
+        "paths_redacted": {"const": true}
+      }
+    },
+    "readRun": {
+      "type": "object",
+      "additionalProperties": true,
+      "required": ["schema", "read_run_id", "paper_id", "intent", "reading_scope", "argument_map", "appraisal", "object_fingerprints", "origin_project_id", "activation_id", "promotion", "public_safe"],
+      "properties": {
+        "schema": {"const": "rkf-read-run-v1"},
+        "read_run_id": {"type": "string", "pattern": "^read_[a-f0-9]{24}$"},
+        "paper_id": {"type": "string", "minLength": 1},
+        "intent": {"$ref": "#/$defs/readIntent"},
+        "reading_scope": {"$ref": "#/$defs/readingScope"},
+        "argument_map": {"$ref": "#/$defs/argumentMap"},
+        "appraisal": {"$ref": "#/$defs/appraisalProviderResult"},
+        "object_fingerprints": {
+          "type": "object",
+          "additionalProperties": {"type": "string", "pattern": "^[a-f0-9]{64}$"}
+        },
+        "origin_project_id": {"$ref": "#/$defs/projectId"},
+        "activation_id": {"$ref": "#/$defs/activationId"},
+        "promotion": {"const": "none"},
+        "public_safe": {"const": true}
       }
     }
   }

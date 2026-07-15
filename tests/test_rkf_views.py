@@ -73,7 +73,7 @@ class RKFViewsTests(unittest.TestCase):
         self.assertFalse((self.wiki / "views").exists())
 
     def test_only_designated_writer_generates_bases(self) -> None:
-        writer = RKFActionRuntime(workspace=self.workspace, project_root=self.repo)
+        writer = RKFActionRuntime(workspace=self.workspace, project_root=self.repo, allow_internal_actions=True)
         writer.execute(ActionRequest(action="rkf.activate"))
 
         preview = writer.execute(ActionRequest(action="views.preview"))
@@ -91,7 +91,7 @@ class RKFViewsTests(unittest.TestCase):
             config_path.read_text(encoding="utf-8").replace("maintenance_writer = true", "maintenance_writer = false"),
             encoding="utf-8",
         )
-        non_writer = RKFActionRuntime(workspace=Workspace(self.repo), project_root=self.repo)
+        non_writer = RKFActionRuntime(workspace=Workspace(self.repo), project_root=self.repo, allow_internal_actions=True)
         non_writer.execute(ActionRequest(action="rkf.activate"))
 
         result = non_writer.execute(ActionRequest(action="views.generate"))
@@ -100,7 +100,7 @@ class RKFViewsTests(unittest.TestCase):
         self.assertEqual(result.payload["error_code"], "RKF_WRITER_REQUIRED")
 
     def test_doctor_blocker_prevents_view_generation(self) -> None:
-        writer = RKFActionRuntime(workspace=self.workspace, project_root=self.repo)
+        writer = RKFActionRuntime(workspace=self.workspace, project_root=self.repo, allow_internal_actions=True)
         writer.execute(ActionRequest(action="rkf.activate"))
         (self.wiki / "late.sync-conflict.md").write_text("conflict\n", encoding="utf-8")
 

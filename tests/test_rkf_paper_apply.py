@@ -115,6 +115,8 @@ class RKFPaperApplyTests(unittest.TestCase):
         self.assertEqual(applied.page_count, 2)
         self.assertEqual(applied.ledger_count, 2)
         self.assertIn("schema: rkf-paper-v1.1", (self.paper_root / "paper-0.md").read_text(encoding="utf-8"))
+        self.assertIn("access_state: abstract", (self.paper_root / "paper-0.md").read_text(encoding="utf-8"))
+        self.assertIn("review_state: unread", (self.paper_root / "paper-0.md").read_text(encoding="utf-8"))
         self.assertTrue((self.wiki / "state" / "reading" / "doi_example_0.json").exists())
 
         rolled_back = rollback_migration(
@@ -144,7 +146,7 @@ class RKFPaperApplyTests(unittest.TestCase):
         self.assertEqual(json.loads(journal.read_text(encoding="utf-8"))["status"], "rolled-back-after-failure")
 
     def test_actions_require_activation_writer_and_exact_approval(self) -> None:
-        runtime = RKFActionRuntime(workspace=self.workspace, project_root=self.repo)
+        runtime = RKFActionRuntime(workspace=self.workspace, project_root=self.repo, allow_internal_actions=True)
         request = ActionRequest(
             action="paper.migration.apply",
             params={"report_dir": str(self.report.report_dir), "manifest_hash": self.report.manifest_hash},

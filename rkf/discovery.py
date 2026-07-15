@@ -32,6 +32,7 @@ DISCOVERY_PREVIEW_SCHEMA = "rkf-discovery-preview-v1"
 DISCOVERY_RUN_SCHEMA = "rkf-discovery-run-v2"
 DISCOVERY_CANDIDATE_SCHEMA = "rkf-discovery-candidate-v1"
 DISCOVERY_ACCEPTANCE_SCHEMA = "rkf-discovery-acceptance-v1"
+LEGACY_DISCOVERY_RUN_SCHEMA = "rkf-discovery-run-v1"
 
 DEFAULT_MAX_RESULTS = 20
 MAX_RESULTS_LIMIT = 100
@@ -137,6 +138,18 @@ _NONPUBLIC_HOST_SUFFIXES = (
 _NUMERIC_HOST_LABEL_RE = re.compile(r"^(?:0x[0-9a-f]+|[0-9]+)$", re.IGNORECASE)
 _ACCEPTANCE_KEYS = {"schema", "run_id", "preview_hash", "updated_at", "accepted"}
 _ACCEPTED_ITEM_KEYS = {"candidate_id", "accepted_at", "actor"}
+LEGACY_DISCOVERY_RUN_KEYS = (
+    {"schema", "query", "topic_id", "live", "candidates", "gate", "created"},
+    {"schema", "query", "topic_ids", "live", "candidates", "gate", "created"},
+)
+LEGACY_DISCOVERY_CANDIDATE_KEYS = {
+    frozenset({"source_id", "title", "year", "doi", "evidence_role", "status"}),
+    frozenset({"source_id", "title", "year", "doi", "evidence_role", "status", "journal"}),
+}
+LEGACY_DISCOVERY_GATES = {
+    "candidates_are_not_evidence",
+    "candidates_and_metadata_are_not_stable_claim_evidence",
+}
 
 
 def _contains_private_metadata(value: str) -> bool:
@@ -158,6 +171,95 @@ def _contains_private_metadata(value: str) -> bool:
 
 class DiscoveryError(ValueError):
     """Raised when a discovery preview or recorded run is invalid."""
+
+
+def validate_legacy_discovery_run(payload: Mapping[str, Any]) -> int:
+    """Validate a deprecated v1 run and return its isolated candidate count."""
+
+    if (
+        payload.get("schema") != LEGACY_DISCOVERY_RUN_SCHEMA
+        or set(payload) not in LEGACY_DISCOVERY_RUN_KEYS
+        or not isinstance(payload.get("query"), str)
+        or len(payload["query"]) > MAX_QUERY_CHARS
+        or not isinstance(payload.get("live"), bool)
+        or payload.get("gate") not in LEGACY_DISCOVERY_GATES
+        or not isinstance(payload.get("created"), str)
+    ):
+        raise DiscoveryError("legacy discovery state is invalid")
+    topic_value = payload.get("topic_ids", payload.get("topic_id", ""))
+    if not (
+        isinstance(topic_value, str)
+        or (isinstance(topic_value, list) and all(isinstance(value, str) for value in topic_value))
+    ):
+        raise DiscoveryError("legacy discovery state is invalid")
+    candidates = payload.get("candidates")
+    if not isinstance(candidates, list) or len(candidates) > 1000:
+        raise DiscoveryError("legacy discovery state is invalid")
+    for candidate in candidates:
+        if (
+            not isinstance(candidate, dict)
+            or frozenset(candidate) not in LEGACY_DISCOVERY_CANDIDATE_KEYS
+            or candidate.get("status") != "metadata_ok"
+            or any(
+                not isinstance(candidate.get(key), str)
+                for key in ("source_id", "title", "doi", "evidence_role")
+            )
+            or not isinstance(candidate.get("year"), (str, int))
+            or isinstance(candidate.get("year"), bool)
+            or ("journal" in candidate and not isinstance(candidate.get("journal"), str))
+        ):
+            raise DiscoveryError("legacy discovery state is invalid")
+    return len(candidates)
+
+
+def audit_legacy_discovery(ws: Workspace) -> dict[str, Any]:
+    """Classify legacy candidates as isolated, without persisting identities."""
+
+    records: list[dict[str, Any]] = []
+    validation_errors = 0
+    root = ws.paths.search_runs
+    paths = sorted(root.glob("*/candidates.json")) if root.exists() else []
+    for path in paths:
+        if path.parent.name.startswith("run_"):
+            continue
+        raw = path.read_bytes()
+        fingerprint = sha256(raw).hexdigest()
+        try:
+            payload = json.loads(raw.decode("utf-8"))
+            if not isinstance(payload, dict):
+                raise DiscoveryError("legacy discovery state is invalid")
+            candidate_count = validate_legacy_discovery_run(payload)
+            status = "isolated-candidate-only"
+        except (DiscoveryError, UnicodeDecodeError, json.JSONDecodeError):
+            candidate_count = 0
+            status = "validation-error"
+            validation_errors += 1
+        records.append(
+            {
+                "input_fingerprint": fingerprint,
+                "candidate_count": candidate_count,
+                "classification": "legacy-unclassified",
+                "disposition": status,
+                "promotion": "none",
+            }
+        )
+    isolated_count = sum(
+        int(record["candidate_count"])
+        for record in records
+        if record["disposition"] == "isolated-candidate-only"
+    )
+    return {
+        "schema": "rkf-legacy-discovery-isolation-report-v1",
+        "legacy_run_count": len(records),
+        "before_legacy_candidate_count": isolated_count,
+        "canonicalized_candidate_count": 0,
+        "isolated_candidate_count": isolated_count,
+        "unresolved_count": 0,
+        "validation_error_count": validation_errors,
+        "after_active_legacy_candidate_count": 0,
+        "rollback_notes": "Read-only classification; no live candidate record was changed.",
+        "records": records,
+    }
 
 
 def _utc_now() -> str:

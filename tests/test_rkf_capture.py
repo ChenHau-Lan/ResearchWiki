@@ -34,7 +34,7 @@ class RKFCaptureTests(unittest.TestCase):
             encoding="utf-8",
         )
         self.workspace = Workspace(self.root)
-        self.runtime = RKFActionRuntime(workspace=self.workspace, project_root=self.root)
+        self.runtime = RKFActionRuntime(workspace=self.workspace, project_root=self.root, allow_internal_actions=True)
         activated = self.runtime.execute(ActionRequest(action="rkf.activate"))
         self.assertEqual(activated.status, "ok")
 
@@ -309,6 +309,7 @@ class RKFCaptureTests(unittest.TestCase):
         writer_runtime = RKFActionRuntime(
             workspace=Workspace(self.root),
             project_root=self.root,
+            allow_internal_actions=True,
         )
         activated = writer_runtime.execute(ActionRequest(action="rkf.activate"))
         self.assertEqual(activated.payload["writer_role"], "designated")
@@ -360,7 +361,7 @@ class RKFCaptureTests(unittest.TestCase):
             config.replace("maintenance_writer = false", "maintenance_writer = true"),
             encoding="utf-8",
         )
-        writer = RKFActionRuntime(workspace=Workspace(self.root), project_root=self.root)
+        writer = RKFActionRuntime(workspace=Workspace(self.root), project_root=self.root, allow_internal_actions=True)
         writer.execute(ActionRequest(action="rkf.activate"))
 
         projection_dir = self.root / "state" / "sync" / "projections"

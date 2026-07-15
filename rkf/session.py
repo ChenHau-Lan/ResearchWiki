@@ -13,7 +13,6 @@ from datetime import datetime
 
 from .core import Workspace, load_toml, read_json
 from .lineage import PROJECT_ID_RE, new_activation_id, utc_now
-from .sync import run_connect_doctor
 
 
 SUPPORTED_SCHEMA_VERSIONS = {"", "rkf-v1", "rkf-v1.1"}
@@ -41,6 +40,7 @@ class ProjectPolicy:
     project_name: str = ""
     marker_schema: str = ""
     connector_version: str = ""
+    connected_at: str = ""
 
 
 @dataclass
@@ -57,6 +57,9 @@ class SessionState:
     activation_id: str = ""
     started_at: str = ""
     ended_at: str = ""
+    marker_schema: str = ""
+    connector_version: str = ""
+    connected_at: str = ""
 
 
 def new_session(session_id: str = "") -> SessionState:
@@ -71,6 +74,7 @@ def read_project_policy(project_root: Path | None) -> ProjectPolicy:
             project_name="ResearchWiki",
             marker_schema="local",
             connector_version="builtin",
+            connected_at="builtin",
         )
     marker = project_root / ".rkf-connect.toml"
     try:
@@ -95,6 +99,7 @@ def read_project_policy(project_root: Path | None) -> ProjectPolicy:
             project_name = section.get("project_name", project_root.name)
             marker_schema = section.get("marker_schema", "rkf-connect-v2")
             connector_version = section.get("connector_version", "unknown")
+            connected_at = section.get("connected_at", "")
             if (
                 not isinstance(available, bool)
                 or not isinstance(query_first, bool)
@@ -111,6 +116,7 @@ def read_project_policy(project_root: Path | None) -> ProjectPolicy:
                 project_name=project_name,
                 marker_schema=str(marker_schema),
                 connector_version=str(connector_version),
+                connected_at=str(connected_at),
             )
         legacy = data.get("rkf_auto_connect", {})
         if not isinstance(legacy, dict) or not isinstance(legacy.get("enabled", False), bool):
@@ -201,6 +207,60 @@ def session_receipt(session: SessionState) -> dict[str, Any]:
         "activation_id": session.activation_id,
         "started_at": session.started_at,
         "ended_at": session.ended_at,
+        "marker_schema": session.marker_schema,
+        "connector_version": session.connector_version,
+        "connected_at": session.connected_at,
+        "paths_redacted": True,
+    }
+
+
+def validate_connection(
+    ws: Workspace,
+    *,
+    project_root: Path | None = None,
+) -> dict[str, Any]:
+    """Validate only the v1 cross-project contract, without sync/admin checks."""
+
+    policy = read_project_policy(project_root)
+    blockers: list[str] = []
+    warnings: list[str] = []
+    if not policy.available:
+        blockers.append("RKF_PROJECT_UNAVAILABLE")
+    if project_root is not None:
+        marker = project_root / ".rkf-connect.toml"
+        if not marker.is_file():
+            blockers.append("RKF_MARKER_MISSING")
+        if policy.version != 2:
+            blockers.append("RKF_MARKER_UPGRADE_REQUIRED")
+        if policy.marker_schema != "rkf-connect-v2":
+            blockers.append("RKF_MARKER_SCHEMA_UNSUPPORTED")
+        if not re.fullmatch(r"1\.[0-9]+\.[0-9]+", policy.connector_version):
+            blockers.append("RKF_CONNECTOR_VERSION_UNSUPPORTED")
+        try:
+            connected_at = datetime.fromisoformat(policy.connected_at.replace("Z", "+00:00"))
+            if connected_at.tzinfo is None:
+                raise ValueError
+        except ValueError:
+            blockers.append("RKF_CONNECTED_AT_INVALID")
+        if not PROJECT_ID_RE.fullmatch(policy.project_id):
+            blockers.append("RKF_PROJECT_ID_INVALID")
+        bridge = project_root / "RKF"
+        if not bridge.is_dir():
+            warnings.append("RKF_BRIDGE_MISSING")
+    wiki_available = ws.paths.wiki_root.is_dir() and os.access(ws.paths.wiki_root, os.R_OK)
+    if not wiki_available:
+        blockers.append("RKF_CENTRAL_UNAVAILABLE")
+    return {
+        "schema": "rkf-connect-validation-v1",
+        "status": "blocked" if blockers else "connected",
+        "project_id": policy.project_id,
+        "project_name": policy.project_name,
+        "marker_schema": policy.marker_schema,
+        "connector_version": policy.connector_version,
+        "connected_at": policy.connected_at,
+        "central_rkf_available": wiki_available,
+        "blocker_codes": list(dict.fromkeys(blockers)),
+        "warning_codes": list(dict.fromkeys(warnings)),
         "paths_redacted": True,
     }
 
@@ -210,9 +270,28 @@ def activate_session(
     ws: Workspace,
     *,
     project_root: Path | None = None,
+    legacy_compatibility: bool = False,
 ) -> dict[str, Any]:
     session.mode = SessionMode.PREFLIGHT
     policy = read_project_policy(project_root)
+    validation = validate_connection(ws, project_root=project_root)
+    if validation["status"] == "blocked" and not legacy_compatibility:
+        session.mode = SessionMode.OFF
+        session.project_id = str(validation.get("project_id", ""))
+        session.project_name = str(validation.get("project_name", ""))
+        if PROJECT_ID_RE.fullmatch(session.project_id):
+            session.activation_id = new_activation_id()
+            session.started_at = utc_now()
+            session.ended_at = session.started_at
+        session.marker_schema = str(validation.get("marker_schema", ""))
+        session.connector_version = str(validation.get("connector_version", ""))
+        session.connected_at = str(validation.get("connected_at", ""))
+        session.warnings = list(validation.get("blocker_codes", []))
+        return {
+            **session_receipt(session),
+            "connection": validation,
+            "error_code": str(validation["blocker_codes"][0]),
+        }
     if not policy.available:
         session.mode = SessionMode.OFF
         return {**session_receipt(session), "error_code": "RKF_PROJECT_UNAVAILABLE"}
@@ -233,11 +312,16 @@ def activate_session(
     session.capture_mode = policy.capture_mode
     session.project_id = policy.project_id or f"prj_{uuid.uuid5(uuid.NAMESPACE_URL, 'rkf-project:' + (project_root.name if project_root else 'ResearchWiki')).hex[:24]}"
     session.project_name = policy.project_name
+    session.marker_schema = policy.marker_schema
+    session.connector_version = policy.connector_version
+    session.connected_at = policy.connected_at
     session.activation_id = new_activation_id()
     session.started_at = utc_now()
     session.ended_at = ""
     session.warnings = []
     if project_root is not None and not policy.project_id:
+        from .sync import run_connect_doctor
+
         doctor = run_connect_doctor(ws)
         machine_id, _requested_writer = _machine_state(ws)
         warnings = [finding.code for finding in doctor.findings]
@@ -258,6 +342,7 @@ def activate_session(
         "project_available": policy.available,
         "marker_schema": policy.marker_schema,
         "connector_version": policy.connector_version,
+        "connection": validation,
     }
 
 

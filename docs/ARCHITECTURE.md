@@ -16,6 +16,8 @@ a generic vector-chat application.
 - **Topic**: scope and saved-view rules; it does not copy papers or claims.
 - **ProjectConnection**: stable ID and marker/connector metadata, without a path.
 - **ActivationEvent** and **ActionEvent**: append-only operational lineage.
+  Start, close, expiry, and failure are separate activation transitions; close
+  never rewrites the start snapshot.
 
 The canonical enum source is `schemas/rkf_v1.schema.json`; Python validation and
 legacy mapping live in `rkf/schema.py`.
@@ -55,14 +57,16 @@ Semantic similarity never promotes evidence or claim status.
 `rkf/providers.py` defines optional `FullTextProvider`, `RetrievalProvider` and
 `AppraisalProvider` protocols. Adapters return typed results; they do not own
 canonical objects or trust decisions. The full paper-fetch acquisition engine
-is vNext work.
+is vNext work. See [the v1 provider contracts](references/v1-provider-contracts.md)
+and [third-party notices](../THIRD_PARTY_NOTICES.md).
 
 ## Invariants
 
 1. Supported/disputed/verified claims require locator-backed Evidence.
 2. Verified claims require at least one human-verified Evidence card.
 3. Candidate metadata and LLM output cannot satisfy stable evidence.
-4. Each connected action has project and activation lineage.
+4. Each connected action has project and activation lineage; Review can filter
+   by project, activation, action, status, or target object.
 5. Retry is idempotent; raw prompt and private paths are excluded from events.
 6. Public output contains no PDF/article text, secret, private path or project
    activity.

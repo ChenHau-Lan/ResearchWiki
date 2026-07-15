@@ -1,6 +1,6 @@
 # PROJECT_MEMORY
 
-Last updated: 2026-07-14
+Last updated: 2026-07-15
 
 ## RKF v1.1 Scope Simplification
 
@@ -14,14 +14,15 @@ Last updated: 2026-07-14
   `python3 tools/bootstrap_rkf.py`, apply with `--apply`, then run
   `python3 tools/check_install.py --strict`. Positional `preview`/`apply`
   examples are invalid and must not return to the docs.
-- The 2026-07-14 branch audit deleted the fully merged remote branches
-  `codex/rkf-observatory` and `codex/rkf-auto-evolution-docs-cleanup`. Every
-  other retained remote branch had at least one commit not in `origin/main`, or
-  was the active v1 branch. After PR #20 merged, `codex/rkf-v1` was also removed
-  automatically; #19 records the completed Phase 0 evidence.
-- GitHub issues #15–#18 define the current v1 contract. The published
-  `v1.0.0` tag remains immutable; the compatible implementation target is
-  `v1.1.0`.
+- The branch audit in `docs/operations/v1-branch-audit.md` records live compare
+  evidence. On 2026-07-15 nine patch-equivalent historical branches with zero
+  net changed files were removed. Only `main` and
+  `codex-rkf-external-sandbox-workflow` remained; the latter has ten real file
+  differences and requires a separate product decision.
+- GitHub issues #15–#18 define the current v1 contract. Live GitHub inspection
+  on 2026-07-15 found no historical tags or releases; `v1.1.0` is therefore the
+  first verifiable public tag. Do not fabricate or move a `v1.0.0` tag merely
+  to match older prose.
 - The app-facing registry is limited to Connect & Activate plus five workflows:
   `workflow.add`, `workflow.ask`, `workflow.read`,
   `workflow.compare-synthesize`, and `workflow.review`.
@@ -34,19 +35,41 @@ Last updated: 2026-07-14
   legacy mapping targets; legacy `reading_state`/`reading_status` inputs remain
   an explicit compatibility boundary until the migration report and backup
   window are complete.
+- The current private Phase 1 preview uses the canonical paper transform,
+  covers all 57 paper pages, and classifies all 64 deprecated discovery
+  candidates as isolated candidate-only records. It has zero unresolved or
+  validation findings. On 2026-07-15 the user explicitly approved manifest
+  `bb4ef62bcb0c533bf023838f9468b180dcb36441da8f674789cbf5405e340aff`;
+  the atomic live apply completed for 57 paper pages and 57 reading ledgers.
+  All 114 live outputs and all 114 backup journal records passed checksum
+  verification. Preserve backup
+  `paper-v1.1-bb4ef62bcb0c533bf023838f9468b180dcb36441da8f674789cbf5405e340aff`
+  until a separately approved rollback-window closeout and cleanup batch.
 - New v2 project markers contain a random stable `project_id`. Each activation
   and action receives append-only, path-redacted lineage under ignored local
   state. Raw prompt, private path and secret values are excluded. Retrying the
   same action in one activation reuses the ActionEvent.
-- Canonical Evidence requires an exact page/section/figure/table/paragraph
-  locator. `verified` claims require human-verified Evidence. Candidate metadata
-  and LLM output remain insufficient.
+- Canonical Evidence requires an existing `rkf-paper-v1.1` Paper, an exact
+  page/section/figure/table/paragraph locator, valid lineage, and a content
+  fingerprint. Claim and Synthesis creation reloads and revalidates those
+  fields plus the matching successful ActionEvent object receipt; direct
+  Evidence or Claim edits fail closed. `verified` claims require currently
+  human-verified Evidence. Candidate metadata and LLM output remain
+  insufficient.
 - `paper-fetch`, `paper-review-and-digest`, and `vault-search` inform optional
   provider contracts only. The complete Scientific Artifact Acquisition Engine
   remains vNext work.
 - The public site is a synthetic/public-safe guided demo. It must not expose
   writer, storage, doctor, project activity, raw candidate/run, graph vanity,
   raw prompt, paper identity, or private-path data.
+- Default `tools/check_install.py --strict` is v1-native and does not run the
+  retired designated-writer or multi-computer doctor product. Maintainers may
+  add `--legacy-compatibility` while those internal shims remain. On 2026-07-15
+  the installed global `rkf-auto-connect` was backed up and synchronized to
+  this checkout; the strict diagnostic returned `ready` with zero failures.
+- The v1.1 release candidate passed 372 tests on Python 3.9 and Python 3.12,
+  canonical schema validation, topic/all/graph lint, public-safety scan,
+  exact-snapshot site validation, install parity, and `git diff --check`.
 
 ## Project Summary
 
@@ -54,7 +77,7 @@ Last updated: 2026-07-14
 - Mode: research-engineering hybrid
 - Repo role: framework code, prompts, docs, tests, and examples for governed
   research memory
-- Public baseline: `v1.0.0`
+- Historical changelog baseline: `v1.0.0` (not a verified public tag)
 - Active workspace data: external shared `wiki/` and `raw/` roots configured in
   `rkf.workspace.toml`
 - Primary audience: the user, future Codex agents, and research workflows that
@@ -79,6 +102,50 @@ Last updated: 2026-07-14
   Codex app workflow and capability map.
 
 ## Durable Decisions
+
+- `RKFActionRuntime` rejects every action outside Connect & Activate plus the
+  five v1 workflows by default. Migration/dashboard/discovery/sync/view/
+  maintenance/cleanup routes are reachable only through the explicit
+  `allow_internal_actions=True` compatibility boundary used by maintainer
+  tests while the migration backup window remains open.
+- `connect.validate` checks the v2 marker, stable random `project_id`, marker
+  schema, connector version, bridge presence, and central RKF availability
+  without running multi-computer writer/storage diagnostics. Invalid legacy
+  markers fail closed in the default runtime.
+- Activation start/close/failure/expiry are append-only transition events.
+  Deactivation never mutates the activation-start snapshot. Action lineage can
+  be filtered by project, activation, action, status, and target object.
+- `workflow.read` accepts only an existing, schema-valid canonical Paper and
+  rejects a requested reading scope above its `access_state`. It supports
+  locator-backed Evidence and scoped `digest | appraise | both` Read runs.
+  Digest requires full text; abstract-only appraisal stays low-trust; citation
+  existence is distinct from citation support; failed external checks remain
+  visible; deterministic inference-gap rules are authoritative gates.
+- Optional FullText/Retrieval providers are off by default. Acquisition uses
+  typed status and SHA-256 artifact dedupe; one checksum artifact can retain
+  canonical `paper_ids` / `source_ids` relations, while legacy singular fields
+  remain compatibility mirrors. Private handles remain under `.rkf_private`,
+  and root/parent/target symlinks are rejected before a private handle write.
+  Retrieval stays exact-first. Public-safe semantic hits require an explicit
+  public-safe scope, an existing canonical object, and a locator; display data
+  is rebuilt from canonical state. Deterministic Ask also excludes malformed,
+  drifted, non-public-safe, or receipt-less Evidence/Claim/Synthesis objects.
+  Persisted run identity includes result content, so changed results create
+  lineage successors while identical results deduplicate. Read-only Ask skips
+  the shared retrieval-run write but still records its path-redacted private
+  ActionEvent. Provider failure falls back safely.
+- New v1 canonical state, retrieval runs, provider artifacts, Review reads, and
+  private lineage reject root/parent/target symlinks and path escape. Private
+  artifact and lineage directories/files are normalized to owner-only
+  `0700`/`0600`; lineage uses no-follow, anchored directory access and rejects
+  traversal IDs.
+- The pinned third-party design references and verified MIT notices are in
+  `THIRD_PARTY_NOTICES.md`; no upstream source file was copied into v1.
+
+## Internal Compatibility History (not v1 product authority)
+
+The notes below describe retained migration/maintenance implementations and
+older releases. They do not expand the current app-facing v1 surface.
 
 - RKF 1.1 Phase 1 uses a session-owned `RKFActionRuntime`. Every new Codex task
   starts OFF; only explicit `rkf.activate` can enable that task after a
@@ -294,9 +361,10 @@ python3 tools/rk.py lint --mode graph-lint
 python3 tools/public_safety_scan.py
 ```
 
-For RKF state checks, ask Codex for topic lint, all lint, paper queue, world
-context, hot demand recording, or hot refresh through the app/internal runtime.
-There is no `hot show` workflow; inspect `hot.md` directly.
+For user-facing RKF work, use only Add, Ask, Read, Compare & Synthesize, and
+Review after explicit activation. Maintainers may still run the documented
+lint and safety commands directly; old queue/world/hot names are compatibility
+history, not product workflows.
 
 2026-07-13 onboarding/dashboard/discovery verification completed with 297 unit
 tests, Python compilation, all/topic/graph lint, public-safety scan, 14 closed
@@ -448,11 +516,11 @@ including the exact approved hash and absence of the private-review banner.
   both approved topics, Crossref + arXiv, 20 candidates per topic/run, exact
   recording, 0 automatic acceptance, and `Promotion: none`.
 
-- The private 57-paper migration preview has been generated and validated.
-  Inspect its ignored local manifest/diffs and request approval tied to that
-  exact hash before any live apply.
-- Run `connect.doctor` before any shared-writer generated view or maintenance
-  action; resolve blockers manually rather than selecting a sync winner.
+- Review the applied 57-paper canonical state during the rollback window. Keep
+  the exact private backup and journal unchanged until a separate cleanup
+  approval decides their disposition.
+- For legacy internal shared-writer/view maintenance only, run the explicit
+  `--legacy-compatibility` install diagnostic and resolve blockers manually.
 - `rkf-maintenance-preview` now exists and was read back as `PAUSED`; it is a
   daily local preview-only job and must stay paused until machine/writer setup,
   schedule, permitted writes, and activation are separately approved.

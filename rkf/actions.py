@@ -46,6 +46,7 @@ from .session import (
     deactivate_session,
     new_session,
     session_receipt,
+    validate_connection,
 )
 from .retrieval import search_central_rkf
 from .capture import (
@@ -78,7 +79,23 @@ from .public_dashboard import (
     publish_public_dashboard,
     render_dashboard_preview,
 )
-from .lineage import input_fingerprint, record_action, record_activation, update_activation, utc_now
+from .lineage import (
+    close_activation,
+    input_fingerprint,
+    record_action,
+    record_activation,
+    result_fingerprint,
+    utc_now,
+)
+from .providers import (
+    FullTextProvider,
+    AppraisalProvider,
+    RetrievalProvider,
+    register_evidence_artifact,
+    update_paper_access_from_artifact,
+    validate_paper_access_target,
+)
+from .reading import ReadScopeBlocked, run_read_pass
 from .research import record_claim, record_evidence, review_home, synthesize as synthesize_v1
 
 
@@ -1033,10 +1050,18 @@ class RKFActionRuntime:
         workspace: Workspace | Path | None = None,
         project_root: Path | None = None,
         session_id: str = "",
+        full_text_provider: FullTextProvider | None = None,
+        retrieval_provider: RetrievalProvider | None = None,
+        appraisal_provider: AppraisalProvider | None = None,
+        allow_internal_actions: bool = False,
     ) -> None:
         self.workspace = _workspace(workspace)
         self.project_root = project_root
         self.session: SessionState = new_session(session_id)
+        self.full_text_provider = full_text_provider
+        self.retrieval_provider = retrieval_provider
+        self.appraisal_provider = appraisal_provider
+        self.allow_internal_actions = allow_internal_actions
 
     def _trace_result(self, request: ActionRequest, result: ActionResult) -> ActionResult:
         if not self.session.activation_id or not self.session.project_id:
@@ -1045,9 +1070,44 @@ class RKFActionRuntime:
         if not affected:
             affected = [
                 str(result.payload[key])
-                for key in ("evidence_id", "claim_id", "synthesis_id", "event_id")
+                for key in (
+                    "evidence_id",
+                    "claim_id",
+                    "synthesis_id",
+                    "read_run_id",
+                    "retrieval_run_id",
+                    "event_id",
+                )
                 if result.payload.get(key)
             ]
+        blocker_codes = result.payload.get("blocker_codes", [])
+        if not isinstance(blocker_codes, (list, tuple, set)):
+            blocker_codes = [str(blocker_codes)]
+        raw_object_fingerprints = result.payload.get("object_fingerprints", {})
+        object_fingerprints = (
+            {str(key): str(value) for key, value in raw_object_fingerprints.items()}
+            if isinstance(raw_object_fingerprints, dict)
+            else {}
+        )
+        content_fingerprint = result.payload.get("content_fingerprint")
+        if isinstance(content_fingerprint, str):
+            for key in ("evidence_id", "claim_id", "synthesis_id"):
+                object_id = result.payload.get(key)
+                if isinstance(object_id, str) and object_id:
+                    object_fingerprints[object_id] = content_fingerprint
+        outcome = {
+            "status": result.status,
+            "result_code": str(
+                result.payload.get("error_code")
+                or result.payload.get("provider_status")
+                or result.payload.get("retrieval_result_fingerprint")
+                or ""
+            ),
+            "blocker_codes": sorted({str(item) for item in blocker_codes if str(item)}),
+            "affected_object_ids": list(dict.fromkeys(affected)),
+            "object_fingerprints": object_fingerprints,
+            "promotion": str(result.payload.get("promotion", "none")),
+        }
         _, event = record_action(
             self.workspace.root,
             {
@@ -1058,25 +1118,168 @@ class RKFActionRuntime:
                 "status": result.status,
                 "input_fingerprint": input_fingerprint(request.params),
                 "affected_object_ids": affected,
-                "idempotency_key": str(request.params.get("idempotency_key", "")) or input_fingerprint({"action": request.action, **request.params}),
-                "promotion": str(result.payload.get("promotion", "none")),
+                "object_fingerprints": object_fingerprints,
+                "idempotency_key": input_fingerprint(
+                    {
+                        "action": request.action,
+                        "explicit_key": str(request.params.get("idempotency_key", "")),
+                        "params": request.params,
+                    }
+                ),
+                "result_code": outcome["result_code"],
+                "blocker_codes": outcome["blocker_codes"],
+                "result_fingerprint": result_fingerprint(outcome),
+                "promotion": outcome["promotion"],
             },
         )
         payload = dict(result.payload)
         payload["lineage_event_id"] = event["event_id"]
         payload["origin_project_id"] = self.session.project_id
         payload["activation_id"] = self.session.activation_id
+        payload["object_fingerprints"] = object_fingerprints
         return ActionResult(result.action, result.status, result.message, payload)
 
-    def _execute_v1_workflow(self, request: ActionRequest) -> ActionResult:
+    def _execute_v1_workflow(
+        self,
+        request: ActionRequest,
+        *,
+        persist_retrieval_run: bool = True,
+    ) -> ActionResult:
         params = dict(request.params)
         if request.action == "workflow.add":
+            operation = str(params.pop("operation", "capture"))
+            if operation == "acquire":
+                source_id = str(params.pop("source_id", "")).strip()
+                identifier = str(params.pop("identifier", "")).strip()
+                paper_id = str(params.pop("paper_id", source_id)).strip()
+                if params:
+                    raise SystemExit(
+                        f"unsupported workflow.add acquisition parameter(s): {', '.join(sorted(params))}"
+                    )
+                if not source_id or not identifier or not paper_id:
+                    return ActionResult(
+                        request.action,
+                        "blocked",
+                        "full-text acquisition requires source_id, identifier, and paper_id",
+                        {"error_code": "RKF_ACQUISITION_INPUT_INVALID", "promotion": "none"},
+                    )
+                try:
+                    paper_id = validate_paper_access_target(self.workspace, paper_id=paper_id)
+                except (OSError, UnicodeDecodeError, ValueError) as error:
+                    return ActionResult(
+                        request.action,
+                        "blocked",
+                        str(error),
+                        {
+                            "error_code": "RKF_ACQUISITION_PAPER_INVALID",
+                            "affected_object_ids": [paper_id, source_id],
+                            "promotion": "none",
+                        },
+                    )
+                if self.full_text_provider is None:
+                    return ActionResult(
+                        request.action,
+                        "manual-required",
+                        "no optional FullTextProvider is configured; provide an authorized PDF or resolver link",
+                        {
+                            "error_code": "RKF_FULLTEXT_PROVIDER_NOT_CONFIGURED",
+                            "provider_status": "manual-required",
+                            "resolver_handoff": "provide-authorized-pdf-or-resolver-link",
+                            "affected_object_ids": [paper_id, source_id],
+                            "promotion": "none",
+                        },
+                    )
+                try:
+                    provider_result = self.full_text_provider.obtain(
+                        source_id=source_id,
+                        identifier=identifier,
+                        project_id=self.session.project_id,
+                        activation_id=self.session.activation_id,
+                    )
+                    payload = provider_result.public_payload()
+                    affected: list[str] = [paper_id, source_id]
+                    if provider_result.status == "obtained":
+                        artifact = register_evidence_artifact(
+                            self.workspace,
+                            paper_id=paper_id,
+                            result=provider_result,
+                            origin_project_id=self.session.project_id,
+                            activation_id=self.session.activation_id,
+                        )
+                        paper_state = update_paper_access_from_artifact(
+                            self.workspace,
+                            paper_id=paper_id,
+                        )
+                        payload["artifact"] = artifact
+                        payload["paper_state"] = paper_state
+                        affected.append(str(artifact["artifact_id"]))
+                except (OSError, RuntimeError, TypeError, ValueError) as error:
+                    return ActionResult(
+                        request.action,
+                        "blocked",
+                        str(error),
+                        {"error_code": "RKF_ACQUISITION_REJECTED", "promotion": "none"},
+                    )
+                return ActionResult(
+                    request.action,
+                    provider_result.status,
+                    f"full-text provider returned {provider_result.status}; Promotion: none",
+                    {
+                        **payload,
+                        "affected_object_ids": affected,
+                        "promotion": "none",
+                    },
+                )
+            if operation != "capture":
+                raise SystemExit("workflow.add operation must be capture or acquire")
             result = self._capture_route(params)
             return ActionResult(request.action, result.status, result.message, result.payload)
         if request.action == "workflow.ask":
-            payload = search_central_rkf(self.workspace, **params)
+            payload = search_central_rkf(
+                self.workspace,
+                retrieval_provider=self.retrieval_provider,
+                project_id=self.session.project_id,
+                activation_id=self.session.activation_id,
+                persist_retrieval_run=persist_retrieval_run,
+                **params,
+            )
             return ActionResult(request.action, "ok", f"found {payload['count']} governed RKF result(s)", payload)
         if request.action == "workflow.read":
+            if "intent" in params or "reading_scope" in params:
+                try:
+                    payload = run_read_pass(
+                        self.workspace,
+                        origin_project_id=self.session.project_id,
+                        activation_id=self.session.activation_id,
+                        appraisal_provider=self.appraisal_provider,
+                        **params,
+                    )
+                except ReadScopeBlocked as error:
+                    return ActionResult(
+                        request.action,
+                        "blocked",
+                        str(error),
+                        {"error_code": error.code, "promotion": "none"},
+                    )
+                except (TypeError, ValueError) as error:
+                    return ActionResult(
+                        request.action,
+                        "blocked",
+                        str(error),
+                        {"error_code": "RKF_READ_REJECTED", "promotion": "none"},
+                    )
+                return ActionResult(
+                    request.action,
+                    "ok",
+                    f"completed {payload['intent']} Read pass at {payload['reading_scope']} scope",
+                    {
+                        **payload,
+                        "affected_object_ids": [
+                            payload["read_run_id"],
+                            *payload.get("evidence_ids", []),
+                        ],
+                    },
+                )
             try:
                 payload = record_evidence(
                     self.workspace,
@@ -1112,10 +1315,26 @@ class RKFActionRuntime:
                 return ActionResult(request.action, "blocked", str(error), {"error_code": "RKF_SYNTHESIS_REJECTED"})
             return ActionResult(request.action, "ok", f"recorded canonical {operation}", {**payload, "affected_object_ids": [object_id]})
         if request.action == "workflow.review":
-            allowed = {"project_id", "activation_id"}
+            allowed = {
+                "project_id",
+                "activation_id",
+                "action",
+                "status",
+                "target_object_id",
+            }
             if set(params) - allowed:
-                raise SystemExit("workflow.review accepts only project_id and activation_id")
-            payload = review_home(self.workspace, **params)
+                raise SystemExit(
+                    "workflow.review accepts project_id, activation_id, action, status, and target_object_id"
+                )
+            try:
+                payload = review_home(self.workspace, **params)
+            except (OSError, UnicodeDecodeError, ValueError) as error:
+                return ActionResult(
+                    request.action,
+                    "blocked",
+                    str(error),
+                    {"error_code": "RKF_REVIEW_REJECTED", "promotion": "none"},
+                )
             return ActionResult(request.action, "ok", "rendered actionable RKF Review/Home", payload)
         raise SystemExit(f"unsupported RKF v1 workflow: {request.action}")
 
@@ -1585,6 +1804,29 @@ class RKFActionRuntime:
         )
 
     def execute(self, request: ActionRequest) -> ActionResult:
+        if request.action not in APP_FACING_ACTIONS and not self.allow_internal_actions:
+            return ActionResult(
+                action=request.action,
+                status="blocked",
+                message="action is not part of the RKF v1 product surface",
+                payload={"error_code": "RKF_ACTION_NOT_AVAILABLE"},
+            )
+        if request.action == "connect.validate":
+            payload = validate_connection(
+                self.workspace,
+                project_root=self.project_root,
+            )
+            result = ActionResult(
+                action=request.action,
+                status="ok" if payload["status"] == "connected" else "blocked",
+                message=(
+                    "RKF project connection is valid"
+                    if payload["status"] == "connected"
+                    else "RKF project connection is blocked"
+                ),
+                payload=payload,
+            )
+            return self._trace_result(request, result)
         if request.action == "rkf.status":
             result = ActionResult(
                 action="rkf.status",
@@ -1598,6 +1840,7 @@ class RKFActionRuntime:
                 self.session,
                 self.workspace,
                 project_root=self.project_root,
+                legacy_compatibility=self.allow_internal_actions,
             )
             status = "failed" if self.session.mode == SessionMode.OFF else "ok"
             result = ActionResult(
@@ -1619,6 +1862,8 @@ class RKFActionRuntime:
                         "result": status,
                         "blocker_codes": list(self.session.warnings),
                         "rkf_version": "1.1.0",
+                        "marker_schema": self.session.marker_schema,
+                        "connector_version": self.session.connector_version,
                     },
                 )
                 result = self._trace_result(request, result)
@@ -1634,12 +1879,12 @@ class RKFActionRuntime:
             )
             result = self._trace_result(request, result)
             if activation_id and self.session.project_id:
-                update_activation(
+                close_activation(
                     self.workspace.root,
-                    activation_id,
+                    activation_id=activation_id,
+                    project_id=self.session.project_id,
+                    project_name=self.session.project_name,
                     ended_at=self.session.ended_at,
-                    mode="OFF",
-                    result="closed",
                 )
             return result
         if self.session.mode == SessionMode.OFF:
@@ -1656,22 +1901,16 @@ class RKFActionRuntime:
                 message="RKF is active read-only",
                 payload={"error_code": "RKF_READ_ONLY", **session_receipt(self.session)},
             )
-        if request.action == "connect.validate":
-            result = ActionResult(
-                action=request.action,
-                status="ok" if self.session.project_id else "blocked",
-                message="RKF project connection is valid" if self.session.project_id else "RKF project connection lacks a stable project_id",
-                payload={
-                    "project_id": self.session.project_id,
-                    "project_name": self.session.project_name,
-                    "activation_id": self.session.activation_id,
-                    "central_rkf_available": self.workspace.paths.wiki_root.is_dir(),
-                    "paths_redacted": True,
-                },
+        if request.action in V1_WORKFLOW_ACTIONS:
+            read_only_ask = (
+                self.session.mode == SessionMode.ACTIVE_READ_ONLY
+                and request.action == "workflow.ask"
+            )
+            result = self._execute_v1_workflow(
+                request,
+                persist_retrieval_run=not read_only_ask,
             )
             return self._trace_result(request, result)
-        if request.action in V1_WORKFLOW_ACTIONS:
-            return self._trace_result(request, self._execute_v1_workflow(request))
         if request.action in DOCTOR_GUARDED_ACTIONS:
             doctor = run_connect_doctor(self.workspace)
             if doctor.status == "blocked":

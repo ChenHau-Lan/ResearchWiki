@@ -1,46 +1,63 @@
 # v1 Branch Hygiene Audit
 
-Audit date: 2026-07-14
-Comparison base: `origin/main@c83d0b7`
-Open pull requests: none (verified through the connected GitHub repository)
+Audit date: 2026-07-15
 
-`behind` is the number of commits present only on `main`; `ahead` is the number
-present only on the branch. A branch was eligible for deletion only when
-`ahead=0`, no open pull request used it, and it was not a release/default branch.
+Comparison base: `main@06cf63d`
+
+Open pull requests at pre-cleanup check: none
+
+The connected GitHub repository was checked immediately before deletion.
+`ahead` and `behind` describe commit topology; `net files` is the live compare
+result against `main`. A historical branch was eligible only when it had no
+open PR, was not default/release/active, and its net file diff was empty.
 
 ## Deleted remote branches
 
-| Branch | Before deletion | Reason | Result |
-|---|---:|---|---|
-| `codex/rkf-observatory` | behind 2, ahead 0 | Fully merged; explicitly named by #19. | Deleted from `origin` on 2026-07-14. |
-| `codex/rkf-auto-evolution-docs-cleanup` | behind 25, ahead 0 | Fully merged and not used by an open PR. | Deleted from `origin` on 2026-07-14. |
+### Fully merged branches removed earlier
 
-## Retained remote branches
+| Branch | Result |
+|---|---|
+| `codex/rkf-observatory` | Deleted 2026-07-14 after `ahead=0` verification. |
+| `codex/rkf-auto-evolution-docs-cleanup` | Deleted 2026-07-14 after `ahead=0` verification. |
+| `codex/rkf-v1` | Removed after PR #20 merged. |
+| `codex/rkf-phase1-schema-gate` | Removed after PR #21 merged. |
 
-| Branch | Behind | Ahead | Retention reason |
-|---|---:|---:|---|
-| `codex-rkf-clean-framework` | 34 | 1 | Contains an unmerged commit; requires manual historical review. |
-| `codex-rkf-external-sandbox-workflow` | 36 | 2 | Contains unmerged commits. |
-| `codex/rkf-emergent-pattern-agents` | 25 | 1 | Contains an unmerged commit. |
-| `codex/rkf-feature-inventory` | 30 | 1 | Contains an unmerged commit. |
-| `codex/rkf-l0-l3-world-context` | 28 | 1 | Contains an unmerged commit. |
-| `codex/rkf-maintenance-improvements` | 30 | 2 | Contains unmerged commits. |
-| `codex/rkf-priority-evolve` | 27 | 1 | Contains an unmerged commit. |
-| `codex/rkf-reading-maturity` | 29 | 1 | Contains an unmerged commit. |
-| `codex/rkf-reconcile-challenge-bitemporal` | 26 | 1 | Contains an unmerged commit. |
-| `codex/rkf-shared-wiki-governance` | 32 | 1 | Contains an unmerged commit. |
-| `codex/rkf-v1` | 0 | 1 | Active Phase 0 implementation branch. |
+### Patch-equivalent historical branches removed in this audit
 
-## Automatic post-merge deletion
+These branches were not ancestors of `main`, but GitHub's live compare returned
+zero changed files for each one. Their historical commits remain in Git history.
 
-The connected GitHub app confirms administrative permission, but its repository
-mutation surface does not expose the `delete_branch_on_merge` setting. The local
-GitHub CLI token is invalid, so the setting could not be changed or verified in
-this run. Re-authenticate `gh`, then run and read back:
+| Branch | Behind | Ahead | Net files | Result |
+|---|---:|---:|---:|---|
+| `codex-rkf-clean-framework` | 39 | 1 | 0 | Deleted 2026-07-15. |
+| `codex/rkf-emergent-pattern-agents` | 30 | 1 | 0 | Deleted 2026-07-15. |
+| `codex/rkf-feature-inventory` | 35 | 1 | 0 | Deleted 2026-07-15. |
+| `codex/rkf-l0-l3-world-context` | 33 | 1 | 0 | Deleted 2026-07-15. |
+| `codex/rkf-maintenance-improvements` | 35 | 2 | 0 | Deleted 2026-07-15. |
+| `codex/rkf-priority-evolve` | 32 | 1 | 0 | Deleted 2026-07-15. |
+| `codex/rkf-reading-maturity` | 34 | 1 | 0 | Deleted 2026-07-15. |
+| `codex/rkf-reconcile-challenge-bitemporal` | 31 | 1 | 0 | Deleted 2026-07-15. |
+| `codex/rkf-shared-wiki-governance` | 37 | 1 | 0 | Deleted 2026-07-15. |
 
-```bash
-gh api --method PATCH repos/ChenHau-Lan/ResearchWiki -f delete_branch_on_merge=true
-gh api repos/ChenHau-Lan/ResearchWiki --jq .delete_branch_on_merge
-```
+## Retained remote branch
 
-This unchecked item must remain open in #19 until the read-back returns `true`.
+| Branch | Behind | Ahead | Net files | Retention reason |
+|---|---:|---:|---:|---|
+| `codex-rkf-external-sandbox-workflow` | 41 | 2 | 10 | Contains real unmerged external-sandbox workflow changes; requires a separate product decision. |
+
+After deletion, the live remote branch list contained only `main` and the
+retained external-sandbox branch. The v1.1 completion branch is created and
+removed through its release pull request, not treated as historical debt.
+
+## Local hygiene
+
+Remote tracking refs were pruned. Two stale worktree registrations whose
+gitdir targets no longer existed were pruned, then 15 local historical branches
+were removed with safe `git branch -d` checks. No branch required force
+deletion. Local `main`, the active release branch, and the unmerged
+external-sandbox branch were retained.
+
+The GitHub connector still does not expose the repository's
+`delete_branch_on_merge` setting, and the local `gh` token is invalid. Release
+cleanup therefore verifies the live branch list and deletes the completion
+branch explicitly if GitHub does not remove it automatically.

@@ -1,16 +1,48 @@
-"""Canonical RKF v1 enums and conservative legacy normalization."""
+"""Canonical RKF v1 enums and conservative legacy normalization.
+
+The JSON schema is the source of truth for canonical enum values.  This module
+only exposes typed Python views of those values plus the explicit compatibility
+mapping for legacy paper metadata.
+"""
 
 from __future__ import annotations
 
+import json
+from functools import lru_cache
+from pathlib import Path
 from typing import Any
 
 
+CANONICAL_SCHEMA_PATH = (
+    Path(__file__).resolve().parent.parent / "schemas" / "rkf_v1.schema.json"
+)
 SCHEMA_VERSION = "rkf-v1.1"
-ACCESS_STATES = ("metadata", "abstract", "partial", "fulltext")
-REVIEW_STATES = ("unread", "skimmed", "read", "annotated", "reproduced")
-EVIDENCE_STANCES = ("supports", "opposes", "contextualizes")
-VERIFICATION_STATES = ("unreviewed", "human-verified", "rejected")
-CLAIM_STATUSES = ("proposed", "supported", "disputed", "verified", "retired")
+
+
+@lru_cache(maxsize=1)
+def load_canonical_schema() -> dict[str, Any]:
+    """Load the repository's canonical JSON schema exactly once."""
+
+    return json.loads(CANONICAL_SCHEMA_PATH.read_text(encoding="utf-8"))
+
+
+def canonical_enum(name: str) -> tuple[str, ...]:
+    """Return one ordered enum from the canonical schema."""
+
+    definition = load_canonical_schema().get("$defs", {}).get(name, {})
+    values = definition.get("enum")
+    if not isinstance(values, list) or not all(isinstance(value, str) for value in values):
+        raise ValueError(f"canonical schema definition {name!r} must contain a string enum")
+    if len(values) != len(set(values)):
+        raise ValueError(f"canonical schema definition {name!r} contains duplicate values")
+    return tuple(values)
+
+
+ACCESS_STATES = canonical_enum("accessState")
+REVIEW_STATES = canonical_enum("reviewState")
+EVIDENCE_STANCES = canonical_enum("evidenceStance")
+VERIFICATION_STATES = canonical_enum("verificationState")
+CLAIM_STATUSES = canonical_enum("claimStatus")
 
 
 LEGACY_READING_MAP: dict[str, tuple[str, str]] = {

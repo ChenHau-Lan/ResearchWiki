@@ -17,8 +17,8 @@ Last updated: 2026-07-14
 - The 2026-07-14 branch audit deleted the fully merged remote branches
   `codex/rkf-observatory` and `codex/rkf-auto-evolution-docs-cleanup`. Every
   other retained remote branch had at least one commit not in `origin/main`, or
-  was the active v1 branch. The local GitHub CLI token was invalid, so automatic
-  post-merge branch deletion remains unverified and open in #19.
+  was the active v1 branch. After PR #20 merged, `codex/rkf-v1` was also removed
+  automatically; #19 records the completed Phase 0 evidence.
 - GitHub issues #15–#18 define the current v1 contract. The published
   `v1.0.0` tag remains immutable; the compatible implementation target is
   `v1.1.0`.
@@ -28,6 +28,12 @@ Last updated: 2026-07-14
 - Canonical paper state is split into `access_state` and `review_state`.
   `rkf/schema.py` contains conservative legacy mappings; unexpected values are
   findings, never a normal `other` KPI.
+- Phase 1 schema-first work now loads canonical enum values directly from
+  `schemas/rkf_v1.schema.json` through `rkf/schema.py`. The maintainer gate
+  `python3 tools/validate_rkf_schema.py` checks runtime/schema parity and
+  legacy mapping targets; legacy `reading_state`/`reading_status` inputs remain
+  an explicit compatibility boundary until the migration report and backup
+  window are complete.
 - New v2 project markers contain a random stable `project_id`. Each activation
   and action receives append-only, path-redacted lineage under ignored local
   state. Raw prompt, private path and secret values are excluded. Retrying the
@@ -281,6 +287,7 @@ documented as valid for this repo include:
 python3 -m py_compile tools/rk.py rkf/*.py tools/public_safety_scan.py
 python3 -m py_compile tools/bootstrap_rkf.py tools/check_install.py tools/rkf_auto_connect.py tools/build_public_dashboard.py
 python3 -m unittest discover -s tests
+python3 tools/validate_rkf_schema.py
 python3 tools/rk.py lint --mode all
 python3 tools/rk.py topic lint
 python3 tools/rk.py lint --mode graph-lint
@@ -312,6 +319,10 @@ writer storage unavailable.
 Python compilation, all/topic/graph lint, `public_safety_scan.py`, documentation
 command/link/inventory checks, and `git diff --check`. The GitHub issue record
 was updated without closing #15–#19 or claiming unmerged work as complete.
+
+2026-07-14 Phase 1 schema-gate slice completed with 308 unit tests, canonical
+schema validation, Python compilation, all/topic/graph lint, public-safety
+scan, and `git diff --check`. This slice does not migrate live paper records.
 
 The latest private aggregate preview for the finalized dashboard schema is
 `20260713T093756Z_5eb6a1d2f68b`, exact hash

@@ -11,10 +11,12 @@ from .core import Workspace
 from .lineage import ACTIVATION_ID_RE, PROJECT_ID_RE, input_fingerprint, utc_now
 from .providers import AppraisalProvider
 from .research import (
+    FindingBatchTransaction,
     canonical_state_json_path,
     load_canonical_paper,
     read_canonical_state_json,
     record_evidence,
+    record_findings,
     write_canonical_state_json,
 )
 from .schema import READ_INTENTS, READING_SCOPES
@@ -39,6 +41,43 @@ INFERENCE_GAP_RULES = {
     ("expert-opinion", "outcome"): "OPINION_TO_OUTCOME",
 }
 READ_RUN_ID_RE = re.compile(r"^read_[a-f0-9]{24}$")
+
+
+def capture_finding_batch(
+    ws: Workspace,
+    *,
+    findings: list[dict[str, Any]],
+    origin_project_id: str,
+    activation_id: str,
+    paper_id: str = "",
+    reading_scope: str = "",
+) -> FindingBatchTransaction:
+    """Apply optional batch defaults, then prevalidate and record FindingDrafts."""
+
+    if not isinstance(paper_id, str) or not isinstance(reading_scope, str):
+        raise ValueError("finding batch paper_id and reading_scope defaults must be text")
+    if not isinstance(findings, list) or not findings:
+        raise ValueError("findings must be a non-empty list")
+    normalized: list[dict[str, Any]] = []
+    for item in findings:
+        if not isinstance(item, dict):
+            raise ValueError("findings must contain objects")
+        candidate = dict(item)
+        if paper_id:
+            candidate.setdefault("paper_id", paper_id)
+        if reading_scope:
+            candidate.setdefault("reading_scope", reading_scope)
+        normalized.append(candidate)
+    transaction = record_findings(
+        ws,
+        findings=normalized,
+        origin_project_id=origin_project_id,
+        activation_id=activation_id,
+        keep_transaction_open=True,
+    )
+    if not isinstance(transaction, FindingBatchTransaction):  # pragma: no cover
+        raise RuntimeError("finding batch transaction was not opened")
+    return transaction
 
 
 def lint_inference_gaps(checks: list[dict[str, Any]]) -> list[dict[str, str]]:

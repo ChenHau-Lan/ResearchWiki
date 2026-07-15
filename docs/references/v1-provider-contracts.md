@@ -49,12 +49,16 @@ An obtained result also updates the existing canonical Paper to
   subgroup/secondary-to-general-benefit, and mechanism/opinion-to-outcome
   gaps.
 
-Structured substantive findings require exact locators and become canonical
-Evidence cards tied to the Paper, lineage, and a content fingerprint. Claim and
-Synthesis creation reloads those cards and revalidates schema, ID, Paper,
-locator, stance, verification state, lineage, public-safe status, and content
-fingerprint. Evidence, Claim, and Synthesis fingerprints must also match a
-successful ActionEvent object receipt from the same project and activation.
+Structured observations may first become `rkf-finding-v1` FindingDrafts with a
+`missing`, `coarse`, or `exact` locator state. Missing/coarse drafts stay in the
+Review locator-debt queue and cannot support a Claim. Only an exact,
+receipt-backed FindingDraft can be promoted into the existing canonical
+Evidence format; the direct exact-locator Evidence route remains compatible.
+Claim and Synthesis creation reloads Evidence cards and revalidates schema, ID,
+Paper, locator, stance, verification state, lineage, public-safe status, and
+content fingerprint. FindingDraft, Evidence, Claim, and Synthesis fingerprints
+must also match a successful ActionEvent object receipt from the same project
+and activation.
 Directly editing an Evidence or Claim to raise trust therefore fails closed.
 Canonical state and Review reads reject path escape and symlink boundaries.
 Appraisal flags and failures remain a Read run until a human maps
@@ -69,13 +73,22 @@ retrieval before optional semantic hits. Semantic hits:
 
 - never override exact results;
 - must declare the requested index scope and point to an existing canonical
-  object plus a non-empty locator/section;
+  object;
 - are rejected unless they explicitly declare `index_scope: public-safe` for a
   public-safe query; returned title, summary, and path are rebuilt from
   canonical state rather than provider text;
+- may omit a provider locator when retrieving canonical source context; that
+  card remains context-only and not claim-ready. Supplying a provider locator
+  never upgrades the canonical object's trust label;
 - produce a path-redacted `retrieval_run_id` tied to project, activation, and
   the actual result fingerprint;
 - safely fall back to deterministic Ask when the provider fails or is absent.
+
+`answer_policy: context-ok` is the default and reports `answer_mode` as
+`no-results`, `context-only`, `mixed`, or `evidence`. `evidence-only` retains the
+strict formal-support gate while leaving governed context visible for
+inspection. Stage timing is diagnostic only and is excluded from retrieval and
+lineage identities.
 
 Changed result cards, scores, provider generation, or answer boundary create a
 new retrieval run and append-only lineage successor; an identical result
@@ -85,8 +98,23 @@ affected canonical object IDs. Retrieval-run state and canonical collection
 reads use contained, no-follow paths; malformed, drifted, non-public-safe, or
 receipt-less Evidence/Claim/Synthesis records cannot raise the answer boundary.
 
+The v1.2 audit policy remains compatible: an active writable Ask persists its
+retrieval run and may refresh the derived query projection; an
+`ACTIVE_READ_ONLY` Ask writes neither of those shared artifacts. Both still
+record the required private ActionEvent. Query-index and persistence controls
+are runtime-owned rather than user-supplied workflow parameters.
+
 Provider similarity, route success, or appraisal output does not raise
 Evidence verification or Claim status.
+
+The deterministic query index is separate from the optional semantic provider.
+It is a versioned, fingerprint-backed SQLite projection under private storage.
+Canonical candidates are ranked into an oversampled window and then reloaded
+from source with their fingerprints and receipts. A stale, corrupt, tampered,
+disabled, or symlinked projection falls back to the deterministic source scan;
+deleting it never changes canonical data.
+The reproducible zero-network contract and reference observation are recorded
+in [the Ask scaling baseline](../benchmarks/ask-v1.2.md).
 
 `ExternalCommandRetrievalProvider` is the shell-free structured boundary for
 an optional local semantic index. The external provider owns section-aware

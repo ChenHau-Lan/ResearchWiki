@@ -17,9 +17,10 @@ implementation and historical surfaces that remain outside beginner onboarding.
 - [Branch hygiene audit](operations/v1-branch-audit.md)
 - Canonical schema gate: `python3 tools/validate_rkf_schema.py`
 - Retired writer/doctor compatibility diagnostic (not beginner install):
-  `python3 tools/check_install.py --strict --legacy-compatibility`
+  `python3 tools/check_install.py --profile core --strict --legacy-compatibility`
 - [Cross-project workflow](workflows/rkf-auto-connect.zh-TW.md)
 - [RKF v1 optional provider contracts](references/v1-provider-contracts.md)
+- [Ask scaling baseline](benchmarks/ask-v1.2.md)
 - [Third-party notices](../THIRD_PARTY_NOTICES.md)
 - [Maintainer feature map](FEATURES_AND_COMMANDS.zh-TW.md)
 - [Public synthetic demo](https://chenhau-lan.github.io/ResearchWiki/)

@@ -95,8 +95,16 @@ from .providers import (
     update_paper_access_from_artifact,
     validate_paper_access_target,
 )
-from .reading import ReadScopeBlocked, run_read_pass
-from .research import record_claim, record_evidence, review_home, synthesize as synthesize_v1
+from .query_index import RetrievalQueryIndex
+from .reading import ReadScopeBlocked, capture_finding_batch, run_read_pass
+from .research import (
+    FindingBatchTransaction,
+    promote_finding_to_evidence,
+    record_claim,
+    record_evidence,
+    review_home,
+    synthesize as synthesize_v1,
+)
 
 
 @dataclass(frozen=True)
@@ -1053,6 +1061,7 @@ class RKFActionRuntime:
         full_text_provider: FullTextProvider | None = None,
         retrieval_provider: RetrievalProvider | None = None,
         appraisal_provider: AppraisalProvider | None = None,
+        query_index_enabled: bool = True,
         allow_internal_actions: bool = False,
     ) -> None:
         self.workspace = _workspace(workspace)
@@ -1061,7 +1070,12 @@ class RKFActionRuntime:
         self.full_text_provider = full_text_provider
         self.retrieval_provider = retrieval_provider
         self.appraisal_provider = appraisal_provider
+        self.query_index = RetrievalQueryIndex(
+            self.workspace.root,
+            enabled=query_index_enabled,
+        )
         self.allow_internal_actions = allow_internal_actions
+        self._pending_finding_transaction: FindingBatchTransaction | None = None
 
     def _trace_result(self, request: ActionRequest, result: ActionResult) -> ActionResult:
         if not self.session.activation_id or not self.session.project_id:
@@ -1071,6 +1085,7 @@ class RKFActionRuntime:
             affected = [
                 str(result.payload[key])
                 for key in (
+                    "finding_id",
                     "evidence_id",
                     "claim_id",
                     "synthesis_id",
@@ -1091,7 +1106,7 @@ class RKFActionRuntime:
         )
         content_fingerprint = result.payload.get("content_fingerprint")
         if isinstance(content_fingerprint, str):
-            for key in ("evidence_id", "claim_id", "synthesis_id"):
+            for key in ("finding_id", "evidence_id", "claim_id", "synthesis_id"):
                 object_id = result.payload.get(key)
                 if isinstance(object_id, str) and object_id:
                     object_fingerprints[object_id] = content_fingerprint
@@ -1235,16 +1250,118 @@ class RKFActionRuntime:
             result = self._capture_route(params)
             return ActionResult(request.action, result.status, result.message, result.payload)
         if request.action == "workflow.ask":
+            if {"query_index", "write_query_index"} & set(params):
+                raise SystemExit("workflow.ask query index controls are runtime-owned")
             payload = search_central_rkf(
                 self.workspace,
                 retrieval_provider=self.retrieval_provider,
                 project_id=self.session.project_id,
                 activation_id=self.session.activation_id,
                 persist_retrieval_run=persist_retrieval_run,
+                query_index=self.query_index,
+                write_query_index=persist_retrieval_run,
                 **params,
             )
             return ActionResult(request.action, "ok", f"found {payload['count']} governed RKF result(s)", payload)
         if request.action == "workflow.read":
+            operation = str(params.pop("operation", ""))
+            if operation == "capture-finding":
+                try:
+                    raw_findings = params.pop("findings", None)
+                    if raw_findings is None:
+                        transaction = capture_finding_batch(
+                            self.workspace,
+                            findings=[params],
+                            origin_project_id=self.session.project_id,
+                            activation_id=self.session.activation_id,
+                        )
+                    else:
+                        paper_id = params.pop("paper_id", "")
+                        reading_scope = params.pop("reading_scope", "")
+                        if params:
+                            raise ValueError(
+                                "finding batch accepts only findings plus optional paper_id/reading_scope defaults"
+                            )
+                        transaction = capture_finding_batch(
+                            self.workspace,
+                            findings=raw_findings,
+                            paper_id=paper_id,
+                            reading_scope=reading_scope,
+                            origin_project_id=self.session.project_id,
+                            activation_id=self.session.activation_id,
+                        )
+                except (OSError, RuntimeError, TypeError, ValueError) as error:
+                    return ActionResult(
+                        request.action,
+                        "blocked",
+                        str(error),
+                        {"error_code": "RKF_FINDING_REJECTED", "promotion": "none"},
+                    )
+                self._pending_finding_transaction = transaction
+                records = transaction.records
+                finding_ids = [str(item["finding_id"]) for item in records]
+                object_fingerprints = {
+                    str(item["finding_id"]): str(item["content_fingerprint"])
+                    for item in records
+                }
+                payload: dict[str, Any]
+                if len(records) == 1:
+                    payload = dict(records[0])
+                else:
+                    payload = {"schema": "rkf-finding-batch-v1"}
+                payload.update(
+                    {
+                        "count": len(records),
+                        "finding_ids": finding_ids,
+                        "findings": records,
+                        "affected_object_ids": finding_ids,
+                        "object_fingerprints": object_fingerprints,
+                        "promotion": "none",
+                    }
+                )
+                return ActionResult(
+                    request.action,
+                    "ok",
+                    f"recorded {len(records)} FindingDraft(s)",
+                    payload,
+                )
+            if operation == "promote-evidence":
+                finding_id = params.get("finding_id", "")
+                try:
+                    payload = promote_finding_to_evidence(
+                        self.workspace,
+                        origin_project_id=self.session.project_id,
+                        activation_id=self.session.activation_id,
+                        **params,
+                    )
+                except (TypeError, ValueError) as error:
+                    return ActionResult(
+                        request.action,
+                        "blocked",
+                        str(error),
+                        {
+                            "error_code": "RKF_FINDING_PROMOTION_REJECTED",
+                            "promotion": "none",
+                        },
+                    )
+                return ActionResult(
+                    request.action,
+                    "ok",
+                    "promoted exact-locator FindingDraft to Evidence",
+                    {
+                        **payload,
+                        "source_finding_id": finding_id,
+                        "affected_object_ids": [finding_id, payload["evidence_id"]],
+                        "promotion": "evidence",
+                    },
+                )
+            if operation not in {"", "evidence"}:
+                return ActionResult(
+                    request.action,
+                    "blocked",
+                    "workflow.read operation must be capture-finding, promote-evidence, or evidence",
+                    {"error_code": "RKF_READ_REJECTED", "promotion": "none"},
+                )
             if "intent" in params or "reading_scope" in params:
                 try:
                     payload = run_read_pass(
@@ -1906,11 +2023,23 @@ class RKFActionRuntime:
                 self.session.mode == SessionMode.ACTIVE_READ_ONLY
                 and request.action == "workflow.ask"
             )
-            result = self._execute_v1_workflow(
-                request,
-                persist_retrieval_run=not read_only_ask,
-            )
-            return self._trace_result(request, result)
+            try:
+                result = self._execute_v1_workflow(
+                    request,
+                    persist_retrieval_run=not read_only_ask,
+                )
+                traced = self._trace_result(request, result)
+            except BaseException:
+                transaction = self._pending_finding_transaction
+                self._pending_finding_transaction = None
+                if transaction is not None:
+                    transaction.rollback()
+                raise
+            transaction = self._pending_finding_transaction
+            self._pending_finding_transaction = None
+            if transaction is not None:
+                transaction.commit()
+            return traced
         if request.action in DOCTOR_GUARDED_ACTIONS:
             doctor = run_connect_doctor(self.workspace)
             if doctor.status == "blocked":

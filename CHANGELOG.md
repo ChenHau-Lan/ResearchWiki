@@ -1,5 +1,31 @@
 # Changelog
 
+## Unreleased - v1.2 target
+
+- Treat locators as a promotion gate rather than an entry gate. Read can now
+  capture receipt-backed `rkf-finding-v1` FindingDrafts with missing, coarse,
+  or exact locator state; only exact findings can be promoted atomically into
+  the existing locator-required Evidence format. Review exposes locator debt,
+  while the direct exact-locator Evidence path remains compatible.
+- Make Ask context-first without weakening formal support. The default
+  `context-ok` policy returns governed source context without requiring a
+  locator and distinguishes `context-only`, `mixed`, and `evidence` answers;
+  `evidence-only` retains the strict support boundary. Semantic providers
+  cannot promote canonical trust, and stage timings remain outside result and
+  lineage identity.
+- Add an optional versioned, fingerprint-backed SQLite query projection,
+  top-window canonical validation, delayed graph expansion, and query-local
+  lineage lookup. Warm Ask reuses deterministic candidates without rereading
+  corpus contents; stale, corrupt, tampered, disabled, or unsafe indexes fall
+  back to source scanning. A zero-network scaling baseline verifies result and
+  trust parity with relative I/O targets rather than machine-specific latency
+  thresholds.
+- Separate install diagnostics into `core` and `codex` profiles, add explicit
+  boolean `ready` output, make missing connector/skill state fail the strict
+  Codex profile, and replace placeholder onboarding with a two-paper,
+  zero-network quickstart that executes all five workflows and the locator
+  promotion boundary in CI.
+
 ## v1.1.0 - 2026-07-15
 
 - Apply the explicitly approved 57-paper canonical migration for manifest

@@ -14,6 +14,7 @@ from rkf.schema import (
     CLAIM_STATUSES,
     EVIDENCE_STANCES,
     LEGACY_READING_MAP,
+    LOCATOR_STATES,
     REVIEW_STATES,
     VERIFICATION_STATES,
 )
@@ -35,6 +36,7 @@ class RKFSchemaTests(unittest.TestCase):
             "evidenceStance": EVIDENCE_STANCES,
             "verificationState": VERIFICATION_STATES,
             "claimStatus": CLAIM_STATUSES,
+            "locatorState": LOCATOR_STATES,
             "appraisalStatus": APPRAISAL_STATUSES,
         }
         for name, runtime_values in expected.items():
@@ -79,6 +81,53 @@ class RKFSchemaTests(unittest.TestCase):
         self.assertIn(
             "fulltext provider: unexpected property unexpected_runtime_field",
             validate_instance(drifted, definition, schema, label="fulltext provider"),
+        )
+
+    def test_finding_locator_state_controls_locator_presence(self) -> None:
+        schema = json.loads(
+            (REPO / "schemas" / "rkf_v1.schema.json").read_text(encoding="utf-8")
+        )
+        definition = schema["$defs"]["finding"]
+        base = {
+            "schema": "rkf-finding-v1",
+            "finding_id": "fd_1234567890abcdef1234",
+            "paper_id": "papers/schema-fixture",
+            "summary": "Synthetic schema FindingDraft.",
+            "reading_scope": "abstract",
+            "origin_project_id": "prj_1234567890abcdef12345678",
+            "activation_id": "act_1234567890abcdef12345678",
+            "content_fingerprint": "a" * 64,
+            "public_safe": True,
+        }
+        missing = {**base, "locator_state": "missing"}
+        exact = {
+            **base,
+            "locator_state": "exact",
+            "locator": {"kind": "page", "value": "8"},
+        }
+
+        self.assertEqual(validate_instance(missing, definition, schema, label="finding"), [])
+        self.assertEqual(validate_instance(exact, definition, schema, label="finding"), [])
+        self.assertIn(
+            "finding: missing required property locator",
+            validate_instance(
+                {**base, "locator_state": "exact"},
+                definition,
+                schema,
+                label="finding",
+            ),
+        )
+        self.assertIn(
+            "finding: value matches a forbidden schema",
+            validate_instance(
+                {
+                    **missing,
+                    "locator": {"kind": "section", "value": "Results"},
+                },
+                definition,
+                schema,
+                label="finding",
+            ),
         )
 
     def test_evidence_artifact_relations_are_backward_compatible(self) -> None:

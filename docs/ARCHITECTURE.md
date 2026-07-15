@@ -9,6 +9,8 @@ a generic vector-chat application.
 ## Canonical objects
 
 - **Paper**: bibliographic identity, `access_state`, `review_state`.
+- **FindingDraft**: Paper-grounded observation with a missing, coarse, or exact
+  locator; it is not Evidence and cannot support a Claim.
 - **Evidence**: paper ID, exact locator, summary, stance and verification.
 - **Claim**: statement plus supporting/opposing/context evidence IDs and status.
 - **Synthesis**: research question, claims, agreements, contradictions, gaps and
@@ -37,10 +39,10 @@ The control actions are `rkf.activate`, `rkf.status`, `connect.validate` and
 ```text
 Connect project → explicit activation → project/activation lineage
       ↓
-Add → Paper → Read → locator-backed Evidence
-                     ↓
-              human verification
-                     ↓
+Add → Paper → Ask source context → Read FindingDraft
+                                      ↓ exact locator
+                              locator-backed Evidence
+                                      ↓ human verification
 Compare & Synthesize → Claim → Synthesis
       ↓
 Review/Home: gaps, next actions, and origin timeline
@@ -49,8 +51,10 @@ Review/Home: gaps, next actions, and origin timeline
 ## Retrieval
 
 Exact identifier/DOI/page ID → exact title/alias → deterministic keyword →
-optional semantic provider → optional graph expansion → evidence-aware ranking.
-Semantic similarity never promotes evidence or claim status.
+optional semantic provider → candidate-window canonical validation → graph
+expansion → evidence-aware ranking. The deterministic query projection is
+private and rebuildable; corruption or staleness falls back to the source scan.
+Semantic similarity and index contents never promote evidence or claim status.
 
 ## Provider boundary
 

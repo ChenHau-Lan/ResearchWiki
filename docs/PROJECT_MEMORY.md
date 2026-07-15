@@ -2,6 +2,45 @@
 
 Last updated: 2026-07-15
 
+## Unreleased v1.2 Locator Promotion Gate
+
+- GitHub epic #23 is split into FindingDraft #24, context-first Ask #25,
+  truthful onboarding #26, and Ask scaling #27. The implementation target is
+  still unreleased; `v1.1.0` remains the latest published release.
+- The canonical trust path is now Paper → source context → FindingDraft →
+  exact-locator Evidence → human-reviewed Claim → Synthesis. FindingDrafts may
+  have `missing`, `coarse`, or `exact` locator state, but only an exact,
+  fingerprint-valid, receipt-backed finding can be promoted. Batch capture and
+  its ActionEvent receipt form one rollback boundary so a trace failure leaves
+  no orphan drafts.
+- `workflow.ask` defaults to `answer_policy: context-ok` and exposes
+  `answer_mode: no-results | context-only | mixed | evidence` while retaining
+  the compatible `answer_boundary`. `evidence-only` keeps the formal-support
+  gate. A provider locator never raises canonical trust, and timing fields are
+  diagnostic metadata excluded from retrieval/run identity.
+- Deterministic Ask may use `.rkf_private/query-index-v1.sqlite3` as a
+  disposable, fingerprint-backed SQLite projection. Warm hits reuse candidate
+  data without rereading corpus contents, then fully validate only an
+  oversampled canonical window plus semantic targets. Unsafe, stale, corrupt,
+  or tampered index state falls back to a full deterministic scan; deletion
+  cannot change canonical data. The reproducible baseline is
+  `python3 tools/benchmark_rkf_ask.py --check` and uses ranking/trust parity,
+  corpus-read reduction, and validation-window limits rather than a fixed
+  millisecond requirement. Persistence policy is unchanged: active writable
+  Ask may persist a retrieval run and refresh the projection;
+  `ACTIVE_READ_ONLY` writes neither, while both retain private ActionEvent
+  lineage. Query-index controls are runtime-owned.
+- Installation now has explicit profiles. Local core uses
+  `python3 tools/check_install.py --profile core --strict --json`; Codex
+  integration uses `--profile codex` and treats a missing or stale
+  connector/skill as a failure. `python3 tools/demo_quickstart.py --check`
+  runs all five workflows with two synthetic papers in an isolated,
+  zero-network workspace.
+- The integrated v1.2 working tree passed 420 unit tests, Python compilation,
+  canonical schema validation, topic/all lint, public-safety scan, both strict
+  install profiles, connector resolution, the zero-network quickstart, the
+  relative-I/O Ask scaling baseline, and `git diff --check` on 2026-07-15.
+
 ## RKF v1.1 Scope Simplification
 
 - Phase 0 uses `docs/operations/v1-scope-inventory.yaml` as the canonical,
@@ -12,8 +51,10 @@ Last updated: 2026-07-15
   task-scoped activation → Add → Ask → Read → Compare & Synthesize → Review.
   The actual bootstrap CLI is flag-based: preview with
   `python3 tools/bootstrap_rkf.py`, apply with `--apply`, then run
-  `python3 tools/check_install.py --strict`. Positional `preview`/`apply`
-  examples are invalid and must not return to the docs.
+  `python3 tools/check_install.py --profile core --strict --json`. Codex
+  integration separately installs the connector and validates with
+  `--profile codex`. Positional `preview`/`apply` examples are invalid and
+  must not return to the docs.
 - The branch audit in `docs/operations/v1-branch-audit.md` records live compare
   evidence. On 2026-07-15 nine patch-equivalent historical branches with zero
   net changed files were removed. Only `main` and
@@ -62,11 +103,12 @@ Last updated: 2026-07-15
 - The public site is a synthetic/public-safe guided demo. It must not expose
   writer, storage, doctor, project activity, raw candidate/run, graph vanity,
   raw prompt, paper identity, or private-path data.
-- Default `tools/check_install.py --strict` is v1-native and does not run the
-  retired designated-writer or multi-computer doctor product. Maintainers may
-  add `--legacy-compatibility` while those internal shims remain. On 2026-07-15
-  the installed global `rkf-auto-connect` was backed up and synchronized to
-  this checkout; the strict diagnostic returned `ready` with zero failures.
+- Default profile checks are v1-native and do not run the retired
+  designated-writer or multi-computer doctor product. Maintainers may add
+  `--legacy-compatibility` while those internal shims remain. On 2026-07-15 the
+  installed global `rkf-auto-connect` was backed up and synchronized to this
+  checkout; the then-current strict diagnostic returned `ready` with zero
+  failures.
 - The v1.1 release candidate passed 372 tests on Python 3.9 and Python 3.12,
   canonical schema validation, topic/all/graph lint, public-safety scan,
   exact-snapshot site validation, install parity, and `git diff --check`.
@@ -117,7 +159,8 @@ Last updated: 2026-07-15
   be filtered by project, activation, action, status, and target object.
 - `workflow.read` accepts only an existing, schema-valid canonical Paper and
   rejects a requested reading scope above its `access_state`. It supports
-  locator-backed Evidence and scoped `digest | appraise | both` Read runs.
+  FindingDraft capture/promotion, direct locator-backed Evidence, and scoped
+  `digest | appraise | both` Read runs.
   Digest requires full text; abstract-only appraisal stays low-trust; citation
   existence is distinct from citation support; failed external checks remain
   visible; deterministic inference-gap rules are authoritative gates.
@@ -127,8 +170,10 @@ Last updated: 2026-07-15
   remain compatibility mirrors. Private handles remain under `.rkf_private`,
   and root/parent/target symlinks are rejected before a private handle write.
   Retrieval stays exact-first. Public-safe semantic hits require an explicit
-  public-safe scope, an existing canonical object, and a locator; display data
-  is rebuilt from canonical state. Deterministic Ask also excludes malformed,
+  public-safe scope and an existing canonical object; a missing locator keeps
+  the result context-only, while a supplied provider locator still cannot
+  upgrade trust. Display data is rebuilt from canonical state. Deterministic
+  Ask also excludes malformed,
   drifted, non-public-safe, or receipt-less Evidence/Claim/Synthesis objects.
   Persisted run identity includes result content, so changed results create
   lineage successors while identical results deduplicate. Read-only Ask skips
@@ -202,8 +247,9 @@ older releases. They do not expand the current app-facing v1 surface.
   symlink config targets, and never overwrites existing configuration.
 - Cross-project setup is a bundle: the machine-local connector and the
   version-matched vendored `skills/rkf-auto-connect` skill. Bootstrap creates
-  missing files only; `tools/check_install.py --strict` fails if a connector is
-  present but the installed global skill differs from this checkout. Bundle
+  missing files only; `tools/check_install.py --profile codex --strict` fails
+  if the connector or installed global skill is missing or differs from this
+  checkout. Bundle
   verification covers both `SKILL.md` and `agents/openai.yaml`; bootstrap
   preflights connector/config parents, symlinks, storage targets, and all
   project-bridge destinations before any write, so malformed setup fails

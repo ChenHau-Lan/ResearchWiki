@@ -562,14 +562,16 @@ def update_paper_access_from_artifact(
 @dataclass(frozen=True)
 class RetrievalHit:
     object_id: str
-    locator: str
-    score: float
-    match_reason: str
+    locator: str = ""
+    score: float = 0.0
+    match_reason: str = ""
     metadata: dict[str, Any] = field(default_factory=dict)
 
     def __post_init__(self) -> None:
-        if not self.object_id.strip() or not self.locator.strip() or not self.match_reason.strip():
-            raise ValueError("retrieval hit requires object_id, locator, and match_reason")
+        if not self.object_id.strip() or not self.match_reason.strip():
+            raise ValueError("retrieval hit requires object_id and match_reason")
+        if not isinstance(self.locator, str):
+            raise ValueError("retrieval hit locator must be text")
         if not math.isfinite(float(self.score)) or float(self.score) < 0:
             raise ValueError("retrieval hit score must be finite and non-negative")
         if not isinstance(self.metadata, dict):

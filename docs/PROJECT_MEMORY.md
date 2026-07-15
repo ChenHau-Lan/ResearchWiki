@@ -40,6 +40,14 @@ Last updated: 2026-07-15
   canonical schema validation, topic/all lint, public-safety scan, both strict
   install profiles, connector resolution, the zero-network quickstart, the
   relative-I/O Ask scaling baseline, and `git diff --check` on 2026-07-15.
+- The 2026-07-15 pre-merge issue-audit snapshot found seven open issues: #15,
+  #18, and #23–#27. #15 remained open for its separately approved rollback-
+  window, exact cleanup-manifest, and opt-in automation gates; #18 remained the
+  unimplemented vNext acquisition backlog. At that audit cutoff, #23–#27 were
+  implemented and verified on pushed commit `1a77fae` with successful GitHub
+  Actions run #39, but no PR existed and the commit was not yet in `main`; no
+  issue was closed during that audit. The agreed closeout order after merge was
+  #24–#27 first, followed by parent epic #23, with merge and CI evidence.
 
 ## RKF v1.1 Scope Simplification
 

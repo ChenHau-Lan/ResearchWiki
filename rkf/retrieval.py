@@ -8,10 +8,12 @@ import os
 import re
 import stat
 import tempfile
+import time
 import unicodedata
+from contextlib import nullcontext
 from dataclasses import asdict, dataclass, replace
-from pathlib import Path
-from typing import Any
+from pathlib import Path, PurePosixPath
+from typing import Any, Callable
 
 from .core import (
     PAPER_RELATION_TYPES,
@@ -25,6 +27,7 @@ from .core import (
 from .events import valid_event_envelope
 from .lineage import ACTIVATION_ID_RE, PROJECT_ID_RE, input_fingerprint, utc_now
 from .providers import RetrievalHit, RetrievalProvider
+from .query_index import RetrievalQueryIndex, source_manifest_fingerprint
 
 
 MATCH_PRIORITY = {
@@ -37,6 +40,19 @@ MATCH_PRIORITY = {
     "keyword": 6,
     "semantic": 7,
     "graph-context": 8,
+}
+ANSWER_POLICIES = {"context-ok", "evidence-only"}
+EVIDENCE_ANSWER_USES = {
+    "locator-backed",
+    "claim-with-evidence",
+    "cross-paper-synthesis",
+}
+NON_ANSWER_READINESS = {"not-ready", "unknown", "rejected", "retired"}
+DETERMINISTIC_SNAPSHOT_SCHEMA = "rkf-deterministic-query-snapshot-v1"
+CANONICAL_BOUNDARIES = {
+    "evidence": "evidence-pointer",
+    "claim": "canonical-claim",
+    "synthesis": "canonical-synthesis",
 }
 
 
@@ -55,6 +71,70 @@ class SearchResultCard:
     claim_readiness: str
     missing: list[str]
     summary: str
+
+
+@dataclass(frozen=True)
+class _SnapshotSource:
+    logical_path: str
+    path: Path
+    collection: str
+    object_type: str = ""
+
+
+@dataclass(frozen=True)
+class _CanonicalCandidate:
+    object_type: str
+    object_id: str
+    file_id: str
+    logical_path: str
+    match_reason: str
+    score: int
+
+
+def _elapsed_ms(started_ns: int) -> float:
+    return round((time.perf_counter_ns() - started_ns) / 1_000_000, 3)
+
+
+def _supports_evidence_answer(card: SearchResultCard) -> bool:
+    return (
+        card.evidence_use in EVIDENCE_ANSWER_USES
+        and "locator" not in card.missing
+        and card.claim_readiness not in NON_ANSWER_READINESS
+    )
+
+
+def _answer_projection(
+    cards: list[SearchResultCard],
+    *,
+    answer_policy: str,
+) -> tuple[str, list[SearchResultCard], str]:
+    evidence_cards = [card for card in cards if _supports_evidence_answer(card)]
+    context_cards = [card for card in cards if not _supports_evidence_answer(card)]
+    context_next_action = (
+        "locate-source"
+        if any("locator" in card.missing for card in context_cards)
+        else "review-context"
+    )
+    if answer_policy == "evidence-only":
+        if evidence_cards:
+            return "evidence", evidence_cards, "review-evidence"
+        return (
+            "no-results",
+            [],
+            context_next_action if context_cards else "refine-query-or-add-source",
+        )
+    if evidence_cards and context_cards:
+        next_action = (
+            "review-evidence-and-locate-source"
+            if context_next_action == "locate-source"
+            else "review-evidence-and-context"
+        )
+        return "mixed", cards, next_action
+    if evidence_cards:
+        return "evidence", cards, "review-evidence"
+    if context_cards:
+        return "context-only", cards, context_next_action
+    return "no-results", [], "refine-query-or-add-source"
 
 
 def _normalize(value: str) -> str:
@@ -206,49 +286,399 @@ def _read_regular_json(path: Path, *, label: str) -> dict[str, Any]:
     return payload
 
 
-def _safe_knowledge_records(ws: Workspace) -> list[tuple[Path, dict[str, Any], str]]:
-    records: list[tuple[Path, dict[str, Any], str]] = []
-    for path in _safe_recursive_files(
-        ws,
-        ws.paths.knowledge,
-        suffix=".md",
-        label="knowledge",
+def _snapshot_logical_path(ws: Workspace, path: Path) -> str:
+    try:
+        relative = path.relative_to(ws.paths.wiki_root)
+    except ValueError as error:
+        raise ValueError("query index source escaped the configured wiki root") from error
+    logical_path = relative.as_posix()
+    pure = PurePosixPath(logical_path)
+    if (
+        not logical_path
+        or pure.is_absolute()
+        or pure.as_posix() != logical_path
+        or any(part in {"", ".", ".."} for part in pure.parts)
     ):
-        meta, body = parse_frontmatter(_read_regular_text(path, label="knowledge"))
-        if meta:
-            records.append((path, meta, body))
-    return records
+        raise ValueError("query index source path is unsafe")
+    return logical_path
 
 
-def _safe_json_records(
+def _deterministic_source_manifest(ws: Workspace) -> list[_SnapshotSource]:
+    """List only no-follow regular files that can affect deterministic Ask."""
+
+    sources: list[_SnapshotSource] = []
+
+    def add(
+        paths: list[Path],
+        *,
+        collection: str,
+        object_type: str = "",
+    ) -> None:
+        for path in paths:
+            sources.append(
+                _SnapshotSource(
+                    logical_path=_snapshot_logical_path(ws, path),
+                    path=path,
+                    collection=collection,
+                    object_type=object_type,
+                )
+            )
+
+    add(
+        _safe_recursive_files(
+            ws,
+            ws.paths.knowledge,
+            suffix=".md",
+            label="knowledge",
+        ),
+        collection="knowledge",
+    )
+    add(
+        _safe_flat_files(ws, ws.paths.sources, suffix=".json", label="source"),
+        collection="source",
+    )
+    add(
+        [
+            path
+            for path in _safe_recursive_files(
+                ws,
+                ws.paths.events,
+                suffix=".json",
+                label="events",
+            )
+            if path.name.startswith("evt_")
+        ],
+        collection="event",
+    )
+    add(
+        _safe_flat_files(
+            ws,
+            ws.paths.evidence_index / "cards",
+            suffix=".json",
+            label="evidence",
+        ),
+        collection="canonical",
+        object_type="evidence",
+    )
+    add(
+        _safe_flat_files(
+            ws,
+            ws.paths.state / "claims",
+            suffix=".json",
+            label="claim",
+        ),
+        collection="canonical",
+        object_type="claim",
+    )
+    add(
+        _safe_flat_files(
+            ws,
+            ws.paths.state / "syntheses",
+            suffix=".json",
+            label="synthesis",
+        ),
+        collection="canonical",
+        object_type="synthesis",
+    )
+    sources.sort(key=lambda item: item.logical_path)
+    logical_paths = [item.logical_path for item in sources]
+    if len(logical_paths) != len(set(logical_paths)):
+        raise ValueError("query index source manifest contains duplicate paths")
+    return sources
+
+
+def _build_deterministic_snapshot(
     ws: Workspace,
-    root: Path,
-    *,
-    label: str,
-) -> list[tuple[Path, dict[str, Any]]]:
-    return [
-        (path, _read_regular_json(path, label=label))
-        for path in _safe_flat_files(ws, root, suffix=".json", label=label)
-    ]
+    manifest: list[_SnapshotSource],
+) -> tuple[dict[str, Any], int]:
+    """Read one deterministic snapshot; canonical records remain untrusted raw data."""
 
-
-def _safe_operational_events(ws: Workspace) -> list[dict[str, Any]]:
-    events: list[dict[str, Any]] = []
-    for path in _safe_recursive_files(
-        ws,
-        ws.paths.events,
-        suffix=".json",
-        label="events",
-    ):
-        if not path.name.startswith("evt_"):
+    knowledge_records: list[dict[str, Any]] = []
+    source_records: list[dict[str, Any]] = []
+    operational_events: list[dict[str, Any]] = []
+    canonical_records: list[dict[str, Any]] = []
+    files_read = 0
+    for source in manifest:
+        files_read += 1
+        if source.collection == "knowledge":
+            meta, body = parse_frontmatter(
+                _read_regular_text(source.path, label="knowledge")
+            )
+            if meta:
+                knowledge_records.append(
+                    {"path": source.logical_path, "meta": meta, "body": body}
+                )
+            continue
+        if source.collection == "source":
+            source_records.append(
+                {
+                    "path": source.logical_path,
+                    "record": _read_regular_json(source.path, label="source"),
+                }
+            )
             continue
         try:
-            event = _read_regular_json(path, label="events")
-        except (OSError, ValueError, TypeError):
+            record = _read_regular_json(source.path, label=source.object_type or "events")
+        except (OSError, UnicodeDecodeError, ValueError, TypeError):
             continue
-        if valid_event_envelope(event):
-            events.append(event)
-    return events
+        if source.collection == "event":
+            if valid_event_envelope(record):
+                operational_events.append(
+                    {"path": source.logical_path, "record": record}
+                )
+            continue
+        canonical_records.append(
+            {
+                "path": source.logical_path,
+                "object_type": source.object_type,
+                "record": record,
+            }
+        )
+    payload = {
+        "schema": DETERMINISTIC_SNAPSHOT_SCHEMA,
+        "source_paths": [item.logical_path for item in manifest],
+        "knowledge_records": knowledge_records,
+        "source_records": source_records,
+        "operational_events": operational_events,
+        "canonical_records": canonical_records,
+    }
+    # Reject non-JSON frontmatter values before they can reach the private index.
+    try:
+        json.dumps(payload, ensure_ascii=True, separators=(",", ":"), sort_keys=True)
+    except (TypeError, ValueError) as error:
+        raise ValueError("query index snapshot must be JSON serializable") from error
+    return payload, files_read
+
+
+def _logical_path_is_under(logical_path: str, prefix: str, *, suffix: str) -> bool:
+    pure = PurePosixPath(logical_path)
+    return (
+        bool(logical_path)
+        and not pure.is_absolute()
+        and pure.as_posix() == logical_path
+        and all(part not in {"", ".", ".."} for part in pure.parts)
+        and logical_path.startswith(prefix.rstrip("/") + "/")
+        and logical_path.endswith(suffix)
+    )
+
+
+def _valid_deterministic_snapshot(
+    ws: Workspace,
+    payload: dict[str, Any],
+    *,
+    source_paths: list[str],
+) -> bool:
+    expected_keys = {
+        "schema",
+        "source_paths",
+        "knowledge_records",
+        "source_records",
+        "operational_events",
+        "canonical_records",
+    }
+    if set(payload) != expected_keys or payload.get("schema") != DETERMINISTIC_SNAPSHOT_SCHEMA:
+        return False
+    if payload.get("source_paths") != source_paths:
+        return False
+    collection_keys = (
+        "knowledge_records",
+        "source_records",
+        "operational_events",
+        "canonical_records",
+    )
+    if any(not isinstance(payload.get(key), list) for key in collection_keys):
+        return False
+    try:
+        prefixes = {
+            "knowledge": _snapshot_logical_path(ws, ws.paths.knowledge / "entry.md").rsplit("/", 1)[0],
+            "source": _snapshot_logical_path(ws, ws.paths.sources / "entry.json").rsplit("/", 1)[0],
+            "event": _snapshot_logical_path(ws, ws.paths.events / "entry.json").rsplit("/", 1)[0],
+            "evidence": _snapshot_logical_path(
+                ws, ws.paths.evidence_index / "cards" / "entry.json"
+            ).rsplit("/", 1)[0],
+            "claim": _snapshot_logical_path(
+                ws, ws.paths.state / "claims" / "entry.json"
+            ).rsplit("/", 1)[0],
+            "synthesis": _snapshot_logical_path(
+                ws, ws.paths.state / "syntheses" / "entry.json"
+            ).rsplit("/", 1)[0],
+        }
+    except ValueError:
+        return False
+    source_path_set = set(source_paths)
+    seen: set[str] = set()
+    for key, prefix, suffix, record_key in (
+        ("knowledge_records", prefixes["knowledge"], ".md", "meta"),
+        ("source_records", prefixes["source"], ".json", "record"),
+        ("operational_events", prefixes["event"], ".json", "record"),
+    ):
+        for item in payload[key]:
+            if not isinstance(item, dict):
+                return False
+            logical_path = item.get("path")
+            if (
+                not isinstance(logical_path, str)
+                or logical_path not in source_path_set
+                or logical_path in seen
+                or not _logical_path_is_under(logical_path, prefix, suffix=suffix)
+                or not isinstance(item.get(record_key), dict)
+            ):
+                return False
+            if key == "knowledge_records" and not isinstance(item.get("body"), str):
+                return False
+            seen.add(logical_path)
+    for item in payload["canonical_records"]:
+        if not isinstance(item, dict):
+            return False
+        object_type = item.get("object_type")
+        logical_path = item.get("path")
+        if (
+            object_type not in CANONICAL_BOUNDARIES
+            or not isinstance(logical_path, str)
+            or logical_path not in source_path_set
+            or logical_path in seen
+            or not _logical_path_is_under(
+                logical_path,
+                prefixes[str(object_type)],
+                suffix=".json",
+            )
+            or not isinstance(item.get("record"), dict)
+        ):
+            return False
+        seen.add(logical_path)
+    return True
+
+
+def _snapshot_collections(
+    ws: Workspace,
+    payload: dict[str, Any],
+) -> tuple[
+    list[tuple[Path, dict[str, Any], str]],
+    list[tuple[Path, dict[str, Any]]],
+    list[tuple[Path, dict[str, Any]]],
+    list[dict[str, Any]],
+]:
+    knowledge_records = [
+        (
+            ws.paths.wiki_root / str(item["path"]),
+            item["meta"],
+            str(item["body"]),
+        )
+        for item in payload["knowledge_records"]
+    ]
+    source_records = [
+        (ws.paths.wiki_root / str(item["path"]), item["record"])
+        for item in payload["source_records"]
+    ]
+    operational_events = [
+        (ws.paths.wiki_root / str(item["path"]), item["record"])
+        for item in payload["operational_events"]
+    ]
+    canonical_records = list(payload["canonical_records"])
+    return knowledge_records, source_records, operational_events, canonical_records
+
+
+def _canonical_search_fields(
+    object_type: str,
+    file_id: str,
+    record: dict[str, Any],
+) -> tuple[str, str, str, str, list[str]]:
+    object_id = str(
+        record.get(
+            f"{object_type}_id",
+            record.get("evidence_id", file_id),
+        )
+    )
+    if object_type == "evidence":
+        title = str(record.get("summary", object_id))
+        locator = record.get("locator", {})
+        locator_text = (
+            f"{locator.get('kind', '')}:{locator.get('value', '')}"
+            if isinstance(locator, dict)
+            else ""
+        )
+        source_id = str(record.get("paper_id", ""))
+        text = f"{source_id} {title} {locator_text}"
+    elif object_type == "claim":
+        title = str(record.get("statement", object_id))
+        evidence_ids = [
+            *_string_list(record.get("supporting_evidence_ids", [])),
+            *_string_list(record.get("opposing_evidence_ids", [])),
+            *_string_list(record.get("context_evidence_ids", [])),
+        ]
+        source_id = ""
+        text = f"{title} {' '.join(evidence_ids)}"
+    else:
+        title = str(record.get("research_question", object_id))
+        source_id = ""
+        text = f"{title} {record.get('provisional_conclusion', '')}"
+    return object_id, title, source_id, text, [object_id]
+
+
+def _canonical_card_from_record(
+    *,
+    object_type: str,
+    logical_path: str,
+    file_id: str,
+    record: dict[str, Any],
+) -> SearchResultCard:
+    object_id, title, source_id, _, _ = _canonical_search_fields(
+        object_type,
+        file_id,
+        record,
+    )
+    if object_type == "evidence":
+        locator = record.get("locator", {})
+        locator_text = (
+            f"{locator.get('kind', '')}:{locator.get('value', '')}"
+            if isinstance(locator, dict)
+            else ""
+        )
+        evidence_use = "locator-backed"
+        missing = [] if locator_text else ["locator"]
+        claim_readiness = str(record.get("verification_state", "unreviewed"))
+    elif object_type == "claim":
+        evidence_ids = [
+            *_string_list(record.get("supporting_evidence_ids", [])),
+            *_string_list(record.get("opposing_evidence_ids", [])),
+            *_string_list(record.get("context_evidence_ids", [])),
+        ]
+        evidence_use = "claim-with-evidence" if evidence_ids else "proposal-only"
+        missing = [] if evidence_ids else ["locator"]
+        claim_readiness = str(record.get("status", "proposed"))
+    else:
+        evidence_matrix = record.get("evidence_matrix", [])
+        has_locator_backed_evidence = isinstance(evidence_matrix, list) and bool(
+            evidence_matrix
+        )
+        evidence_use = (
+            "cross-paper-synthesis"
+            if has_locator_backed_evidence
+            else "proposal-only"
+        )
+        missing = [] if has_locator_backed_evidence else ["locator"]
+        if record.get("evidence_gaps"):
+            missing.append("evidence-gap")
+        claim_readiness = "provisional"
+    return SearchResultCard(
+        id=object_id,
+        path=logical_path,
+        type=object_type,
+        title=title,
+        source_id=source_id,
+        match_reason="semantic",
+        score=0,
+        reading_maturity="canonical",
+        evidence_boundary=CANONICAL_BOUNDARIES[object_type],
+        evidence_use=evidence_use,
+        claim_readiness=claim_readiness,
+        missing=missing,
+        summary=title[:180],
+    )
+
+
+def _card_sort_key(card: SearchResultCard) -> tuple[int, int, str]:
+    return MATCH_PRIORITY[card.match_reason], -card.score, card.path
 
 
 def _build_safe_research_graph(
@@ -469,7 +899,11 @@ def search_central_rkf(
     activation_id: str = "",
     index_scope: str = "public-safe",
     persist_retrieval_run: bool = True,
+    answer_policy: str = "context-ok",
+    query_index: RetrievalQueryIndex | None = None,
+    write_query_index: bool = True,
 ) -> dict[str, Any]:
+    total_started_ns = time.perf_counter_ns()
     query = query.strip()
     if not query:
         raise SystemExit("query.search requires a non-empty query")
@@ -483,12 +917,108 @@ def search_central_rkf(
         raise SystemExit("index_scope must be public-safe or private-fulltext")
     if not isinstance(persist_retrieval_run, bool):
         raise SystemExit("persist_retrieval_run must be a boolean")
+    if not isinstance(write_query_index, bool):
+        raise SystemExit("write_query_index must be a boolean")
+    if query_index is not None and not isinstance(query_index, RetrievalQueryIndex):
+        raise SystemExit("query_index must be a RetrievalQueryIndex or None")
+    if answer_policy not in ANSWER_POLICIES:
+        raise SystemExit("answer_policy must be context-ok or evidence-only")
 
-    knowledge_records = _safe_knowledge_records(ws)
-    source_records = _safe_json_records(ws, ws.paths.sources, label="source")
+    index_started_ns = time.perf_counter_ns()
+    manifest = _deterministic_source_manifest(ws)
+    manifest_paths = [item.logical_path for item in manifest]
+    source_file_count = len(manifest)
+    source_files_read = 0
+    source_fingerprint = ""
+    snapshot: dict[str, Any] | None = None
+    index_state = "disabled"
+    index_reason = "not-configured"
+    index_generation = "none"
+    scan_ms = 0.0
+    load_state = "disabled"
+    try:
+        source_fingerprint = source_manifest_fingerprint(
+            (item.logical_path, item.path) for item in manifest
+        )
+    except (OSError, ValueError):
+        index_state = "fallback"
+        index_reason = "source-manifest-unavailable"
+    if query_index is not None and source_fingerprint:
+        loaded = query_index.load(source_fingerprint=source_fingerprint)
+        load_state = loaded.state
+        index_state = loaded.state
+        index_reason = loaded.reason
+        index_generation = loaded.generation
+        if loaded.state == "hit" and loaded.payload is not None:
+            if _valid_deterministic_snapshot(
+                ws,
+                loaded.payload,
+                source_paths=manifest_paths,
+            ):
+                snapshot = loaded.payload
+            else:
+                index_state = "fallback"
+                index_reason = "invalid-deterministic-snapshot"
+    if snapshot is None:
+        scan_started_ns = time.perf_counter_ns()
+        snapshot, source_files_read = _build_deterministic_snapshot(ws, manifest)
+        scan_ms = _elapsed_ms(scan_started_ns)
+        can_store = (
+            query_index is not None
+            and bool(source_fingerprint)
+            and write_query_index
+            and load_state in {"miss", "stale", "hit"}
+            and _valid_deterministic_snapshot(
+                ws,
+                snapshot,
+                source_paths=manifest_paths,
+            )
+        )
+        if can_store:
+            previous_reason = index_reason
+            stored = query_index.store(
+                source_fingerprint=source_fingerprint,
+                payload=snapshot,
+            )
+            index_state = stored.state
+            index_generation = stored.generation
+            index_reason = (
+                previous_reason if stored.state == "rebuilt" else stored.reason
+            )
+    (
+        knowledge_records,
+        source_records,
+        operational_events,
+        canonical_raw_records,
+    ) = _snapshot_collections(ws, snapshot)
+    index_path_total_ms = _elapsed_ms(index_started_ns)
+    timing = {
+        # Keep index and corpus scan stages non-overlapping so their values can
+        # be compared and summed without double-counting snapshot construction.
+        "index_ms": round(max(0.0, index_path_total_ms - scan_ms), 3),
+        "scan_ms": scan_ms,
+        "validation_ms": 0.0,
+        "graph_ms": 0.0,
+        "provider_ms": 0.0,
+        "persist_ms": 0.0,
+        "total_ms": 0.0,
+    }
+    deterministic_index = {
+        "state": index_state,
+        "reason": index_reason,
+        "generation": index_generation,
+        "source_file_count": source_file_count,
+        "source_files_read": source_files_read,
+        "candidate_window": 0,
+        "canonical_validated": 0,
+        "validation_truncated": False,
+        "remaining_candidate_count": 0,
+    }
 
     for path, meta, body in knowledge_records:
         page_type = str(meta.get("type", "knowledge"))
+        if meta.get("public_safe") is False:
+            continue
         if allowed_types and page_type not in allowed_types:
             continue
         reading_maturity = str(
@@ -541,6 +1071,8 @@ def search_central_rkf(
         cards.append(replace(canonical, match_reason=reason, score=score))
 
     for path, record in source_records:
+        if record.get("public_safe") is False:
+            continue
         if allowed_types and "source" not in allowed_types:
             continue
         source_id = str(record.get("source_id", path.stem))
@@ -591,7 +1123,7 @@ def search_central_rkf(
         cards.append(replace(canonical, match_reason=reason, score=score))
 
     if not allowed_types or "event" in allowed_types:
-        for event in _safe_operational_events(ws):
+        for event_path, event in operational_events:
             if allowed_reading and "captured" not in allowed_reading:
                 continue
             if allowed_boundaries and "event-only" not in allowed_boundaries:
@@ -616,11 +1148,6 @@ def search_central_rkf(
             if matched is None:
                 continue
             reason, score = matched
-            event_path = (
-                ws.paths.events
-                / str(event["created"])[:10]
-                / f"{event['event_id']}.json"
-            )
             cards.append(
                 SearchResultCard(
                     id=str(event["event_id"]),
@@ -645,105 +1172,182 @@ def search_central_rkf(
         load_canonical_claim,
         load_canonical_evidence,
         load_canonical_synthesis,
+        query_local_receipt_lookup,
     )
 
-    canonical_groups = (
-        (
-            "evidence",
-            ws.paths.evidence_index / "cards",
-            "evidence-pointer",
-            load_canonical_evidence,
-        ),
-        (
-            "claim",
-            ws.paths.state / "claims",
-            "canonical-claim",
-            load_canonical_claim,
-        ),
-        (
-            "synthesis",
-            ws.paths.state / "syntheses",
-            "canonical-synthesis",
-            load_canonical_synthesis,
-        ),
-    )
-    for object_type, root, boundary, loader in canonical_groups:
+    canonical_loaders: dict[str, Callable[[Workspace, str], dict[str, Any]]] = {
+        "evidence": load_canonical_evidence,
+        "claim": load_canonical_claim,
+        "synthesis": load_canonical_synthesis,
+    }
+    canonical_candidates: list[_CanonicalCandidate] = []
+    canonical_candidates_by_key: dict[tuple[str, str], _CanonicalCandidate] = {}
+    for item in canonical_raw_records:
+        object_type = str(item["object_type"])
         if allowed_types and object_type not in allowed_types:
             continue
-        for path in _safe_flat_files(
-            ws,
-            root,
-            suffix=".json",
-            label=object_type,
+        if allowed_reading and "canonical" not in allowed_reading:
+            continue
+        boundary = CANONICAL_BOUNDARIES[object_type]
+        if allowed_boundaries and boundary not in allowed_boundaries:
+            continue
+        logical_path = str(item["path"])
+        file_id = PurePosixPath(logical_path).stem
+        record = item["record"]
+        object_id, title, source_id, text, identifiers = _canonical_search_fields(
+            object_type,
+            file_id,
+            record,
+        )
+        descriptor = _CanonicalCandidate(
+            object_type=object_type,
+            object_id=object_id,
+            file_id=file_id,
+            logical_path=logical_path,
+            match_reason="semantic",
+            score=0,
+        )
+        canonical_candidates_by_key.setdefault((object_type, object_id), descriptor)
+        canonical_candidates_by_key.setdefault((object_type, file_id), descriptor)
+        matched = _match(
+            query,
+            query_doi,
+            object_id,
+            title,
+            source_id,
+            "",
+            identifiers,
+            [],
+            text,
+        )
+        if matched is None:
+            continue
+        reason, score = matched
+        canonical_candidates.append(
+            replace(descriptor, match_reason=reason, score=score)
+        )
+
+    canonical_candidates.sort(
+        key=lambda candidate: (
+            MATCH_PRIORITY[candidate.match_reason],
+            -candidate.score,
+            candidate.logical_path,
+        )
+    )
+    candidate_window_size = max(limit * 3, limit + 10)
+    candidate_validation_cap = min(
+        len(canonical_candidates),
+        candidate_window_size * 2,
+    )
+    validated_canonical: dict[
+        tuple[str, str],
+        tuple[SearchResultCard, dict[str, Any]] | None,
+    ] = {}
+    canonical_validated = 0
+
+    def validate_canonical_candidate(
+        candidate: _CanonicalCandidate,
+    ) -> tuple[SearchResultCard, dict[str, Any]] | None:
+        nonlocal canonical_validated
+        cache_key = (candidate.object_type, candidate.file_id)
+        if cache_key in validated_canonical:
+            return validated_canonical[cache_key]
+        loader = canonical_loaders[candidate.object_type]
+        canonical_validated += 1
+        try:
+            record = loader(ws, candidate.file_id)
+        except (OSError, UnicodeDecodeError, ValueError):
+            validated_canonical[cache_key] = None
+            return None
+        canonical = _canonical_card_from_record(
+            object_type=candidate.object_type,
+            logical_path=candidate.logical_path,
+            file_id=candidate.file_id,
+            record=record,
+        )
+        validated_canonical[cache_key] = (canonical, record)
+        canonical_objects[(candidate.object_type, canonical.id)] = canonical
+        return canonical, record
+
+    provider_started_ns = time.perf_counter_ns()
+    semantic_provider_name = "none"
+    semantic_provider_version = ""
+    semantic_index_generation = "none"
+    semantic_elapsed_ms = 0
+    semantic_hits: list[tuple[RetrievalHit, tuple[str, str]]] = []
+    if retrieval_provider is not None:
+        if not PROJECT_ID_RE.fullmatch(project_id) or not ACTIVATION_ID_RE.fullmatch(
+            activation_id
         ):
-            try:
-                record = loader(ws, path.stem)
-            except (OSError, UnicodeDecodeError, ValueError):
+            raise SystemExit("optional retrieval requires project/activation lineage")
+        semantic_provider_name = str(getattr(retrieval_provider, "name", "semantic"))
+        semantic_provider_version = str(getattr(retrieval_provider, "version", "unknown"))
+        try:
+            hits = retrieval_provider.search(
+                query=query,
+                limit=limit,
+                project_id=project_id,
+                activation_id=activation_id,
+                index_scope=index_scope,
+            )
+        except (OSError, RuntimeError, TypeError, ValueError):
+            hits = []
+            semantic_provider_name = f"{semantic_provider_name}:fallback"
+        semantic_index_generation = str(
+            getattr(retrieval_provider, "index_generation", "unknown")
+        )
+        semantic_elapsed_ms = max(0, int(getattr(retrieval_provider, "elapsed_ms", 0)))
+        for hit in hits:
+            if not isinstance(hit, RetrievalHit):
+                semantic_provider_name = f"{semantic_provider_name}:fallback"
                 continue
-            object_id = str(
-                record.get(
-                    f"{object_type}_id",
-                    record.get("evidence_id", path.stem),
-                )
+            hit_scope = str(hit.metadata.get("index_scope", ""))
+            if index_scope == "public-safe" and hit_scope != "public-safe":
+                continue
+            if index_scope == "private-fulltext" and hit_scope not in {
+                "public-safe",
+                "private-fulltext",
+            }:
+                continue
+            key = (str(hit.metadata.get("object_type", "")), hit.object_id)
+            semantic_hits.append((hit, key))
+    timing["provider_ms"] = _elapsed_ms(provider_started_ns)
+
+    semantic_candidates: dict[tuple[str, str], _CanonicalCandidate] = {}
+    for _, key in semantic_hits:
+        if key in canonical_objects:
+            continue
+        candidate = canonical_candidates_by_key.get(key)
+        if candidate is not None:
+            semantic_candidates[(candidate.object_type, candidate.file_id)] = candidate
+
+    validation_started_ns = time.perf_counter_ns()
+    validation_context = (
+        query_local_receipt_lookup(ws)
+        if candidate_validation_cap or semantic_candidates
+        else nullcontext()
+    )
+    candidate_cursor = 0
+    valid_canonical_matches: set[tuple[str, str]] = set()
+    initial_candidate_count = min(candidate_window_size, len(canonical_candidates))
+    with validation_context:
+        while candidate_cursor < candidate_validation_cap:
+            if (
+                candidate_cursor >= initial_candidate_count
+                and len(valid_canonical_matches) >= limit
+            ):
+                break
+            candidate = canonical_candidates[candidate_cursor]
+            candidate_cursor += 1
+            validated = validate_canonical_candidate(candidate)
+            if validated is None:
+                continue
+            canonical, record = validated
+            object_id, title, source_id, text, identifiers = _canonical_search_fields(
+                candidate.object_type,
+                candidate.file_id,
+                record,
             )
-            if object_type == "evidence":
-                title = str(record.get("summary", object_id))
-                locator = record.get("locator", {})
-                locator_text = (
-                    f"{locator.get('kind', '')}:{locator.get('value', '')}"
-                    if isinstance(locator, dict)
-                    else ""
-                )
-                text = f"{record.get('paper_id', '')} {title} {locator_text}"
-                source_id = str(record.get("paper_id", ""))
-                evidence_use = "locator-backed"
-                missing = [] if locator_text else ["locator"]
-                claim_readiness = str(record.get("verification_state", "unreviewed"))
-            elif object_type == "claim":
-                title = str(record.get("statement", object_id))
-                evidence_ids = [
-                    *record.get("supporting_evidence_ids", []),
-                    *record.get("opposing_evidence_ids", []),
-                    *record.get("context_evidence_ids", []),
-                ]
-                text = f"{title} {' '.join(str(item) for item in evidence_ids)}"
-                source_id = ""
-                evidence_use = "claim-with-evidence" if evidence_ids else "proposal-only"
-                missing = [] if evidence_ids else ["locator"]
-                claim_readiness = str(record.get("status", "proposed"))
-            else:
-                title = str(record.get("research_question", object_id))
-                text = f"{title} {record.get('provisional_conclusion', '')}"
-                source_id = ""
-                evidence_matrix = record.get("evidence_matrix", [])
-                has_locator_backed_evidence = (
-                    isinstance(evidence_matrix, list) and bool(evidence_matrix)
-                )
-                evidence_use = (
-                    "cross-paper-synthesis"
-                    if has_locator_backed_evidence
-                    else "proposal-only"
-                )
-                missing = [] if has_locator_backed_evidence else ["locator"]
-                if record.get("evidence_gaps"):
-                    missing.append("evidence-gap")
-                claim_readiness = "provisional"
-            canonical = SearchResultCard(
-                id=object_id,
-                path=relative_workspace_path(ws, path),
-                type=object_type,
-                title=title,
-                source_id=source_id,
-                match_reason="semantic",
-                score=0,
-                reading_maturity="canonical",
-                evidence_boundary=boundary,
-                evidence_use=evidence_use,
-                claim_readiness=claim_readiness,
-                missing=missing,
-                summary=title[:180],
-            )
-            canonical_objects[(object_type, object_id)] = canonical
             matched = _match(
                 query,
                 query_doi,
@@ -751,7 +1355,7 @@ def search_central_rkf(
                 title,
                 source_id,
                 "",
-                [object_id],
+                identifiers,
                 [],
                 text,
             )
@@ -759,6 +1363,18 @@ def search_central_rkf(
                 continue
             reason, score = matched
             cards.append(replace(canonical, match_reason=reason, score=score))
+            valid_canonical_matches.add((canonical.type, canonical.id))
+        for candidate in semantic_candidates.values():
+            validate_canonical_candidate(candidate)
+    timing["validation_ms"] = _elapsed_ms(validation_started_ns)
+    deterministic_index["candidate_window"] = candidate_cursor
+    remaining_candidate_count = max(0, len(canonical_candidates) - candidate_cursor)
+    deterministic_index["remaining_candidate_count"] = remaining_candidate_count
+    deterministic_index["validation_truncated"] = bool(
+        remaining_candidate_count
+        and candidate_cursor >= candidate_validation_cap
+        and len(valid_canonical_matches) < limit
+    )
 
     unique: dict[tuple[str, str], SearchResultCard] = {}
     for card in cards:
@@ -766,12 +1382,31 @@ def search_central_rkf(
         previous = unique.get(key)
         if previous is None or card.score > previous.score:
             unique[key] = card
+    deterministic_primary_ids = {
+        card.id for card in sorted(unique.values(), key=_card_sort_key)[:limit]
+    }
+    for hit, key in semantic_hits:
+        if key in unique:
+            continue
+        canonical = canonical_objects.get(key)
+        if canonical is None:
+            continue
+        card = replace(
+            canonical,
+            match_reason="semantic",
+            score=max(0, min(49, int(hit.score * 49))),
+        )
+        unique[key] = card
+
+    # Graph expansion follows deterministic primary ranking. Optional semantic
+    # hits remain a separate retrieval channel and do not seed graph expansion.
+    graph_started_ns = time.perf_counter_ns()
+    primary_ids = deterministic_primary_ids
     graph = _build_safe_research_graph(
         knowledge_records,
         source_records,
         knowledge_root=ws.paths.knowledge,
     )
-    primary_ids = {card.id for card in unique.values()}
     nodes = {
         str(node.get("id", "")): node
         for node in graph.get("nodes", [])
@@ -836,84 +1471,31 @@ def search_central_rkf(
             evidence_use=evidence_use,
             claim_readiness=str(node.get("claim_readiness", "unknown")),
             missing=[],
-            summary="Graph neighbor of a deterministic RKF match.",
+            summary="Graph neighbor of a ranked RKF match.",
         )
         unique[(card.type, card.id)] = card
+    timing["graph_ms"] = _elapsed_ms(graph_started_ns)
+    deterministic_index["canonical_validated"] = canonical_validated
 
-    semantic_provider_name = "none"
-    semantic_provider_version = ""
-    semantic_index_generation = "none"
-    semantic_elapsed_ms = 0
-    if retrieval_provider is not None:
-        if not PROJECT_ID_RE.fullmatch(project_id) or not ACTIVATION_ID_RE.fullmatch(
-            activation_id
-        ):
-            raise SystemExit("optional retrieval requires project/activation lineage")
-        semantic_provider_name = str(getattr(retrieval_provider, "name", "semantic"))
-        semantic_provider_version = str(getattr(retrieval_provider, "version", "unknown"))
-        try:
-            hits = retrieval_provider.search(
-                query=query,
-                limit=limit,
-                project_id=project_id,
-                activation_id=activation_id,
-                index_scope=index_scope,
-            )
-        except (OSError, RuntimeError, TypeError, ValueError):
-            hits = []
-            semantic_provider_name = f"{semantic_provider_name}:fallback"
-        semantic_index_generation = str(getattr(retrieval_provider, "index_generation", "unknown"))
-        semantic_elapsed_ms = max(0, int(getattr(retrieval_provider, "elapsed_ms", 0)))
-        for hit in hits:
-            if not isinstance(hit, RetrievalHit):
-                semantic_provider_name = f"{semantic_provider_name}:fallback"
-                continue
-            hit_scope = str(hit.metadata.get("index_scope", ""))
-            if index_scope == "public-safe" and hit_scope != "public-safe":
-                continue
-            if index_scope == "private-fulltext" and hit_scope not in {
-                "public-safe",
-                "private-fulltext",
-            }:
-                continue
-            if not hit.locator.strip():
-                continue
-            key = (str(hit.metadata.get("object_type", "")), hit.object_id)
-            if key in unique:
-                continue
-            canonical = canonical_objects.get(key)
-            if canonical is None:
-                continue
-            card = replace(
-                canonical,
-                match_reason="semantic",
-                score=max(0, min(49, int(hit.score * 49))),
-            )
-            unique[key] = card
-
-    ordered = sorted(
-        unique.values(),
-        key=lambda card: (
-            MATCH_PRIORITY[card.match_reason],
-            -card.score,
-            card.path,
-        ),
-    )[:limit]
+    ordered = sorted(unique.values(), key=_card_sort_key)[:limit]
     matched_ids = {card.id for card in ordered}
     graph_edges = [
         edge
         for edge in graph.get("edges", [])
         if edge.get("from") in matched_ids or edge.get("to") in matched_ids
     ]
-    card_payloads = [asdict(card) for card in ordered]
+    card_payloads = [
+        {**asdict(card), "claim_ready": _supports_evidence_answer(card)}
+        for card in ordered
+    ]
+    answer_mode, answer_cards, next_action = _answer_projection(
+        ordered,
+        answer_policy=answer_policy,
+    )
+    answer_card_ids = [card.id for card in answer_cards]
     answer_boundary = (
         "locator-backed"
-        if any(
-            card.evidence_use
-            in {"locator-backed", "claim-with-evidence", "cross-paper-synthesis"}
-            and "locator" not in card.missing
-            for card in ordered
-        )
+        if any(_supports_evidence_answer(card) for card in ordered)
         else "insufficient-evidence"
     )
     result_payload = {
@@ -921,19 +1503,31 @@ def search_central_rkf(
         "cards": card_payloads,
         "count": len(ordered),
         "graph_context": graph_edges,
+        "answer_policy": answer_policy,
+        "answer_mode": answer_mode,
+        "answer_card_ids": answer_card_ids,
+        "answer_count": len(answer_card_ids),
         "answer_boundary": answer_boundary,
         "provider": semantic_provider_name,
         "provider_version": semantic_provider_version,
         "index_generation": semantic_index_generation,
+        "next_action": next_action,
         "next_step": "inspect-project-local-if-central-context-is-incomplete",
         "retrieval_persisted": False,
         "affected_object_ids": [card.id for card in ordered],
+        # This diagnostic reports projection behavior only. It is deliberately
+        # excluded from result/run identities and cannot change trust.
+        "deterministic_index": deterministic_index,
     }
     result_identity = input_fingerprint(
         {
             "cards": card_payloads,
             "graph_context": graph_edges,
+            "answer_policy": answer_policy,
+            "answer_mode": answer_mode,
+            "answer_card_ids": answer_card_ids,
             "answer_boundary": answer_boundary,
+            "next_action": next_action,
             "provider": semantic_provider_name,
             "provider_version": semantic_provider_version,
             "index_generation": semantic_index_generation,
@@ -941,6 +1535,7 @@ def search_central_rkf(
         }
     )
     result_payload["retrieval_result_fingerprint"] = result_identity
+    persist_started_ns = time.perf_counter_ns()
     if (
         persist_retrieval_run
         and PROJECT_ID_RE.fullmatch(project_id)
@@ -954,6 +1549,7 @@ def search_central_rkf(
                 "reading_states": reading_states or [],
                 "evidence_boundaries": evidence_boundaries or [],
                 "index_scope": index_scope,
+                "answer_policy": answer_policy,
             }
         )
         retrieval_run_id = "rrun_" + hashlib.sha256(
@@ -987,4 +1583,9 @@ def search_central_rkf(
             retrieval_run_id,
             *result_payload["affected_object_ids"],
         ]
+    timing["persist_ms"] = _elapsed_ms(persist_started_ns)
+    timing["total_ms"] = _elapsed_ms(total_started_ns)
+    # Timing is deliberately added after both retrieval identities are built so
+    # runtime variance cannot create new result fingerprints or lineage runs.
+    result_payload["timing"] = timing
     return result_payload

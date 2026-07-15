@@ -7,8 +7,8 @@
 |---|---|---|
 | 啟動／檢查／停用 | `rkf.activate`、`connect.validate`、`rkf.status`、`rkf.deactivate` | project/activation receipt 與 lineage |
 | 加入資料 | `workflow.add` | event-first capture；可選 `FullTextProvider` acquisition；Promotion: none |
-| 查詢 | `workflow.ask` | exact-first deterministic results；optional retrieval 失敗時安全降級；有 claim 時需 locator |
-| 閱讀與確認 | `workflow.read` | canonical Evidence card，或 `digest \| appraise \| both` scope-gated Read run |
+| 查詢 | `workflow.ask` | 預設 context-first；以 `context-only \| mixed \| evidence` 分開來源脈絡與正式支持，`evidence-only` 保留 strict gate |
+| 閱讀與確認 | `workflow.read` | missing／coarse／exact FindingDraft、exact-locator Evidence，或 `digest \| appraise \| both` scope-gated Read run |
 | 比較與整合 | `workflow.compare-synthesize` | Claim、Synthesis 與 evidence matrix |
 | 今天要做什麼 | `workflow.review` | next paper、gaps、pending verification、failed checks、project/activation/object timeline |
 
@@ -16,8 +16,8 @@
 
 - 「啟動 RKF，確認這個 project 的 connection。」
 - 「Add 這個 DOI，但 candidate 不要升級成 evidence。」
-- 「Ask RKF 這個 finding；沒有 locator 就說證據不足。」
-- 「Read 這篇，記錄 p. 8 Fig. 3 的 opposing evidence，先標 unreviewed。」
+- 「Ask RKF 這個 finding；可顯示 source context，但不要把缺 locator 的內容當成 claim support。」
+- 「Read 這篇，先記錄 FindingDraft；locator 稍後補成 exact 再提升 Evidence。」
 - 「Compare & Synthesize 這些 claims，列出 contradiction 與 gap。」
 - 「Review 這個 project 最近做過哪些 RKF actions。」
 

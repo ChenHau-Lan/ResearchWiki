@@ -62,8 +62,8 @@ class RKFDocumentationTests(unittest.TestCase):
         english = (REPO / "docs" / "GETTING_STARTED.md").read_text(encoding="utf-8")
         chinese = (REPO / "docs" / "GETTING_STARTED.zh-TW.md").read_text(encoding="utf-8")
 
-        self.assertIn("Complete the first paper loop", english)
-        self.assertIn("完成第一個 paper 閉環", chinese)
+        self.assertIn("Run the isolated first loop", english)
+        self.assertIn("執行隔離的第一個閉環", chinese)
         self.assertIn("Compare & Synthesize", english)
 
     def test_discovery_docs_describe_deterministic_retry_recovery(self) -> None:
@@ -140,7 +140,12 @@ class RKFDocumentationTests(unittest.TestCase):
         commands = (
             "python3 tools/bootstrap_rkf.py",
             "python3 tools/bootstrap_rkf.py --apply",
-            "python3 tools/check_install.py --strict",
+            "python3 tools/check_install.py --profile core --strict --json",
+            "python3 tools/bootstrap_rkf.py --install-connector",
+            "python3 tools/bootstrap_rkf.py --apply --install-connector",
+            "python3 tools/check_install.py --profile codex --strict --json",
+            "python3 tools/rkf_auto_connect.py resolve",
+            "python3 tools/demo_quickstart.py --check",
             "python3 tools/rkf_auto_connect.py connect-project /path/to/research-project",
             "python3 tools/rkf_auto_connect.py connect-project /path/to/research-project --apply",
         )

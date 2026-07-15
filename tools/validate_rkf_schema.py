@@ -21,6 +21,7 @@ from rkf.schema import (  # noqa: E402
     CLAIM_STATUSES,
     EVIDENCE_STANCES,
     LEGACY_READING_MAP,
+    LOCATOR_STATES,
     REVIEW_STATES,
     VERIFICATION_STATES,
     canonical_enum,
@@ -32,6 +33,7 @@ from rkf.providers import FullTextProviderResult, register_evidence_artifact  # 
 
 REQUIRED_DEFINITIONS = {
     "paper",
+    "finding",
     "evidence",
     "claim",
     "synthesis",
@@ -52,6 +54,7 @@ EXPECTED_ENUMS = {
     "evidenceStance": EVIDENCE_STANCES,
     "verificationState": VERIFICATION_STATES,
     "claimStatus": CLAIM_STATUSES,
+    "locatorState": LOCATOR_STATES,
     "appraisalStatus": APPRAISAL_STATUSES,
 }
 
@@ -75,6 +78,35 @@ def validate_instance(
         if not isinstance(target, dict):
             return [f"{label}: unresolved schema reference {reference}"]
         return validate_instance(value, target, root_schema, label=label)
+
+    all_of = definition.get("allOf")
+    if isinstance(all_of, list):
+        for item in all_of:
+            if isinstance(item, dict):
+                findings.extend(
+                    validate_instance(value, item, root_schema, label=label)
+                )
+    condition = definition.get("if")
+    if isinstance(condition, dict):
+        condition_matches = not validate_instance(
+            value,
+            condition,
+            root_schema,
+            label=label,
+        )
+        branch = definition.get("then" if condition_matches else "else")
+        if isinstance(branch, dict):
+            findings.extend(
+                validate_instance(value, branch, root_schema, label=label)
+            )
+    forbidden = definition.get("not")
+    if isinstance(forbidden, dict) and not validate_instance(
+        value,
+        forbidden,
+        root_schema,
+        label=label,
+    ):
+        findings.append(f"{label}: value matches a forbidden schema")
 
     if "const" in definition and value != definition["const"]:
         findings.append(f"{label}: expected const {definition['const']!r}")
@@ -136,6 +168,26 @@ def runtime_payload_findings(schema: dict[str, Any]) -> list[str]:
     """Exercise representative provider outputs against their canonical schemas."""
 
     findings: list[str] = []
+    finding_fixture = {
+        "schema": "rkf-finding-v1",
+        "finding_id": "fd_1234567890abcdef1234",
+        "paper_id": "papers/schema-fixture",
+        "summary": "Synthetic schema-only FindingDraft.",
+        "reading_scope": "abstract",
+        "locator_state": "missing",
+        "origin_project_id": "prj_1234567890abcdef12345678",
+        "activation_id": "act_1234567890abcdef12345678",
+        "content_fingerprint": "a" * 64,
+        "public_safe": True,
+    }
+    findings.extend(
+        validate_instance(
+            finding_fixture,
+            schema.get("$defs", {}).get("finding", {}),
+            schema,
+            label="FindingDraft",
+        )
+    )
     provider_result = FullTextProviderResult(
         status="obtained",
         provider="schema-fixture",

@@ -19,8 +19,14 @@ jobs:
       - name: Python syntax
         run: >-
           python3 -m py_compile tools/rk.py tools/rkf_auto_connect.py
-          tools/bootstrap_rkf.py tools/check_install.py
+          tools/bootstrap_rkf.py tools/check_install.py tools/demo_quickstart.py
+          tools/benchmark_rkf_ask.py
           tools/build_public_dashboard.py rkf/*.py tools/public_safety_scan.py
+      - name: Onboarding contract
+        run: |
+          python3 -m unittest tests.test_rkf_onboarding_v1_2
+          python3 tools/demo_quickstart.py --check
+          python3 tools/benchmark_rkf_ask.py --check --documents 40 --canonical 12 --limit 5
       - name: CLI unit tests
         run: python3 -m unittest discover -s tests
       - name: Topic lint

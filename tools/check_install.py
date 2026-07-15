@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Run a read-only, path-redacted RKF installation diagnostic."""
+"""Run a read-only, profile-aware, path-redacted RKF installation diagnostic."""
 
 from __future__ import annotations
 
@@ -23,6 +23,7 @@ CODEX_SKILL_MANIFEST = {
     **{path: "directory" for path in CODEX_SKILL_DIRS},
 }
 CAPTURE_MODES = {"active-aggressive", "active", "off"}
+INSTALL_PROFILES = ("core", "codex")
 
 
 @dataclass(frozen=True)
@@ -60,12 +61,15 @@ def _exact_skill_manifest(root: Path) -> bool:
     return _skill_tree_manifest(root) == CODEX_SKILL_MANIFEST
 
 
-def _result(checks: list[Check]) -> dict[str, object]:
+def _result(checks: list[Check], *, profile: str) -> dict[str, object]:
     failures = sum(check.status == "fail" for check in checks)
     warnings = sum(check.status == "warn" for check in checks)
+    ready = failures == 0
     return {
         "schema": "rkf-install-diagnostic-v1",
-        "status": "ready" if failures == 0 else "blocked",
+        "profile": profile,
+        "ready": ready,
+        "status": "ready" if ready else "blocked",
         "failure_count": failures,
         "warning_count": warnings,
         "checks": [asdict(check) for check in checks],
@@ -74,7 +78,7 @@ def _result(checks: list[Check]) -> dict[str, object]:
     }
 
 
-def _redacted_runtime_failure() -> dict[str, object]:
+def _redacted_runtime_failure(*, profile: str = "core") -> dict[str, object]:
     return _result(
         [
             Check(
@@ -82,16 +86,23 @@ def _redacted_runtime_failure() -> dict[str, object]:
                 "fail",
                 "installation diagnostic could not resolve the configured paths safely",
             )
-        ]
+        ],
+        profile=profile,
     )
 
 
-def _connector_status(path: Path, *, expected_root: Path) -> Check:
+def _connector_status(path: Path, *, expected_root: Path, required: bool) -> Check:
     try:
         if path.is_symlink() or (path.exists() and not path.is_file()):
             return Check("cross_project_connector", "fail", "connector config target is unsafe")
         if not path.exists():
-            return Check("cross_project_connector", "warn", "optional connector config is not installed")
+            return Check(
+                "cross_project_connector",
+                "fail" if required else "warn",
+                "Codex profile requires an installed connector config"
+                if required
+                else "optional connector config is not installed",
+            )
         data = load_toml(path)
     except (OSError, RuntimeError, UnicodeDecodeError, ValueError, TypeError):
         return Check("cross_project_connector", "fail", "connector config is unreadable or invalid")
@@ -167,11 +178,14 @@ def inspect_install(
     connector_path: Path | None = None,
     codex_skill_dir: Path | None = None,
     legacy_compatibility: bool = False,
+    profile: str = "core",
 ) -> dict[str, object]:
+    if profile not in INSTALL_PROFILES:
+        raise ValueError(f"unsupported install profile: {profile}")
     try:
         root = repo_root.resolve()
     except (OSError, RuntimeError):
-        return _redacted_runtime_failure()
+        return _redacted_runtime_failure(profile=profile)
     checks: list[Check] = []
     checks.append(
         Check(
@@ -295,7 +309,11 @@ def inspect_install(
         os.environ.get("RKF_CONNECTOR_CONFIG", "~/.codex/rkf_connector.toml")
     ).expanduser()
     try:
-        connector_check = _connector_status(connector, expected_root=root)
+        connector_check = _connector_status(
+            connector,
+            expected_root=root,
+            required=profile == "codex",
+        )
     except (OSError, RuntimeError, UnicodeDecodeError, ValueError, TypeError):
         connector_check = Check(
             "cross_project_connector",
@@ -308,7 +326,7 @@ def inspect_install(
         or Path(f"~/.codex/skills/{CODEX_SKILL_NAME}")
     ).expanduser()
     try:
-        connector_required = connector.exists() or connector.is_symlink()
+        connector_required = profile == "codex" or connector.exists() or connector.is_symlink()
         skill_check = _codex_skill_status(
             root,
             installed_skill,
@@ -332,12 +350,12 @@ def inspect_install(
         Check(
             "public_site",
             "pass" if site_ready else "warn",
-            "static dashboard files are present"
+            "static public demo files are present"
             if site_ready
-            else "static dashboard has not been built in this checkout",
+            else "static public demo has not been built in this checkout",
         )
     )
-    return _result(checks)
+    return _result(checks, profile=profile)
 
 
 def main(argv: list[str] | None = None) -> int:
@@ -345,6 +363,7 @@ def main(argv: list[str] | None = None) -> int:
     parser.add_argument("--repo-root", default=str(REPO_ROOT))
     parser.add_argument("--connector-path")
     parser.add_argument("--codex-skill-dir")
+    parser.add_argument("--profile", choices=INSTALL_PROFILES, default="core")
     parser.add_argument("--strict", action="store_true")
     parser.add_argument(
         "--legacy-compatibility",
@@ -359,9 +378,10 @@ def main(argv: list[str] | None = None) -> int:
             connector_path=Path(args.connector_path).expanduser() if args.connector_path else None,
             codex_skill_dir=Path(args.codex_skill_dir).expanduser() if args.codex_skill_dir else None,
             legacy_compatibility=args.legacy_compatibility,
+            profile=args.profile,
         )
     except (OSError, RuntimeError, UnicodeDecodeError, ValueError, TypeError):
-        result = _redacted_runtime_failure()
+        result = _redacted_runtime_failure(profile=args.profile)
     if args.json:
         print(json.dumps(result, ensure_ascii=False, indent=2, sort_keys=True))
     else:

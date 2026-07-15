@@ -10,6 +10,7 @@
     "claimStatus": {"enum": ["proposed", "supported", "disputed", "verified", "retired"]},
     "readIntent": {"enum": ["digest", "appraise", "both"]},
     "readingScope": {"enum": ["metadata", "abstract", "partial", "fulltext"]},
+    "locatorState": {"enum": ["missing", "coarse", "exact"]},
     "providerStatus": {"enum": ["obtained", "manual-required", "unavailable", "retryable", "blocked"]},
     "activationMode": {"enum": ["ACTIVE", "ACTIVE_READ_ONLY", "OFF"]},
     "appraisalStatus": {"enum": ["completed", "retryable", "blocked"]},
@@ -33,6 +34,40 @@
         "access_state": {"$ref": "#/$defs/accessState"},
         "review_state": {"$ref": "#/$defs/reviewState"}
       }
+    },
+    "finding": {
+      "type": "object",
+      "additionalProperties": true,
+      "required": ["schema", "finding_id", "paper_id", "summary", "reading_scope", "locator_state", "origin_project_id", "activation_id", "content_fingerprint", "public_safe"],
+      "properties": {
+        "schema": {"const": "rkf-finding-v1"},
+        "finding_id": {"type": "string", "pattern": "^fd_[a-f0-9]{20}$"},
+        "paper_id": {"type": "string", "minLength": 1},
+        "summary": {"type": "string", "minLength": 1},
+        "reading_scope": {"$ref": "#/$defs/readingScope"},
+        "locator_state": {"$ref": "#/$defs/locatorState"},
+        "locator": {"$ref": "#/$defs/locator"},
+        "origin_project_id": {"$ref": "#/$defs/projectId"},
+        "activation_id": {"$ref": "#/$defs/activationId"},
+        "content_fingerprint": {"type": "string", "pattern": "^[a-f0-9]{64}$"},
+        "public_safe": {"const": true}
+      },
+      "allOf": [
+        {
+          "if": {
+            "required": ["locator_state"],
+            "properties": {"locator_state": {"const": "missing"}}
+          },
+          "then": {"not": {"required": ["locator"]}}
+        },
+        {
+          "if": {
+            "required": ["locator_state"],
+            "properties": {"locator_state": {"enum": ["coarse", "exact"]}}
+          },
+          "then": {"required": ["locator"]}
+        }
+      ]
     },
     "evidence": {
       "type": "object",

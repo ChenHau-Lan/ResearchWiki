@@ -3,32 +3,60 @@
 RKF turns papers into research knowledge that can be traced to an exact source
 location, checked by a person, and compared across papers.
 
-> Paper → locator-backed Evidence → human-reviewed Claim → Synthesis
+> Paper → source context → FindingDraft → exact-locator Evidence → human-reviewed Claim → Synthesis
 
 RKF is for researchers who want a durable, source-aware reading and synthesis
 workflow in Codex. It is not a PDF library, a paywall bypass, an autonomous
 claim generator, or a replacement for reading the source.
 
-The current compatible release is `v1.1.0`. The earlier `v1.0.0` baseline
-remains documented in the changelog; no historical tag is fabricated or moved.
+The latest published release is `v1.1.0`; this branch documents the unreleased
+`v1.2` target. The earlier `v1.0.0` baseline remains documented in the
+changelog; no historical tag is fabricated or moved.
 Paper reading maturity remains explicit through separate access and review
 states; metadata availability never implies that a paper was read.
 Ask can retrieve governed wiki context, but retrieval alone never promotes a
 candidate or model answer into Evidence.
 
-## Install the central RKF checkout
+## Choose your setup
+
+Clone the public repository once:
 
 ```bash
-git clone git@github.com:ChenHau-Lan/ResearchWiki.git
+git clone https://github.com/ChenHau-Lan/ResearchWiki.git
 cd ResearchWiki
+```
+
+### A. Local core
+
+Use this profile for the local framework and the isolated synthetic demo. It
+does not install the Codex connector or its natural-language skill.
+
+```bash
 python3 tools/bootstrap_rkf.py
 python3 tools/bootstrap_rkf.py --apply
-python3 tools/check_install.py --strict
+python3 tools/check_install.py --profile core --strict --json
 ```
 
 The first bootstrap command is a read-only preview. Review it before running
-`--apply`. The strict check must finish with `ready: true` before connecting a
-research project.
+`--apply`. A successful diagnostic reports `"profile": "core"`,
+`"ready": true`, and `"status": "ready"`.
+
+### B. Codex integration
+
+Use this profile when you want to say “activate RKF” inside Codex or connect
+other research projects. Preview and apply the same connector request:
+
+```bash
+python3 tools/bootstrap_rkf.py --install-connector
+python3 tools/bootstrap_rkf.py --apply --install-connector
+python3 tools/check_install.py --profile codex --strict --json
+python3 tools/rkf_auto_connect.py resolve
+```
+
+For the `codex` profile, a missing or stale connector/skill is a failure rather
+than an optional warning. A successful diagnostic reports `"profile": "codex"`
+and `"ready": true`; `resolve` then verifies that the connector can find this
+checkout and its workspace configuration.
 
 ## Connect another research project
 
@@ -43,17 +71,39 @@ This creates a v2 `.rkf-connect.toml` and a small `RKF/` bridge; it does not
 copy the central wiki. Every new Codex task still starts with RKF OFF. Say
 “activate RKF” at the start of the task and “deactivate RKF” when finished.
 
-## Complete the first loop in 10 minutes
+## Run the zero-network quickstart
 
-Use one public or synthetic paper for this walkthrough. In Codex, send these
-requests in order:
+Run the same deterministic smoke test used by CI:
+
+```bash
+python3 tools/demo_quickstart.py --check
+```
+
+It creates a temporary workspace with two clearly synthetic papers, activates
+RKF, runs all five workflows, preserves the locator promotion gate, deactivates
+RKF, and removes the workspace. It uses no network, global connector, PDF, or
+user research data. Success includes:
+
+```json
+{
+  "quickstart": "passed",
+  "workflows_completed": 5,
+  "promotion_boundary_preserved": true
+}
+```
+
+## The five workflows
+
+After Codex integration is ready and a project is activated, use requests like
+these with your own real source identifiers. These are templates, not a claim
+that RKF has read a source you have not supplied.
 
 | Workflow | Natural-language request | Expected result |
 |---|---|---|
-| **Add** | “Activate RKF, then Add DOI `10.0000/example` as a candidate. Do not promote it to evidence.” | A deduplicated capture receipt with `Promotion: none` and project/activation lineage. |
-| **Ask** | “Ask RKF what this paper reports about the target relationship. If there is no locator, say that evidence is insufficient.” | Source-bounded results; a claim-supporting answer includes an exact locator or an insufficient-evidence result. |
-| **Read** | “Read the paper and record the result at p. 8, Fig. 3 as supporting Evidence; keep it unreviewed.” | An Evidence card with paper ID, locator, stance, and explicit verification state. |
-| **Compare & Synthesize** | “Compare this Evidence with another reviewed paper and list agreement, contradiction, gaps, and a provisional conclusion.” | A Claim or Synthesis that links Evidence IDs and preserves unresolved gaps. |
+| **Add** | “Add this DOI or URL as a candidate. Do not promote it to Evidence.” | A deduplicated capture receipt with `Promotion: none` and project/activation lineage. |
+| **Ask** | “Ask RKF what these sources report, and separate source context from locator-backed support.” | Useful governed context may be shown without a locator, but it is marked not claim-ready; formal support links exact Evidence. |
+| **Read** | “Capture this observation as a FindingDraft; I will add the exact locator later.” | A missing/coarse/exact FindingDraft. Only an exact finding can be promoted to the existing Evidence format; the direct exact-locator Evidence route remains available. |
+| **Compare & Synthesize** | “Compare these Evidence cards and list agreement, contradiction, gaps, and a provisional conclusion.” | An Evidence-linked Claim or Synthesis that preserves unresolved gaps. |
 | **Review** | “Review this project: show missing locators, pending verification, disputed claims, and the next reading action.” | An actionable review plus the path-redacted activation timeline. |
 
 The five workflows are the complete v1 research surface. Internal helpers and
@@ -62,12 +112,15 @@ compatibility code do not create additional product modes.
 ## Safety boundary
 
 - Candidate metadata and model output are not stable evidence.
+- Missing/coarse FindingDrafts are research notes, not Evidence or claim support.
 - A verified claim requires locator-backed, human-verified Evidence.
 - PDFs, article text, secrets, tokens, absolute paths, private indexes, and raw
   prompts do not enter the public repository or public output.
 - RKF does not bypass paywalls, CAPTCHA, or access controls.
 
-For architecture, compatibility/removal decisions, release operations, and
-the public synthetic demo, use the single [Maintainer reference](docs/MAINTAINER_REFERENCE.md).
+Use [Getting Started](docs/GETTING_STARTED.md) as the current beginner guide.
+For architecture, compatibility/removal decisions, release operations, and the
+public synthetic demo, use the single
+[Maintainer reference](docs/MAINTAINER_REFERENCE.md).
 
 [繁體中文](README.zh-TW.md) · License: MIT

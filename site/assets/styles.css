@@ -1314,3 +1314,11 @@ footer p {
     transition-duration: 0.01ms !important;
   }
 }
+/* v1 mobile navigation: keep primary navigation reachable below tablet width. */
+.mobile-nav { display: none; }
+@media (max-width: 979px) {
+  .mobile-nav { display: block; position: relative; }
+  .mobile-nav summary { cursor: pointer; font-weight: 700; }
+  .mobile-nav[open] { display: grid; gap: .65rem; }
+  .mobile-nav a { display: block; padding: .35rem 0; }
+}

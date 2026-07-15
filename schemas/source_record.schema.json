@@ -43,6 +43,8 @@
         "blocked"
       ]
     },
+    "access_state": { "enum": ["metadata", "abstract", "partial", "fulltext"] },
+    "review_state": { "enum": ["unread", "skimmed", "read", "annotated", "reproduced"] },
     "fulltext_status": {
       "enum": [
         "unknown",

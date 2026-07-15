@@ -2,6 +2,29 @@
 
 ## Unreleased
 
+- Complete v1 Phase 0 scope freeze: align the English and Traditional Chinese
+  README around install → Connect & Activate → the five-workflow 10-minute
+  loop; add a dependency-free machine-readable keep/merge/delete/temporary-shim
+  inventory with owner, migration/test impact, follow-up issue, and mandatory
+  shim removal versions; and record branch-retention evidence. Confirm
+  `v1.1.0` as the release target without moving the published `v1.0.0` tag.
+- Define the compatible RKF `v1.1.0` product surface as five workflows—Add,
+  Ask, Read, Compare & Synthesize, and Review—plus task-scoped Connect &
+  Activate. Add canonical paper/evidence/claim/synthesis enums, conservative
+  legacy reading-state mapping, locator-backed Evidence, human-verification
+  gates, actionable Review/Home, and optional full-text/appraisal/retrieval
+  provider contracts.
+- Add stable project IDs to new v2 connection markers and append-only,
+  path-redacted ActivationEvent/ActionEvent lineage with idempotent retries.
+  Legacy v2 markers without a project ID now require explicit review/upgrade.
+- Remove default automation prompts, meeting/seminar/overview templates, and
+  the Obsidian workflow entry. Non-core dashboard/discovery/migration/CLI code
+  is classified as an internal compatibility shim with a removal target rather
+  than an app-facing workflow.
+- Replace the public admin/vanity-metric Observatory with a synthetic guided
+  Paper → Evidence → Claim → Synthesis demo, research-quality metrics, a
+  data-quality banner, and reachable mobile navigation.
+
 - Add portable, preview-first local onboarding, version-matched global
   `rkf-auto-connect` installation/diagnostics, and non-overwriting v2 project
   connection scaffolding. Preflight now validates the complete skill bundle,

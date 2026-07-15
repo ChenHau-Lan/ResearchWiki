@@ -1,0 +1,21 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "RKF v1 Evidence",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["schema", "evidence_id", "paper_id", "locator", "summary", "stance", "verification_state", "origin_project_id", "activation_id", "created", "public_safe"],
+  "properties": {
+    "schema": {"const": "rkf-evidence-v1"},
+    "evidence_id": {"type": "string"},
+    "paper_id": {"type": "string"},
+    "locator": {"$ref": "rkf_v1.schema.json#/$defs/locator"},
+    "summary": {"type": "string", "minLength": 1},
+    "stance": {"$ref": "rkf_v1.schema.json#/$defs/evidenceStance"},
+    "verification_state": {"$ref": "rkf_v1.schema.json#/$defs/verificationState"},
+    "origin_project_id": {"$ref": "rkf_v1.schema.json#/$defs/projectId"},
+    "activation_id": {"$ref": "rkf_v1.schema.json#/$defs/activationId"},
+    "created": {"type": "string"},
+    "updated": {"type": "string"},
+    "public_safe": {"const": true}
+  }
+}

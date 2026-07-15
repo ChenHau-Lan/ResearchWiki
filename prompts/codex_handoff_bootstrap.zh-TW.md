@@ -29,8 +29,8 @@
 格式。不要繞過 Codex app 或 structured action boundary。如果沒有寫入權限，
 或 claim boundary 不完整，請不要直接改 stable wiki knowledge。改輸出 proposal。
 
-若要記錄熱門研究問題，請 request `hot.record` RKF action，或回傳短的
-hot-query proposal。不要建立 hot-query 分檔，也不要設置 handoff inbox。
+若要保存可重用研究需求，請 request `workflow.add`，或回傳短的 Add proposal。
+不要建立 hot-query 分檔，也不要設置 handoff inbox。
 
 低風險 direct update 可以使用 `evolve`，但頁面必須留下 AI Integration Note 並保持
 保守 maturity。`reconcile` 可以替矛盾寫 blocker；`challenge` 只產生 critique；

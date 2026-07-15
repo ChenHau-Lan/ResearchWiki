@@ -1255,6 +1255,23 @@ def validate_site_publication(repo_root: Path) -> dict[str, Any]:
         payload = read_json(target)
     except (OSError, UnicodeDecodeError, json.JSONDecodeError) as exc:
         raise DashboardSafetyError("published site snapshot is unreadable") from exc
+    if payload.get("schema") == "rkf-public-demo-v1":
+        if set(payload) != {"schema", "status", "generated_at", "metrics", "quality"}:
+            raise DashboardSafetyError("public demo has unallowlisted top-level fields")
+        if payload.get("status") != "published":
+            raise DashboardSafetyError("public demo must be published")
+        quality = payload.get("quality", {})
+        if not isinstance(quality, dict) or quality.get("synthetic") is not True:
+            raise DashboardSafetyError("public demo must be explicitly synthetic")
+        for field in ("article_text_published", "paper_identity_published", "project_activity_published", "raw_prompts_published"):
+            if quality.get(field) is not False:
+                raise DashboardSafetyError(f"public demo safety flag failed: {field}")
+        return {
+            "schema": "rkf-demo-deployment-validation-v1",
+            "publication_status": "published",
+            "snapshot_hash": sha256(json.dumps(payload, sort_keys=True).encode()).hexdigest(),
+            "paths_redacted": True,
+        }
     validate_public_snapshot(payload)
     publication = payload["publication"]
     if publication["status"] != "published":

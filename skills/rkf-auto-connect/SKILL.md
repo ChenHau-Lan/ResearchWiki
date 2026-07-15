@@ -36,18 +36,16 @@ the repository bootstrap and diagnostic. Do not guess another checkout.
 | User intent | Structured action | Boundary |
 |---|---|---|
 | 啟動 RKF | `rkf.activate` | read-only preflight |
-| 問 RKF | `query.search` | central RKF before project-local |
-| 收進 RKF | `capture.route` | immutable event; `Promotion: none` |
-| 自動找 paper | `discover.preview` | network read; candidate-only; no persistence |
-| 研究熱點 dashboard | `dashboard.preview` | aggregate-only private preview |
-| 審查 dashboard preview | `dashboard.review` | self-contained private page; does not update `site/` |
+| 問 RKF | `workflow.ask` | deterministic central RKF before project-local |
+| 收進 RKF | `workflow.add` | immutable event; `Promotion: none` |
+| 記錄閱讀 | `workflow.read` | locator-backed Evidence |
+| 比較與整合 | `workflow.compare-synthesize` | Claim/Synthesis evidence gates |
+| 查看下一步 | `workflow.review` | actionable gaps and project activity |
 | 停用 RKF | `rkf.deactivate` | return to OFF |
 
-Require the designated writer and exact preview hash for `discover.record`.
-Accept only selected candidate IDs through `discover.accept`; default to no
-paper draft and no claim promotion. Require the exact reviewed snapshot hash
-for `dashboard.publish`; local publication does not authorize commit, push, or
-GitHub Pages deployment.
+Provider discovery is an internal Add helper. Candidate selection defaults to
+no claim promotion. Public demo generation is maintainer-only and never
+authorizes commit, push, or deployment.
 
 ## Read Project Markers
 

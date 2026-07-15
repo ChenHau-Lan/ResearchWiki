@@ -599,13 +599,10 @@ class RKFCliTests(unittest.TestCase):
         self.assertNotEqual(result.returncode, 0)
         self.assertIn("use emerge", result.stderr + result.stdout)
 
-    def test_agent_prompt_templates_exist_without_creating_automation(self) -> None:
+    def test_default_agent_automation_prompts_are_removed_from_v1(self) -> None:
         prompt_dir = REPO / "prompts" / "agents"
         for name in ("morning.md", "nightly.md", "weekly.md", "health.md"):
-            text = (prompt_dir / name).read_text(encoding="utf-8")
-            self.assertIn("Codex app", text)
-            self.assertNotIn("python3 tools/rk.py", text)
-        self.assertIn("Do not create app automations", (prompt_dir / "nightly.md").read_text(encoding="utf-8"))
+            self.assertFalse((prompt_dir / name).exists())
 
     def test_status_and_world_print_workspace_bootstrap(self) -> None:
         (self.root / "CRITICAL_FACTS.md").write_text(
@@ -850,7 +847,8 @@ class RKFCliTests(unittest.TestCase):
             (REPO / path).read_text(encoding="utf-8", errors="replace")
             for path in ["AGENTS.md", "MODE_REGISTRY.md", "README.md", "README.zh-TW.md"]
         )
-        self.assertNotIn("vNext", active_docs)
+        self.assertIn("vNext", active_docs)
+        self.assertNotIn("Scientific Artifact Acquisition Engine implementation", active_docs)
         self.assertNotIn("recently added", active_docs.lower())
         self.assertNotIn("ResearchWiki" + "Codex", active_docs)
         self.assertNotIn("raw/" + "full_text", active_docs)
@@ -903,25 +901,25 @@ class RKFCliTests(unittest.TestCase):
         self.assertIn("LLM Wiki-based research knowledge framework", core_text)
         self.assertIn("reading maturity", core_text)
         self.assertIn("retrieve governed wiki context", core_text)
-        self.assertIn("ARS reasoning", core_text)
         self.assertIn("rkf-connect", core_text)
-        self.assertIn("topic-review", core_text)
-        self.assertIn("Version Management", (REPO / "README.md").read_text(encoding="utf-8"))
-        self.assertIn("版本管理", (REPO / "README.zh-TW.md").read_text(encoding="utf-8"))
-        self.assertIn("v1.0.0", (REPO / "README.md").read_text(encoding="utf-8"))
-        self.assertIn("v1.0.0", (REPO / "README.zh-TW.md").read_text(encoding="utf-8"))
+        self.assertIn("workflow.review", core_text)
+        english_readme = (REPO / "README.md").read_text(encoding="utf-8")
+        chinese_readme = (REPO / "README.zh-TW.md").read_text(encoding="utf-8")
+        self.assertIn("v1.0.0", english_readme)
+        self.assertIn("v1.0.0", chinese_readme)
+        self.assertIn("v1.1.0", english_readme)
+        self.assertIn("v1.1.0", chinese_readme)
+        self.assertNotIn("ARS reasoning", english_readme)
+        self.assertNotIn("ARS reasoning", chinese_readme)
 
         manual_text = (REPO / "docs" / "manuals" / "rkf_manual.en.md").read_text(encoding="utf-8")
         manual_zh = (REPO / "docs" / "manuals" / "rkf_manual.zh-TW.md").read_text(encoding="utf-8")
         self.assertIn("Paper Maturity", manual_text)
         self.assertIn("academic-research-suite", manual_text)
         self.assertIn("needs-user-pdf", manual_text)
-        self.assertIn("OCR confidence", manual_text)
-        self.assertIn("Codex Handoff Contexts", manual_text)
-        self.assertIn("Paper Maturity", manual_zh)
-        self.assertIn("needs-user-pdf", manual_zh)
-        self.assertIn("Paper Maturity", manual_zh)
-        self.assertIn("Codex Handoff Contexts", manual_zh)
+        self.assertIn("locator-backed Evidence", manual_text)
+        self.assertIn("Paper maturity", manual_zh)
+        self.assertIn("locator-backed Evidence", manual_zh)
         self.assertNotIn("manual " + "interprets", manual_text)
         self.assertNotIn("本手冊" + "把", manual_zh)
 
@@ -984,12 +982,9 @@ class RKFCliTests(unittest.TestCase):
             "claim.md",
             "concept.md",
             "inbox.md",
-            "meeting.md",
-            "overview.md",
             "paper.md",
             "project-synthesis.md",
             "question.md",
-            "seminar.md",
             "synthesis.md",
             "topic.md",
         }
@@ -1005,30 +1000,11 @@ class RKFCliTests(unittest.TestCase):
     def test_codex_workflow_inventory_replaces_user_facing_command_inventory(self) -> None:
         inventory = (REPO / "docs" / "FEATURES_AND_COMMANDS.zh-TW.md").read_text(encoding="utf-8")
         required = [
-            "Codex App Workflow Inventory",
-            "Capture source",
-            "Save to inbox",
-            "Auto-connect capture",
-            "Discover papers",
-            "Create paper draft",
-            "Request user PDF",
-            "Verify locators",
-            "Record feedback",
-            "Paper queue",
-            "Query wiki",
-            "Save knowledge",
-            "Record hot demand",
-            "Topic governance",
-            "Maintenance review",
-            "Evolve page",
-            "Reconcile",
-            "Challenge",
-            "Emerge",
-            "Propagation review",
-            "World context",
-            "Graph/index",
-            "Codex handoff",
-            "Legacy Runtime Boundary",
+            "workflow.add",
+            "workflow.ask",
+            "workflow.read",
+            "workflow.compare-synthesize",
+            "workflow.review",
         ]
         for phrase in required:
             self.assertIn(phrase, inventory)

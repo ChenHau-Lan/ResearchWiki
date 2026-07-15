@@ -1,6 +1,6 @@
 ---
 name: rkf-knowledge-synthesis
-description: Write and maintain RKF knowledge objects from active reading state and governed wiki context: paper drafts, questions, concepts, claims, topics, synthesis, emergent pattern drafts, overviews, meetings, seminars, and topic review recommendations. Use when the task asks to create, update, synthesize, auto-synthesize, emerge patterns, organize wiki knowledge, review topics, merge or split topics, refresh topic search strings, 整理成wiki, 論文筆記, 文獻摘要, 概念頁, 問題頁, 主題治理, topic整理, topic建議, or 綜整.
+description: Write and maintain RKF paper drafts, questions, concepts, locator-backed claims, topics, and synthesis from governed reading state. Use for Compare & Synthesize, paper notes, evidence matrices, topic review, contradictions, gaps, 整理成wiki, 論文筆記, 文獻摘要, 概念頁, 問題頁, 主題治理, topic整理, topic建議, or 綜整.
 ---
 
 # RKF Knowledge Synthesis

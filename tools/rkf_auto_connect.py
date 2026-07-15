@@ -13,6 +13,8 @@ import os
 import re
 import sys
 import tempfile
+import uuid
+from datetime import datetime, timezone
 from dataclasses import asdict, dataclass
 from pathlib import Path
 from typing import Any
@@ -54,6 +56,7 @@ class BridgeFolderResult:
 BRIDGE_FILENAMES = ("README.md", "hot.md", "memory.md", "captures.md")
 CAPTURE_MODES = {"active-aggressive", "active", "off"}
 PROJECT_NAME_RE = re.compile(r"^[\w .()\-]{1,100}$", re.UNICODE)
+PROJECT_ID_RE = re.compile(r"^prj_[a-f0-9]{24}$")
 
 
 def _load_toml(path: Path) -> dict[str, Any]:
@@ -231,7 +234,7 @@ def build_query_request(
     limit: int = 10,
 ) -> ActionRequest:
     _ = config
-    return ActionRequest(action="query.search", params={"query": query, "limit": limit})
+    return ActionRequest(action="workflow.ask", params={"query": query, "limit": limit})
 
 
 def build_capture_request(
@@ -252,7 +255,7 @@ def build_capture_request(
 ) -> ActionRequest:
     _ = config
     return ActionRequest(
-        action="capture.route",
+        action="workflow.add",
         params={
             "title": title,
             "text": text,
@@ -306,8 +309,17 @@ def open_action_runtime(
     )
 
 
-def render_project_marker(*, mode: str) -> str:
+def render_project_marker(
+    *,
+    mode: str,
+    project_id: str = "",
+    project_name: str = "",
+    connected_at: str = "",
+) -> str:
     mode = _validated_mode(mode)
+    project_id = project_id or f"prj_{uuid.uuid4().hex[:24]}"
+    project_name = _validated_project_name(project_name or "RKF Project")
+    connected_at = connected_at or datetime.now(timezone.utc).isoformat().replace("+00:00", "Z")
     return (
         "version = 2\n\n"
         "[rkf]\n"
@@ -315,6 +327,11 @@ def render_project_marker(*, mode: str) -> str:
         'activation = "manual"\n'
         "query_first = true\n"
         f'capture_mode = "{mode}"\n'
+        f'project_id = "{project_id}"\n'
+        f'project_name = "{project_name}"\n'
+        'marker_schema = "rkf-connect-v2"\n'
+        'connector_version = "1.1.0"\n'
+        f'connected_at = "{connected_at}"\n'
     )
 
 
@@ -328,13 +345,20 @@ def preview_project_marker(
     marker = root / ".rkf-connect.toml"
     _assert_no_symlink(marker, label="marker")
     current = read_project_marker(root)
-    proposed = render_project_marker(mode=mode)
+    existing_project_id = str(current.get("project_id", ""))
+    proposed = render_project_marker(
+        mode=mode,
+        project_id=existing_project_id or "prj_GENERATED_ON_APPLY",
+        project_name=str(current.get("project_name", root.name)),
+        connected_at=str(current.get("connected_at", "GENERATED_ON_APPLY")),
+    )
     if current["version"] == 2:
         semantic_match = (
             current["available"] is True
             and current["activation"] == "manual"
             and current["query_first"] is True
             and current["capture_mode"] == mode
+            and bool(existing_project_id)
         )
         return {
             "path": ".rkf-connect.toml",
@@ -360,6 +384,7 @@ def write_project_marker(
     *,
     mode: str = "active-aggressive",
     approve_upgrade: bool = False,
+    project_name: str = "",
 ) -> Path:
     root = _validated_project_root(project_root)
     mode = _validated_mode(mode)
@@ -377,7 +402,7 @@ def write_project_marker(
         raise SystemExit("v1 marker upgrade requires preview and explicit approval")
     if not _directory_is_writable(root):
         raise SystemExit("project root is not writable for the RKF marker")
-    rendered = render_project_marker(mode=mode)
+    rendered = render_project_marker(mode=mode, project_name=project_name or root.name)
     try:
         if marker.exists():
             original = marker.read_bytes()
@@ -671,6 +696,7 @@ def connect_project(
                 root,
                 mode=mode,
                 approve_upgrade=approve_upgrade,
+                project_name=normalized_name,
             )
     except BaseException:
         if bridge is not None:
@@ -723,12 +749,20 @@ def read_project_marker(project_root: Path) -> dict[str, Any]:
         activation = section.get("activation", "manual")
         query_first = section.get("query_first", True)
         capture_mode = section.get("capture_mode", "active-aggressive")
+        project_id = section.get("project_id", "")
+        project_name = section.get("project_name", root.name)
+        marker_schema = section.get("marker_schema", "")
+        connector_version = section.get("connector_version", "")
+        connected_at = section.get("connected_at", "")
         if (
             not isinstance(available, bool)
             or activation != "manual"
             or not isinstance(query_first, bool)
             or not isinstance(capture_mode, str)
             or capture_mode not in CAPTURE_MODES
+            or not isinstance(project_id, str)
+            or not isinstance(project_name, str)
+            or (bool(project_id) and PROJECT_ID_RE.fullmatch(project_id) is None)
         ):
             raise SystemExit("RKF v2 project marker is invalid")
         return {
@@ -737,6 +771,11 @@ def read_project_marker(project_root: Path) -> dict[str, Any]:
             "activation": "manual",
             "query_first": query_first,
             "capture_mode": str(capture_mode),
+            "project_id": project_id,
+            "project_name": project_name,
+            "marker_schema": str(marker_schema),
+            "connector_version": str(connector_version),
+            "connected_at": str(connected_at),
         }
     section = data.get("rkf_auto_connect", {})
     if not isinstance(section, dict):

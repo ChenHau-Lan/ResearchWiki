@@ -78,6 +78,8 @@ from .public_dashboard import (
     publish_public_dashboard,
     render_dashboard_preview,
 )
+from .lineage import input_fingerprint, record_action, record_activation, update_activation, utc_now
+from .research import record_claim, record_evidence, review_home, synthesize as synthesize_v1
 
 
 @dataclass(frozen=True)
@@ -94,8 +96,19 @@ class ActionResult:
     payload: dict[str, Any] = field(default_factory=dict)
 
 
-CONTROL_ACTIONS = {"rkf.activate", "rkf.status", "rkf.deactivate"}
+CONTROL_ACTIONS = {"rkf.activate", "rkf.status", "rkf.deactivate", "connect.validate"}
+V1_WORKFLOW_ACTIONS = {
+    "workflow.add",
+    "workflow.ask",
+    "workflow.read",
+    "workflow.compare-synthesize",
+    "workflow.review",
+}
+APP_FACING_ACTIONS = CONTROL_ACTIONS | V1_WORKFLOW_ACTIONS
 WRITE_ACTIONS = {
+    "workflow.add",
+    "workflow.read",
+    "workflow.compare-synthesize",
     "inbox.capture",
     "hot.record",
     "graph.export",
@@ -126,7 +139,7 @@ WRITER_ONLY_ACTIONS = {
     "discover.record",
     "discover.accept",
 }
-DOCTOR_GUARDED_ACTIONS = SHARED_WRITE_ACTIONS
+DOCTOR_GUARDED_ACTIONS = SHARED_WRITE_ACTIONS - V1_WORKFLOW_ACTIONS
 AUTOMATION_DISCOVERY_ACCEPT_LIMIT = 20
 
 
@@ -143,6 +156,12 @@ def _workspace(workspace: Workspace | Path | None = None) -> Workspace:
     if isinstance(workspace, Path):
         return Workspace(workspace)
     return Workspace()
+
+
+def available_actions() -> tuple[str, ...]:
+    """Return the deliberately small RKF v1 product surface."""
+
+    return tuple(sorted(APP_FACING_ACTIONS))
 
 
 ACTION_LINT_MODES = {
@@ -1019,6 +1038,87 @@ class RKFActionRuntime:
         self.project_root = project_root
         self.session: SessionState = new_session(session_id)
 
+    def _trace_result(self, request: ActionRequest, result: ActionResult) -> ActionResult:
+        if not self.session.activation_id or not self.session.project_id:
+            return result
+        affected = result.payload.get("affected_object_ids", [])
+        if not affected:
+            affected = [
+                str(result.payload[key])
+                for key in ("evidence_id", "claim_id", "synthesis_id", "event_id")
+                if result.payload.get(key)
+            ]
+        _, event = record_action(
+            self.workspace.root,
+            {
+                "activation_id": self.session.activation_id,
+                "origin_project_id": self.session.project_id,
+                "action": request.action,
+                "timestamp": utc_now(),
+                "status": result.status,
+                "input_fingerprint": input_fingerprint(request.params),
+                "affected_object_ids": affected,
+                "idempotency_key": str(request.params.get("idempotency_key", "")) or input_fingerprint({"action": request.action, **request.params}),
+                "promotion": str(result.payload.get("promotion", "none")),
+            },
+        )
+        payload = dict(result.payload)
+        payload["lineage_event_id"] = event["event_id"]
+        payload["origin_project_id"] = self.session.project_id
+        payload["activation_id"] = self.session.activation_id
+        return ActionResult(result.action, result.status, result.message, payload)
+
+    def _execute_v1_workflow(self, request: ActionRequest) -> ActionResult:
+        params = dict(request.params)
+        if request.action == "workflow.add":
+            result = self._capture_route(params)
+            return ActionResult(request.action, result.status, result.message, result.payload)
+        if request.action == "workflow.ask":
+            payload = search_central_rkf(self.workspace, **params)
+            return ActionResult(request.action, "ok", f"found {payload['count']} governed RKF result(s)", payload)
+        if request.action == "workflow.read":
+            try:
+                payload = record_evidence(
+                    self.workspace,
+                    origin_project_id=self.session.project_id,
+                    activation_id=self.session.activation_id,
+                    **params,
+                )
+            except (TypeError, ValueError) as error:
+                return ActionResult(request.action, "blocked", str(error), {"error_code": "RKF_EVIDENCE_REJECTED"})
+            return ActionResult(request.action, "ok", "recorded locator-backed evidence", {**payload, "affected_object_ids": [payload["evidence_id"]]})
+        if request.action == "workflow.compare-synthesize":
+            operation = str(params.pop("operation", "synthesis"))
+            try:
+                if operation == "claim":
+                    payload = record_claim(
+                        self.workspace,
+                        origin_project_id=self.session.project_id,
+                        activation_id=self.session.activation_id,
+                        **params,
+                    )
+                    object_id = payload["claim_id"]
+                elif operation == "synthesis":
+                    payload = synthesize_v1(
+                        self.workspace,
+                        origin_project_id=self.session.project_id,
+                        activation_id=self.session.activation_id,
+                        **params,
+                    )
+                    object_id = payload["synthesis_id"]
+                else:
+                    raise ValueError("operation must be claim or synthesis")
+            except (TypeError, ValueError) as error:
+                return ActionResult(request.action, "blocked", str(error), {"error_code": "RKF_SYNTHESIS_REJECTED"})
+            return ActionResult(request.action, "ok", f"recorded canonical {operation}", {**payload, "affected_object_ids": [object_id]})
+        if request.action == "workflow.review":
+            allowed = {"project_id", "activation_id"}
+            if set(params) - allowed:
+                raise SystemExit("workflow.review accepts only project_id and activation_id")
+            payload = review_home(self.workspace, **params)
+            return ActionResult(request.action, "ok", "rendered actionable RKF Review/Home", payload)
+        raise SystemExit(f"unsupported RKF v1 workflow: {request.action}")
+
     def _materialize_targets(
         self,
         *,
@@ -1486,12 +1586,13 @@ class RKFActionRuntime:
 
     def execute(self, request: ActionRequest) -> ActionResult:
         if request.action == "rkf.status":
-            return ActionResult(
+            result = ActionResult(
                 action="rkf.status",
                 status="ok",
                 message=f"RKF is {self.session.mode.value}",
                 payload=session_receipt(self.session),
             )
+            return self._trace_result(request, result)
         if request.action == "rkf.activate":
             receipt = activate_session(
                 self.session,
@@ -1499,20 +1600,48 @@ class RKFActionRuntime:
                 project_root=self.project_root,
             )
             status = "failed" if self.session.mode == SessionMode.OFF else "ok"
-            return ActionResult(
+            result = ActionResult(
                 action="rkf.activate",
                 status=status,
                 message=f"RKF is {self.session.mode.value}",
                 payload=receipt,
             )
+            if self.session.activation_id and self.session.project_id:
+                record_activation(
+                    self.workspace.root,
+                    {
+                        "activation_id": self.session.activation_id,
+                        "project_id": self.session.project_id,
+                        "project_name": self.session.project_name,
+                        "started_at": self.session.started_at,
+                        "ended_at": "",
+                        "mode": self.session.mode.value,
+                        "result": status,
+                        "blocker_codes": list(self.session.warnings),
+                        "rkf_version": "1.1.0",
+                    },
+                )
+                result = self._trace_result(request, result)
+            return result
         if request.action == "rkf.deactivate":
+            activation_id = self.session.activation_id
             receipt = deactivate_session(self.session)
-            return ActionResult(
+            result = ActionResult(
                 action="rkf.deactivate",
                 status="ok",
                 message="RKF is OFF",
                 payload=receipt,
             )
+            result = self._trace_result(request, result)
+            if activation_id and self.session.project_id:
+                update_activation(
+                    self.workspace.root,
+                    activation_id,
+                    ended_at=self.session.ended_at,
+                    mode="OFF",
+                    result="closed",
+                )
+            return result
         if self.session.mode == SessionMode.OFF:
             return ActionResult(
                 action=request.action,
@@ -1527,6 +1656,22 @@ class RKFActionRuntime:
                 message="RKF is active read-only",
                 payload={"error_code": "RKF_READ_ONLY", **session_receipt(self.session)},
             )
+        if request.action == "connect.validate":
+            result = ActionResult(
+                action=request.action,
+                status="ok" if self.session.project_id else "blocked",
+                message="RKF project connection is valid" if self.session.project_id else "RKF project connection lacks a stable project_id",
+                payload={
+                    "project_id": self.session.project_id,
+                    "project_name": self.session.project_name,
+                    "activation_id": self.session.activation_id,
+                    "central_rkf_available": self.workspace.paths.wiki_root.is_dir(),
+                    "paths_redacted": True,
+                },
+            )
+            return self._trace_result(request, result)
+        if request.action in V1_WORKFLOW_ACTIONS:
+            return self._trace_result(request, self._execute_v1_workflow(request))
         if request.action in DOCTOR_GUARDED_ACTIONS:
             doctor = run_connect_doctor(self.workspace)
             if doctor.status == "blocked":

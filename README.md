@@ -145,6 +145,36 @@ compatibility code do not create additional product modes.
   prompts do not enter the public repository or public output.
 - RKF does not bypass paywalls, CAPTCHA, or access controls.
 
+## vNext acquisition development
+
+GitHub issue #18 now has an opt-in **portable-core slice** for scientific-
+artifact acquisition: multi-identifier resolution, bounded OA/official and
+authorized-repository routes, artifact/version provenance, PDF QC, private
+storage, and acquisition lineage. It remains an internal Add provider, not a
+sixth workflow, and is off by default in the connector. Browser, institutional,
+and publisher-specific adapters are not complete; access controls and
+SSO/CAPTCHA surfaces are detected and stopped as typed manual handoffs, never
+bypassed.
+
+A reproducible atmospheric-journal corpus contains 11 P0 and 3 P1
+representative cases. In the bounded 2026-07-16 live observation, all 14
+artifacts were obtained and met the helper's research-ready PDF checks, using
+publisher, current NCBI PMC Cloud, and authorized repository routes. This is
+observational evidence for those exact cases and time, not proof that every
+article from those journals is retrievable. The helper requires its reports
+and checksum-addressed artifacts to stay outside the repository, and every
+result retains `Promotion: none`.
+
+See the [vNext acquisition reference](docs/references/vnext-acquisition.md),
+the [14-case journal corpus](docs/benchmarks/acquisition-issue-18-atmospheric-journal-corpus.json),
+the [14-case live result](docs/benchmarks/acquisition-issue-18-atmospheric-journal-live-smoke.md),
+the [journal-family route playbook](docs/operations/atmospheric-journal-acquisition-route-playbook.zh-TW.md),
+the [public-safe implementation and conversation summary](docs/operations/2026-07-16-issue-18-atmospheric-journal-closeout.zh-TW.md),
+and the broader historical
+[79-citation atmospheric baseline](docs/benchmarks/acquisition-issue-18-atmospheric-smoke.md).
+The compact Traditional Chinese capability entry is in
+[FEATURES_AND_COMMANDS.zh-TW.md](docs/FEATURES_AND_COMMANDS.zh-TW.md).
+
 Use [Getting Started](docs/GETTING_STARTED.md) as the current beginner guide.
 For detailed daily use, see the [Researcher manual](docs/manuals/rkf_manual.en.md).
 For architecture, compatibility/removal decisions, release operations, and the

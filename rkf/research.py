@@ -24,7 +24,7 @@ from .lineage import (
     object_origin_lookup,
     utc_now,
 )
-from .providers import validate_paper_access_target
+from .providers import load_acquisition_runs, validate_paper_access_target
 from .schema import (
     ACCESS_STATES,
     CLAIM_STATUSES,
@@ -1367,6 +1367,19 @@ def review_home(
         retrieval_runs = [item for item in retrieval_runs if item.get("project_id") == project_id]
     if activation_id:
         retrieval_runs = [item for item in retrieval_runs if item.get("activation_id") == activation_id]
+    acquisition_runs = load_acquisition_runs(
+        ws,
+        project_id=project_id,
+        activation_id=activation_id,
+        status=status,
+        target_object_id=target_object_id,
+    )
+    acquisition_runs.sort(
+        key=lambda item: (
+            str(item.get("created", "")),
+            str(item.get("acquisition_run_id", "")),
+        )
+    )
     return {
         "schema": "rkf-review-home-v1",
         "paper_state_counts": dict(state_counts),
@@ -1400,6 +1413,7 @@ def review_home(
         "syntheses_with_gaps": [item["synthesis_id"] for item in syntheses if item.get("evidence_gaps")],
         "read_runs_with_failed_checks": [item["read_run_id"] for item in read_runs if item.get("failed_checks")],
         "retrieval_lineage": retrieval_runs[-20:],
+        "acquisition_lineage": acquisition_runs[-20:],
         "semantic_index_health": [
             {
                 "provider": item.get("provider", "none"),
@@ -1418,7 +1432,17 @@ def review_home(
             item
             for item in actions
             if item.get("action") == "workflow.add"
-            and item.get("status") in {"manual-required", "retryable", "unavailable", "blocked", "failed"}
+            and item.get("status") in {
+                "manual-required",
+                "retryable",
+                "not-entitled",
+                "unavailable",
+                "blocked",
+                "identity-mismatch",
+                "invalid-artifact",
+                "provider-error",
+                "failed",
+            }
         ],
         "object_origin": (
             object_origin_lookup(ws.root, target_object_id, effective_only=True)

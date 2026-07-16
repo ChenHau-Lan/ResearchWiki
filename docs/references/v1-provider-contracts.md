@@ -1,5 +1,12 @@
 # RKF v1 Optional Provider Contracts
 
+Issue #18's current vNext portable-core slice is documented separately in
+[`vnext-acquisition.md`](vnext-acquisition.md). It preserves this v1 evidence
+boundary while adding portable OA routes, artifact/version QC, acquisition-run
+lineage, and an optional external institutional bridge. It neither completes
+the issue's institutional-adapter inventory nor adds a new user-facing
+workflow.
+
 RKF v1 remains usable with no optional provider. The deterministic core owns
 canonical objects, evidence boundaries, and project/activation lineage.
 Providers may improve acquisition, appraisal, or retrieval, but they cannot
@@ -12,9 +19,18 @@ explicitly configured `FullTextProvider`. Results use one of:
 
 - `obtained`
 - `manual-required`
-- `unavailable`
 - `retryable`
+- `not-entitled`
+- `unavailable`
 - `blocked`
+- `identity-mismatch`
+- `invalid-artifact`
+- `provider-error`
+
+These nine values are the canonical final provider statuses in
+`schemas/rkf_v1.schema.json`. Route-level attempts may additionally use
+`resolved` or `no-result`; neither means that a full-text artifact was
+obtained.
 
 `retryable` is never rewritten as `unavailable`. An obtained artifact requires
 a SHA-256 digest and explicit `%PDF` magic-byte validation. The public record
@@ -25,9 +41,14 @@ every relation. The legacy singular fields remain compatibility mirrors of the
 current registration. A symlink at the private root, artifact parent, or
 target fails closed before the handle is written. Private artifact directories
 and handle files are restricted to owner-only `0700` and `0600` permissions.
+The standalone acquisition smoke helper uses a separately supplied private or
+temporary boundary and rejects output inside the repository, symlinked output,
+and overwrite attempts. It does not place test PDFs under the checkout.
 
 The included external-command adapter is a minimal `shell=False` JSON bridge.
-It does not configure a browser, institution, credential, or publisher route.
+It does not configure a browser, institution, credential, or publisher route,
+and the core does not implement SSO/CAPTCHA bypass. Such surfaces must stop as
+a manual handoff in the external machine-local workflow.
 An obtained result also updates the existing canonical Paper to
 `access_state: fulltext`; missing Paper records fail closed before acquisition.
 

@@ -264,6 +264,33 @@ class RKFAutoConnectTests(unittest.TestCase):
         with self.assertRaisesRegex(SystemExit, "not connected or available"):
             auto.open_action_runtime(config=config, project_root=project)
 
+    def test_portable_acquisition_is_explicitly_opt_in_for_connector_runtime(self) -> None:
+        config = auto.load_connector_config()
+        disabled = auto.open_action_runtime(
+            config=config,
+            project_root=self.researchwiki,
+        )
+        os.environ["RKF_ENABLE_PORTABLE_ACQUISITION"] = "1"
+        os.environ["RKF_CONTACT_EMAIL"] = "researcher@example.org"
+        enabled = auto.open_action_runtime(
+            config=config,
+            project_root=self.researchwiki,
+        )
+
+        self.assertIsNone(disabled.full_text_provider)
+        self.assertIsInstance(
+            enabled.full_text_provider,
+            auto.PortableScientificAcquisitionProvider,
+        )
+        self.assertEqual(
+            enabled.full_text_provider.contact_email,
+            "researcher@example.org",
+        )
+        self.assertEqual(
+            enabled.full_text_provider.store.boundary_root,
+            self.researchwiki.resolve(),
+        )
+
     def test_write_project_marker_uses_v2_manual_activation(self) -> None:
         project = self.root / "SomeProject"
         project.mkdir()

@@ -22,13 +22,18 @@ from rkf.schema import (  # noqa: E402
     EVIDENCE_STANCES,
     LEGACY_READING_MAP,
     LOCATOR_STATES,
+    PROVIDER_STATUSES,
     REVIEW_STATES,
     VERIFICATION_STATES,
     canonical_enum,
     load_canonical_schema,
 )
 from rkf.core import Workspace  # noqa: E402
-from rkf.providers import FullTextProviderResult, register_evidence_artifact  # noqa: E402
+from rkf.providers import (  # noqa: E402
+    FullTextProviderResult,
+    register_acquisition_run,
+    register_evidence_artifact,
+)
 
 
 REQUIRED_DEFINITIONS = {
@@ -41,6 +46,10 @@ REQUIRED_DEFINITIONS = {
     "activationEvent",
     "actionEvent",
     "fullTextProviderResult",
+    "canonicalIdentifier",
+    "acquisitionAttempt",
+    "acquisitionRun",
+    "artifactRecord",
     "argumentMap",
     "appraisalProviderResult",
     "retrievalRun",
@@ -56,6 +65,7 @@ EXPECTED_ENUMS = {
     "claimStatus": CLAIM_STATUSES,
     "locatorState": LOCATOR_STATES,
     "appraisalStatus": APPRAISAL_STATUSES,
+    "providerStatus": PROVIDER_STATUSES,
 }
 
 
@@ -199,6 +209,7 @@ def runtime_payload_findings(schema: dict[str, Any]) -> list[str]:
         elapsed_ms=1,
         entitlement_state="covered",
         pdf_magic_validated=True,
+        acquisition_run_id="acq_1234567890abcdef12345678",
     )
     provider_definition = schema.get("$defs", {}).get("fullTextProviderResult", {})
     findings.extend(
@@ -214,12 +225,23 @@ def runtime_payload_findings(schema: dict[str, Any]) -> list[str]:
         (REPO / "schemas" / "evidence_artifact.schema.json").read_text(encoding="utf-8")
     )
     with tempfile.TemporaryDirectory() as directory:
+        workspace = Workspace(Path(directory))
         artifact = register_evidence_artifact(
-            Workspace(Path(directory)),
+            workspace,
             paper_id="papers/schema-fixture",
             result=provider_result,
             origin_project_id="prj_1234567890abcdef12345678",
             activation_id="act_1234567890abcdef12345678",
+        )
+        acquisition_run = register_acquisition_run(
+            workspace,
+            result=provider_result,
+            identifier="10.1234/schema-fixture",
+            source_id="schema-fixture",
+            paper_id="papers/schema-fixture",
+            origin_project_id="prj_1234567890abcdef12345678",
+            activation_id="act_1234567890abcdef12345678",
+            artifact_ids=(artifact["artifact_id"],),
         )
     findings.extend(
         validate_instance(
@@ -227,6 +249,22 @@ def runtime_payload_findings(schema: dict[str, Any]) -> list[str]:
             artifact_schema,
             artifact_schema,
             label="register_evidence_artifact",
+        )
+    )
+    findings.extend(
+        validate_instance(
+            acquisition_run,
+            schema.get("$defs", {}).get("acquisitionRun", {}),
+            schema,
+            label="AcquisitionRun",
+        )
+    )
+    findings.extend(
+        validate_instance(
+            artifact,
+            schema.get("$defs", {}).get("artifactRecord", {}),
+            schema,
+            label="ArtifactRecord",
         )
     )
     legacy_artifact = {

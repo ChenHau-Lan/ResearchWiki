@@ -2,6 +2,37 @@
 
 ## Unreleased - v1.2 target
 
+- Implement the issue #18 vNext **portable-core slice** without expanding the
+  five-workflow product surface: multi-identifier resolution, atmospheric P0
+  and P1 profiles, bounded OA/Crossref/DataCite/OpenAlex/current NCBI PMC Cloud/
+  landing routes, optional publisher TDM contracts and an external
+  institutional bridge, typed retry/authorization failures, checksum-private
+  storage, artifact version/QC provenance, and idempotent acquisition-run
+  lineage in Review. SSO/CAPTCHA and other access-control surfaces stop at a
+  typed manual handoff; the core does not automate or bypass them. Native
+  institutional adapters and the rest of the issue #18 inventory remain open.
+- Harden the portable acquisition boundary with actual connected-peer
+  validation, IPv6 transition/NAT64 private-address rejection, HTTPS/same-
+  origin secret handling, a shared candidate-request budget, exact full-token
+  DOI identity, conservative artifact-level version/license classification,
+  atomic no-replace checksum storage, strict external-adapter route exposure,
+  and repository Signposting/DSpace bitstream resolution.
+- Add a public 11-P0 + 3-P1 atmospheric-journal corpus. One bounded 2026-07-16
+  live observation obtained all 14 artifacts and all 14 met the helper's
+  research-ready PDF checks across nine selected routes. This is not a global
+  availability claim; the broader 79-citation result remains a historical
+  baseline. Smoke reports and artifacts stay outside the repository, and
+  artifact success retains `Promotion: none` without verifying Evidence or
+  Claims.
+- Add a journal-family acquisition route playbook and a public-safe issue #18
+  conversation/implementation closeout. Reusable DOI-family route ladders are
+  kept separate from article-specific repository identifiers, which must be
+  re-discovered from metadata or explicit user input rather than guessed.
+- Add a fail-closed identifier-adapter registry for ADS bibcodes, OSF
+  preprints, current/legacy EarthArXiv records, ESS Open Archive DOIs, NOAA IR
+  PIDs, WMO records/publication slugs, and registered IPCC reports. Withdrawn
+  OSF records and ambiguous report numbers remain explicit manual handoffs.
+
 - Treat locators as a promotion gate rather than an entry gate. Read can now
   capture receipt-backed `rkf-finding-v1` FindingDrafts with missing, coarse,
   or exact locator state; only exact findings can be promoted atomically into

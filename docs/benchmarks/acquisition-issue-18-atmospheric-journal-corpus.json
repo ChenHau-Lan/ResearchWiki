@@ -1,0 +1,314 @@
+{
+  "schema_version": "1.0",
+  "corpus_id": "acquisition-issue-18-atmospheric-journal-live-smoke",
+  "created_on": "2026-07-16",
+  "purpose": "Public, reproducible live-smoke inputs for lawful atmospheric-journal full-text acquisition routes, with bounded public-safe outcomes from the 2026-07-16 final smoke run.",
+  "access_expectation_values": {
+    "oa": "The selected article is identified as open access by an official publisher or journal page.",
+    "public-after-embargo": "The publisher policy makes the selected article publicly readable after a stated embargo; this does not imply an article-level open license.",
+    "repository-route": "The publisher version is not assumed open; success is limited to a lawful repository copy discovered through authoritative metadata."
+  },
+  "global_result_boundary": "A successful acquisition outcome requires a full-text artifact from the publisher or an authorized repository plus readable-artifact and identity verification. Version, access or license evidence, and route provenance are recorded separately; unknown versions and empty license fields remain explicit review gaps rather than being inferred. A landing page or abstract alone is not success. Authentication, paywalls, robots rules, and anti-bot controls must not be bypassed; blocked delivery remains retryable or manual-required rather than unavailable.",
+  "cases": [
+    {
+      "tier": "P0",
+      "publisher": "AGU / Wiley",
+      "journal": "AGU Advances",
+      "doi": "10.1029/2020AV000350",
+      "access_expectation": "oa",
+      "official_landing_url": "https://agupubs.onlinelibrary.wiley.com/doi/full/10.1029/2020AV000350",
+      "policy_note": "The official AGU/Wiley article landing marks this article open access. Wiley delivery controls may still block unattended clients even when the article is lawfully open.",
+      "expected_result_boundary": "Obtain an authorized full-text artifact and record version, article-level access or license evidence, and route provenance; otherwise return retryable or manual-required without bypassing Wiley controls.",
+      "live_outcome": {
+        "tested_on": "2026-07-16",
+        "status": "obtained",
+        "route": "openalex-landing.citation-meta",
+        "artifact_version": "preprint",
+        "license": "cc-by-nc",
+        "page_count": 8,
+        "quality_state": "readable",
+        "identity_state": "verified",
+        "research_ready_verified": true
+      }
+    },
+    {
+      "tier": "P0",
+      "publisher": "Wiley / Royal Meteorological Society",
+      "journal": "Quarterly Journal of the Royal Meteorological Society",
+      "doi": "10.1002/qj.4944",
+      "alternate_identifiers": [
+        "NOAA:71054"
+      ],
+      "access_expectation": "oa",
+      "official_landing_url": "https://rmets.onlinelibrary.wiley.com/doi/full/10.1002/qj.4944",
+      "policy_note": "The official Wiley/RMetS landing identifies this article as open access. This case exercises the 10.1002 prefix independently of the AGU 10.1029 route.",
+      "expected_result_boundary": "Obtain an authorized full-text artifact and preserve its version, access or license evidence, and route provenance; an access-control response is manual-required or retryable, not evidence that the article is unavailable.",
+      "live_outcome": {
+        "tested_on": "2026-07-16",
+        "status": "obtained",
+        "route": "noaa-ir-landing.citation-meta",
+        "artifact_version": "unknown",
+        "license": "",
+        "page_count": 28,
+        "quality_state": "readable",
+        "identity_state": "verified",
+        "research_ready_verified": true
+      }
+    },
+    {
+      "tier": "P0",
+      "publisher": "American Meteorological Society",
+      "journal": "Weather and Forecasting",
+      "doi": "10.1175/2009WAF2222252.1",
+      "access_expectation": "public-after-embargo",
+      "official_landing_url": "https://journals.ametsoc.org/view/journals/wefo/24/5/2009waf2222252_1.xml",
+      "policy_note": "AMS states that articles in its technical journals become free to read 12 months after publication. This 2009 article should therefore be publicly readable, but it must not be described as openly licensed unless article-level evidence says so.",
+      "expected_result_boundary": "Obtain the public publisher full text or a lawful repository version and record the exact version and provenance; publisher 403 responses remain retryable or manual-required and must not be treated as permanent unavailability.",
+      "live_outcome": {
+        "tested_on": "2026-07-16",
+        "status": "obtained",
+        "route": "openalex-landing.citation-meta",
+        "artifact_version": "preprint",
+        "license": "",
+        "page_count": 15,
+        "quality_state": "readable",
+        "identity_state": "verified",
+        "research_ready_verified": true
+      }
+    },
+    {
+      "tier": "P0",
+      "publisher": "Copernicus Publications",
+      "journal": "Atmospheric Measurement Techniques",
+      "doi": "10.5194/amt-17-5619-2024",
+      "access_expectation": "oa",
+      "official_landing_url": "https://amt.copernicus.org/articles/17/5619/2024/",
+      "policy_note": "Copernicus journals publish open-access articles. Because Copernicus can temporarily restrict PDF delivery while HTML or XML remains available, artifact formats must eventually be tracked independently; this portable slice currently validates and stores PDFs only.",
+      "expected_result_boundary": "Obtain and validate the authorized PDF for this slice. Publisher HTML or XML may support landing discovery but is not yet an independently registered acquisition outcome; if PDF delivery is restricted, retain a typed retry/manual result and record route provenance.",
+      "live_outcome": {
+        "tested_on": "2026-07-16",
+        "status": "obtained",
+        "route": "copernicus-direct",
+        "artifact_version": "version-of-record",
+        "license": "",
+        "page_count": 18,
+        "quality_state": "readable",
+        "identity_state": "verified",
+        "research_ready_verified": true
+      }
+    },
+    {
+      "tier": "P0",
+      "publisher": "Elsevier",
+      "journal": "Atmospheric Environment",
+      "doi": "10.1016/j.atmosenv.2022.119234",
+      "access_expectation": "oa",
+      "official_landing_url": "https://doi.org/10.1016/j.atmosenv.2022.119234",
+      "policy_note": "This representative Atmospheric Environment paper is in the PubMed Central Open Access subset under PMCID PMC9297293. The current PMC Open Data metadata identifies a non-manuscript PDF and CC BY license, providing a lawful route independent of ScienceDirect delivery controls; the non-manuscript flag alone is not proof that the PDF is the version of record.",
+      "expected_result_boundary": "Obtain the authorized PMC Open Data PDF with CC BY license evidence and provenance, while keeping the artifact version unknown unless an independent version-specific source supports a stronger classification; do not use subscription APIs or credentials unless explicitly configured outside this public corpus.",
+      "live_outcome": {
+        "tested_on": "2026-07-16",
+        "status": "obtained",
+        "route": "ncbi-pmc-cloud",
+        "artifact_version": "unknown",
+        "license": "CC BY",
+        "page_count": 9,
+        "quality_state": "readable",
+        "identity_state": "verified",
+        "research_ready_verified": true
+      }
+    },
+    {
+      "tier": "P0",
+      "publisher": "Springer Nature",
+      "journal": "Climate Dynamics",
+      "doi": "10.1007/s00382-024-07441-6",
+      "access_expectation": "oa",
+      "official_landing_url": "https://link.springer.com/article/10.1007/s00382-024-07441-6",
+      "policy_note": "The official Springer article page marks this Climate Dynamics article open access and provides a publisher PDF route. This case exercises the 10.1007 profile.",
+      "expected_result_boundary": "Obtain the authorized publisher full text and record article version, access or license evidence, and provenance; if automated delivery is blocked, return retryable or manual-required without bypassing controls.",
+      "live_outcome": {
+        "tested_on": "2026-07-16",
+        "status": "obtained",
+        "route": "springer-official-oa",
+        "artifact_version": "version-of-record",
+        "license": "",
+        "page_count": 13,
+        "quality_state": "readable",
+        "identity_state": "verified",
+        "research_ready_verified": true
+      }
+    },
+    {
+      "tier": "P0",
+      "publisher": "Springer Nature",
+      "journal": "Communications Earth & Environment",
+      "doi": "10.1038/s43247-022-00563-x",
+      "access_expectation": "oa",
+      "official_landing_url": "https://www.nature.com/articles/s43247-022-00563-x",
+      "policy_note": "The official Nature Portfolio landing identifies this article as open access. This case keeps the 10.1038 route distinct from the Springer 10.1007 route.",
+      "expected_result_boundary": "Obtain the authorized version of record or another explicitly authorized full-text artifact and record license, version, and provenance; a landing page alone is not success.",
+      "live_outcome": {
+        "tested_on": "2026-07-16",
+        "status": "obtained",
+        "route": "crossref-link",
+        "artifact_version": "version-of-record",
+        "license": "https://creativecommons.org/licenses/by/4.0",
+        "page_count": 11,
+        "quality_state": "readable",
+        "identity_state": "verified",
+        "research_ready_verified": true
+      }
+    },
+    {
+      "tier": "P0",
+      "publisher": "IOP Publishing",
+      "journal": "Environmental Research Letters",
+      "doi": "10.1088/1748-9326/adc0b1",
+      "access_expectation": "oa",
+      "official_landing_url": "https://iopscience.iop.org/article/10.1088/1748-9326/adc0b1",
+      "policy_note": "Environmental Research Letters is a fully open-access journal, and IOP identifies this article as open access. IOP robots restrictions may prevent unattended retrieval despite lawful public access.",
+      "expected_result_boundary": "Obtain an authorized full-text artifact with article version, license evidence, and provenance; robots or access-control failures remain retryable or manual-required and must not be bypassed.",
+      "live_outcome": {
+        "tested_on": "2026-07-16",
+        "status": "obtained",
+        "route": "crossref-link",
+        "artifact_version": "accepted-manuscript",
+        "license": "",
+        "page_count": 9,
+        "quality_state": "readable",
+        "identity_state": "verified",
+        "research_ready_verified": true
+      }
+    },
+    {
+      "tier": "P0",
+      "publisher": "American Chemical Society",
+      "journal": "ACS ES&T Air",
+      "doi": "10.1021/acsestair.5c00180",
+      "access_expectation": "oa",
+      "official_landing_url": "https://pubs.acs.org/doi/full/10.1021/acsestair.5c00180",
+      "policy_note": "The official ACS article landing identifies this article as open access under a Creative Commons license. The article-level license, rather than the journal name alone, is the trust boundary.",
+      "expected_result_boundary": "Obtain an authorized full-text artifact and record the exact Creative Commons license, version, and provenance; ACS access-control responses remain manual-required or retryable.",
+      "live_outcome": {
+        "tested_on": "2026-07-16",
+        "status": "obtained",
+        "route": "ncbi-pmc-cloud",
+        "artifact_version": "unknown",
+        "license": "CC BY-NC-ND",
+        "page_count": 15,
+        "quality_state": "readable",
+        "identity_state": "verified",
+        "research_ready_verified": true
+      }
+    },
+    {
+      "tier": "P0",
+      "publisher": "AAAS",
+      "journal": "Science",
+      "doi": "10.1126/science.1125261",
+      "access_expectation": "repository-route",
+      "official_landing_url": "https://www.science.org/doi/10.1126/science.1125261",
+      "policy_note": "The Science version of record is not assumed open. This case tests discovery of a lawful repository copy through authoritative metadata and must preserve the repository artifact's preprint or accepted-manuscript status.",
+      "expected_result_boundary": "Success requires a lawful repository full text plus repository authority, version classification, and provenance. A publisher abstract, paywalled asset, or unidentified third-party copy is not success.",
+      "live_outcome": {
+        "tested_on": "2026-07-16",
+        "status": "obtained",
+        "route": "openalex-landing.citation-meta",
+        "artifact_version": "preprint",
+        "license": "",
+        "page_count": 10,
+        "quality_state": "readable",
+        "identity_state": "verified",
+        "research_ready_verified": true
+      }
+    },
+    {
+      "tier": "P0",
+      "publisher": "Taylor & Francis",
+      "journal": "Atmospheric and Oceanic Science Letters",
+      "doi": "10.1080/16742834.2017.1321951",
+      "alternate_identifiers": [
+        "https://oceanrep.geomar.de/47758/1/Interdisciplinary%20studies%20of%20solar%20activity%20and%20climate%20change.pdf"
+      ],
+      "access_expectation": "oa",
+      "official_landing_url": "https://www.tandfonline.com/doi/full/10.1080/16742834.2017.1321951",
+      "policy_note": "The journal archive and article landing expose this article as open access. Taylor & Francis delivery controls can still require a browser-compatible or metadata-derived route.",
+      "expected_result_boundary": "Obtain an authorized full-text artifact with article version, access or license evidence, and provenance; 403 or robots responses are manual-required or retryable, not permission to bypass controls.",
+      "live_outcome": {
+        "tested_on": "2026-07-16",
+        "status": "obtained",
+        "route": "direct-identifier",
+        "artifact_version": "unknown",
+        "license": "",
+        "page_count": 5,
+        "quality_state": "readable",
+        "identity_state": "verified",
+        "research_ready_verified": true
+      }
+    },
+    {
+      "tier": "P1",
+      "publisher": "MDPI",
+      "journal": "Atmosphere",
+      "doi": "10.3390/atmos15091123",
+      "access_expectation": "oa",
+      "official_landing_url": "https://www.mdpi.com/2073-4433/15/9/1123",
+      "policy_note": "Atmosphere is a fully open-access MDPI journal. This optional case covers the currently unprofiled 10.3390 family used frequently in atmospheric research.",
+      "expected_result_boundary": "Obtain the publisher full text and record only version and license evidence supported for that exact file; a bounded revision-URL heuristic remains version unknown with an empty license until independently verified. A metadata-only landing response is not success.",
+      "live_outcome": {
+        "tested_on": "2026-07-16",
+        "status": "obtained",
+        "route": "mdpi-official-pdf",
+        "artifact_version": "unknown",
+        "license": "",
+        "page_count": 26,
+        "quality_state": "readable",
+        "identity_state": "verified",
+        "research_ready_verified": true
+      }
+    },
+    {
+      "tier": "P1",
+      "publisher": "Frontiers",
+      "journal": "Frontiers in Earth Science - Atmospheric Science",
+      "doi": "10.3389/feart.2022.931916",
+      "access_expectation": "oa",
+      "official_landing_url": "https://www.frontiersin.org/journals/earth-science/articles/10.3389/feart.2022.931916/full",
+      "policy_note": "Frontiers articles are published open access, and this optional atmospheric-science case covers the currently unprofiled 10.3389 family.",
+      "expected_result_boundary": "Obtain and validate the publisher PDF and record only version, license, and provenance evidence supported for that file. Publisher HTML may support landing discovery but is not yet an independently registered artifact; a citation-only response is not success.",
+      "live_outcome": {
+        "tested_on": "2026-07-16",
+        "status": "obtained",
+        "route": "openalex-pdf",
+        "artifact_version": "version-of-record",
+        "license": "cc-by",
+        "page_count": 14,
+        "quality_state": "readable",
+        "identity_state": "verified",
+        "research_ready_verified": true
+      }
+    },
+    {
+      "tier": "P1",
+      "publisher": "Meteorological Society of Japan / J-STAGE",
+      "journal": "Journal of the Meteorological Society of Japan",
+      "doi": "10.2151/jmsj.2024-020",
+      "access_expectation": "oa",
+      "official_landing_url": "https://www.jstage.jst.go.jp/article/jmsj/102/4/102_2024-020/_article/-char/en",
+      "policy_note": "The official J-STAGE article page provides full-text HTML and PDF and identifies the article as CC BY 4.0. This optional case covers the currently unprofiled 10.2151 family.",
+      "expected_result_boundary": "Obtain and validate the J-STAGE PDF and record version, CC BY 4.0 evidence, and provenance supported for that file. Publisher HTML may support landing discovery but is not yet an independently registered artifact; the DOI resolver page alone is not success.",
+      "live_outcome": {
+        "tested_on": "2026-07-16",
+        "status": "obtained",
+        "route": "openalex-pdf",
+        "artifact_version": "version-of-record",
+        "license": "cc-by",
+        "page_count": 42,
+        "quality_state": "readable",
+        "identity_state": "verified",
+        "research_ready_verified": true
+      }
+    }
+  ]
+}

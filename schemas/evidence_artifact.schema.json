@@ -32,8 +32,18 @@
       "uniqueItems": true
     },
     "artifact_type": { "enum": ["pdf", "html_snapshot", "screenshot", "metadata", "attachment"] },
+    "scientific_artifact_type": {
+      "enum": ["pdf", "version-of-record-pdf", "accepted-manuscript", "preprint", "publisher-html", "jats-xml", "supplement", "figure", "table", "dataset-link", "software-link", "correction", "retraction-notice", "report"]
+    },
+    "artifact_version": { "enum": ["version-of-record", "accepted-manuscript", "preprint", "unknown"] },
+    "artifact_license": { "type": "string" },
     "status": { "type": "string" },
     "qc_status": { "enum": ["not_started", "pending", "codex_qc_done", "human_qc_done", "failed"] },
+    "quality_state": { "enum": ["pending", "readable", "partial", "ocr-required", "corrupt", "identity-mismatch"] },
+    "identity_state": { "enum": ["verified", "unverified", "mismatch"] },
+    "page_count": { "type": "integer", "minimum": 0 },
+    "text_layer_state": { "enum": ["available", "missing", "unknown"] },
+    "locator_readiness": { "enum": ["ready", "partial", "not-ready", "unknown"] },
     "storage_path": { "type": "string" },
     "public_safe_pointer": { "type": "string" },
     "authorized_route": { "type": "string" },
@@ -51,9 +61,27 @@
       }
     },
     "sha256": { "type": "string", "pattern": "^[a-f0-9]{64}$" },
+    "byte_count": { "type": "integer", "minimum": 0 },
+    "mime_type": { "type": "string" },
     "provider": { "type": "string" },
     "provider_version": { "type": "string" },
     "route": { "type": "string" },
+    "source_host": { "type": "string" },
+    "acquisition_run_id": { "type": "string", "pattern": "^$|^acq_[a-f0-9]{24}$" },
+    "related_artifacts": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["relationship", "artifact_type", "host", "identifier"],
+        "properties": {
+          "relationship": { "type": "string" },
+          "artifact_type": { "type": "string" },
+          "host": { "type": "string" },
+          "identifier": { "type": "string" }
+        }
+      }
+    },
     "readability_state": { "enum": ["unreviewed", "readable", "unreadable"] },
     "locator_state": { "enum": ["unreviewed", "available", "missing"] },
     "origin_project_id": { "type": "string", "pattern": "^prj_[a-f0-9]{24}$" },

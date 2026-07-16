@@ -2,6 +2,18 @@
 
 ## Unreleased - v1.2 target
 
+- Complete the repository-owned issue #18 follow-through after PR #30: enforce
+  monotonic HTTP body deadlines and byte-bounded external-adapter output; add
+  native macOS Keychain, Linux Secret Service, and optional Windows Credential
+  Manager secret backends; persist route-only retry-after state across
+  processes; expose route-health summaries in Review; add preview/apply
+  holdings CSV ingestion; and make the machine-local browser adapter callable
+  only under an explicit serial `institutional-external` policy. Related
+  dataset/code/supplement/version/correction/retraction pointers are now
+  independently registered, checksum-source-linked, path-free records with
+  provenance-review gaps and `Promotion: none`. Deterministic fixtures cover
+  all 11 atmospheric P0 route families without relying on volatile live
+  publisher responses.
 - Implement the issue #18 vNext **portable-core slice** without expanding the
   five-workflow product surface: multi-identifier resolution, atmospheric P0
   and P1 profiles, bounded OA/Crossref/DataCite/OpenAlex/current NCBI PMC Cloud/

@@ -1,0 +1,26 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://example.org/rkf/related_artifact.schema.json",
+  "title": "RelatedResearchArtifact",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["schema", "related_artifact_id", "source_artifact_ids", "paper_ids", "acquisition_run_ids", "relationship", "artifact_type", "host", "identifier_fingerprint", "registration_state", "provenance_review_state", "provenance_gaps", "promotion", "public_safe", "created", "updated"],
+  "properties": {
+    "schema": {"const": "rkf-related-artifact-v1"},
+    "related_artifact_id": {"type": "string", "pattern": "^rel_[a-f0-9]{24}$"},
+    "source_artifact_ids": {"type": "array", "items": {"type": "string", "pattern": "^art_[a-f0-9]{24}$"}, "minItems": 1, "uniqueItems": true},
+    "paper_ids": {"type": "array", "items": {"type": "string", "minLength": 1}, "minItems": 1, "uniqueItems": true},
+    "acquisition_run_ids": {"type": "array", "items": {"type": "string", "pattern": "^acq_[a-f0-9]{24}$"}, "minItems": 1, "uniqueItems": true},
+    "relationship": {"enum": ["related", "is-version-of", "supplements", "corrects", "retracts"]},
+    "artifact_type": {"enum": ["publisher-html", "jats-xml", "supplement", "figure", "table", "dataset-link", "software-link", "correction", "retraction-notice", "report", "pdf", "preprint"]},
+    "host": {"type": "string", "pattern": "^[A-Za-z0-9.-]{1,253}$"},
+    "identifier_fingerprint": {"type": "string", "pattern": "^(url|doi)-sha256:[a-f0-9]{16,64}$"},
+    "registration_state": {"const": "pointer-only"},
+    "provenance_review_state": {"enum": ["pending", "reviewed", "rejected"]},
+    "provenance_gaps": {"type": "array", "items": {"type": "string"}, "uniqueItems": true},
+    "promotion": {"const": "none"},
+    "public_safe": {"const": true},
+    "created": {"type": "string"},
+    "updated": {"type": "string"}
+  }
+}

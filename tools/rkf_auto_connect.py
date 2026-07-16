@@ -24,7 +24,7 @@ if str(REPO_ROOT) not in sys.path:
     sys.path.insert(0, str(REPO_ROOT))
 
 from rkf.actions import ActionRequest, ActionResult, RKFActionRuntime
-from rkf.acquisition import PortableScientificAcquisitionProvider
+from rkf.acquisition import PlatformSecretProvider, PortableScientificAcquisitionProvider
 from rkf.capture import CaptureInput, classify_capture as classify_rkf_capture
 from rkf.core import Workspace, load_toml
 
@@ -315,6 +315,14 @@ def open_action_runtime(
                 / "artifacts"
             ),
             storage_boundary=config.researchwiki_root,
+            secret_provider=PlatformSecretProvider(
+                allowed_names=(
+                    "ADS_API_TOKEN",
+                    "ELSEVIER_API_KEY",
+                    "ELSEVIER_INST_TOKEN",
+                    "WILEY_TDM_TOKEN",
+                )
+            ),
         )
     return RKFActionRuntime(
         workspace=Workspace(config.researchwiki_root),

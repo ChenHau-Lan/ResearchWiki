@@ -96,6 +96,7 @@ from .providers import (
     ensure_acquisition_run_id,
     register_acquisition_run,
     register_evidence_artifact,
+    register_related_artifact_records,
     update_paper_access_from_artifact,
     validate_paper_access_target,
 )
@@ -1244,6 +1245,20 @@ class RKFActionRuntime:
                         payload["paper_state"] = paper_state
                         affected.append(str(artifact["artifact_id"]))
                         artifact_ids.append(str(artifact["artifact_id"]))
+                        related_artifacts = register_related_artifact_records(
+                            self.workspace,
+                            paper_id=paper_id,
+                            result=provider_result,
+                            origin_project_id=self.session.project_id,
+                            activation_id=self.session.activation_id,
+                        )
+                        payload["related_artifact_records"] = related_artifacts
+                        related_ids = [
+                            str(item["related_artifact_id"])
+                            for item in related_artifacts
+                        ]
+                        affected.extend(related_ids)
+                        artifact_ids.extend(related_ids)
                     acquisition_run = register_acquisition_run(
                         self.workspace,
                         result=provider_result,

@@ -151,10 +151,12 @@ GitHub issue #18 now has an opt-in **portable-core slice** for scientific-
 artifact acquisition: multi-identifier resolution, bounded OA/official and
 authorized-repository routes, artifact/version provenance, PDF QC, private
 storage, and acquisition lineage. It remains an internal Add provider, not a
-sixth workflow, and is off by default in the connector. Browser, institutional,
-and publisher-specific adapters are not complete; access controls and
-SSO/CAPTCHA surfaces are detected and stopped as typed manual handoffs, never
-bypassed.
+sixth workflow, and is off by default in the connector. The public core now
+provides native desktop-secret boundaries, cross-process backoff, holdings
+import, independent related-artifact pointers, and an explicit serial
+machine-local browser-adapter contract. Institution-specific endpoints and
+authorization remain local inputs; access controls and SSO/CAPTCHA surfaces
+are stopped as typed manual handoffs, never bypassed.
 
 A reproducible atmospheric-journal corpus contains 11 P0 and 3 P1
 representative cases. In the bounded 2026-07-16 live observation, all 14

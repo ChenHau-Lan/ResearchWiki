@@ -4,11 +4,12 @@ Last updated: 2026-07-16
 
 ## vNext Issue #18 Scientific Artifact Acquisition
 
-- The current implementation is the issue #18 **portable-core slice**, not the
-  completed issue inventory. Native institutional/browser adapters and several
-  multi-artifact/domain metadata items remain open. Access-control, SSO, and
-  CAPTCHA surfaces must be detected and stopped as typed manual handoffs; they
-  are never bypassed.
+- The current implementation includes the issue #18 **portable-core slice**
+  plus its repository-owned completion layer, but not the human- or
+  institution-owned gates in the full issue inventory. Institution-specific
+  authorization and several non-PDF/domain metadata reviews remain external.
+  Access-control, SSO, and CAPTCHA surfaces must be detected and stopped as
+  typed manual handoffs; they are never bypassed.
 - `IdentifierAdapterRegistry` now gives each non-DOI identifier type one
   fail-closed owner. Dedicated adapters resolve ADS bibcodes, public OSF
   primary files, current EarthArXiv Janeway and legacy OSF records, ESSOAr
@@ -64,6 +65,38 @@ Last updated: 2026-07-16
   non-public peers and HTTPS-to-HTTP redirects, and strips path/query data from
   `Referer` before removing it on cross-origin redirects. Secret-bearing
   requests require HTTPS and cannot cross origins.
+- The post-PR-#30 completion layer adds a monotonic wall-clock deadline while
+  streaming HTTP bodies and byte-bounded stdout/stderr capture for both
+  external full-text adapters. Output overflow kills the child and returns a
+  typed blocker; timeout, profile-busy, watchdog, and Ovid `license_seat_e3`
+  remain retryable rather than becoming unavailable.
+- Desktop publisher tokens can now be read from allowlisted macOS Keychain,
+  Linux Secret Service, or optional Windows Credential Manager/`pywin32`
+  backends. The connector chooses the native backend only after acquisition is
+  explicitly enabled. Secret values remain in memory/header only and are not
+  written to lineage or logs. Environment secrets remain a CI/test-only
+  backend.
+- Provider `Retry-After` is persisted across processes in an owner-only SQLite
+  file containing only route labels and timestamps. Review derives a
+  path-redacted route-health scorecard from acquisition attempts. Institution
+  holdings can be imported from a six-column CSV through
+  `tools/import_rkf_holdings.py`; preview is the default and `--apply`
+  atomically creates the owner-only SQLite table consumed read-only by
+  `SQLiteHoldingsEntitlementProvider`.
+- Related dataset/code/supplement/HTML/XML/version/correction/retraction
+  pointers now receive independent `rkf-related-artifact-v1` records linked to
+  the checksum source artifact, Paper, and acquisition run. The record stores
+  only host plus identifier fingerprint, retains `Promotion: none`, and stays
+  `pointer-only` with explicit provenance review gaps until a human validates
+  identity and relationship. Crossref and DataCite relationship metadata feed
+  the same graph. Review exposes these records plus missing artifact version
+  and license fields.
+- The optional institutional/browser boundary is now executable only when a
+  caller supplies a machine-local `BrowserSessionProvider` and explicitly uses
+  policy profile `institutional-external`; calls are serial. The bundled
+  `ExternalPaperFetchProvider` implements that boundary. RKF still ships no
+  institution endpoint, credentials, CAPTCHA/SSO automation, or access-control
+  bypass.
 - Each acquisition has a shared 32-request artifact/landing budget across
   top-level and recursive candidates. PDF DOI identity compares a complete
   token exactly, including legacy AMS angle-bracket forms, instead of accepting
@@ -95,14 +128,15 @@ Last updated: 2026-07-16
   exposed a double-encoding bug. Canonical DOI resolution now decodes once and
   URL construction re-encodes once; a focused live rerun resolved Crossref
   identity and correctly left only the AMS authorization blocker.
-- Remaining acquisition gaps are a configured real Unpaywall contact,
-  machine-local macOS/Linux secret backends, an authorized AMS adapter,
-  cross-process retry-after persistence, independently registrable JATS/XML,
-  hard wall-clock streaming deadlines, bounded external-adapter stdout/stderr,
-  URL-only version review, and maintained deterministic P0 fixtures. The live
-  14/14 observation does not close those gaps. Do not label the historical
-  baseline's remaining 38 globally unavailable; they were manual/authorization
-  handoffs in that environment.
+- Remaining gates are not ordinary portable-core implementation gaps: a real
+  Unpaywall contact and any authorized institutional/Ovid configuration are
+  machine-local; ambiguous free-form report aliases require an authoritative
+  catalogue; downloaded HTML/JATS/XML/supplement identity validation and
+  atmosphere-specific availability-statement extraction need source-specific
+  evidence; and URL-only version/license plus provider terms remain human
+  provenance/legal review. The live 14/14 observation does not close those
+  gates. Do not label the historical baseline's remaining 38 globally
+  unavailable; they were manual/authorization handoffs in that environment.
 
 ## Unreleased v1.2 Locator Promotion Gate
 

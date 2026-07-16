@@ -24,7 +24,13 @@ from .lineage import (
     object_origin_lookup,
     utc_now,
 )
-from .providers import load_acquisition_runs, validate_paper_access_target
+from .providers import (
+    load_acquisition_runs,
+    load_artifact_provenance_gaps,
+    load_related_artifact_records,
+    summarize_acquisition_route_health,
+    validate_paper_access_target,
+)
 from .schema import (
     ACCESS_STATES,
     CLAIM_STATUSES,
@@ -1380,6 +1386,8 @@ def review_home(
             str(item.get("acquisition_run_id", "")),
         )
     )
+    related_artifacts = load_related_artifact_records(ws)
+    artifact_provenance_gaps = load_artifact_provenance_gaps(ws)
     return {
         "schema": "rkf-review-home-v1",
         "paper_state_counts": dict(state_counts),
@@ -1414,6 +1422,16 @@ def review_home(
         "read_runs_with_failed_checks": [item["read_run_id"] for item in read_runs if item.get("failed_checks")],
         "retrieval_lineage": retrieval_runs[-20:],
         "acquisition_lineage": acquisition_runs[-20:],
+        "acquisition_route_health": summarize_acquisition_route_health(
+            acquisition_runs
+        ),
+        "related_artifact_lineage": related_artifacts[-20:],
+        "artifact_provenance_gaps": artifact_provenance_gaps,
+        "related_artifacts_pending_review": [
+            item
+            for item in related_artifacts
+            if item.get("provenance_review_state") == "pending"
+        ],
         "semantic_index_health": [
             {
                 "provider": item.get("provider", "none"),

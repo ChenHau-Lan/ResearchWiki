@@ -3,7 +3,6 @@ from __future__ import annotations
 import hashlib
 import json
 import io
-import subprocess
 import tempfile
 import unittest
 import urllib.error
@@ -21,14 +20,20 @@ from rkf.acquisition import (
     HTTPTransportError,
     HTTPResponse,
     IdentifierAdapterRegistry,
+    LinuxSecretServiceProvider,
+    MacOSKeychainSecretProvider,
     PDFArtifactValidator,
     PortableScientificAcquisitionProvider,
     PrivateArtifactStore,
+    SQLiteRetryAfterStore,
     UrllibHTTPClient,
+    WindowsCredentialManagerSecretProvider,
+    _read_bounded_http_body,
     _validate_public_url,
     coverage_includes_year,
     default_identifier_adapters,
     extract_identifiers_from_text,
+    ingest_holdings_csv,
     provider_profile_for_doi,
     resolve_identifier,
 )
@@ -39,6 +44,7 @@ from rkf.providers import (
     load_acquisition_runs,
     register_acquisition_run,
 )
+from rkf.processes import BoundedProcessResult
 from rkf.core import Workspace
 
 
@@ -95,6 +101,180 @@ class PeerBody(io.BytesIO):
 
 
 class RKFAcquisitionTests(unittest.TestCase):
+    def test_p0_route_fixtures_cover_selection_identity_and_safety_boundary(self) -> None:
+        fixture_path = (
+            Path(__file__).parent
+            / "fixtures"
+            / "acquisition"
+            / "p0-route-fixtures.json"
+        )
+        fixture = json.loads(fixture_path.read_text(encoding="utf-8"))
+        provider = PortableScientificAcquisitionProvider(
+            http_client=FakeHTTP({}),
+            policy=AcquisitionPolicy(courtesy_interval_s=0),
+        )
+
+        self.assertEqual(len(fixture["cases"]), 11)
+        self.assertIn("never bypass", fixture["access_control_boundary"])
+        for case in fixture["cases"]:
+            with self.subTest(publisher=case["publisher"]):
+                candidates, _metadata = provider._discover_doi(
+                    case["doi"],
+                    attempts=[],
+                )
+                self.assertIn(
+                    case["expected_route"],
+                    {candidate.route for candidate in candidates},
+                )
+
+                class IdentityExtractor:
+                    def inspect(self, _content):
+                        return f"fixture title doi {case['doi']}", 2, False
+
+                quality = PDFArtifactValidator(
+                    min_bytes=8,
+                    text_extractor=IdentityExtractor(),
+                ).validate(pdf_fixture(), expected_doi=case["doi"])
+                self.assertEqual(quality.identity_state, "verified")
+
+    def test_http_body_enforces_monotonic_wall_clock_deadline(self) -> None:
+        class StreamingBody:
+            def __init__(self) -> None:
+                self.calls = 0
+
+            def read1(self, _size):
+                self.calls += 1
+                return b"chunk" if self.calls == 1 else b""
+
+        clock = iter((0.0, 0.6))
+        with patch("rkf.acquisition.time.monotonic", side_effect=lambda: next(clock)):
+            with self.assertRaisesRegex(
+                HTTPTransportError,
+                "HTTP_WALL_CLOCK_DEADLINE",
+            ):
+                _read_bounded_http_body(
+                    StreamingBody(),
+                    max_bytes=1024,
+                    deadline=0.5,
+                )
+
+    def test_native_secret_backends_are_allowlisted_and_non_logging(self) -> None:
+        secret_result = BoundedProcessResult(0, stdout="secret-value\n", stderr="")
+        with patch("rkf.acquisition.sys.platform", "darwin"), patch(
+            "rkf.acquisition.run_bounded_process",
+            return_value=secret_result,
+        ) as runner:
+            keychain = MacOSKeychainSecretProvider(
+                allowed_names=("WILEY_TDM_TOKEN",)
+            )
+            self.assertEqual(keychain.get("WILEY_TDM_TOKEN"), "secret-value")
+            self.assertIsNone(keychain.get("ELSEVIER_API_KEY"))
+            self.assertNotIn("secret-value", " ".join(runner.call_args.args[0]))
+
+        with patch("rkf.acquisition.sys.platform", "linux"), patch(
+            "rkf.acquisition.run_bounded_process",
+            return_value=secret_result,
+        ):
+            secret_service = LinuxSecretServiceProvider(
+                allowed_names=("ELSEVIER_API_KEY",)
+            )
+            self.assertEqual(secret_service.get("ELSEVIER_API_KEY"), "secret-value")
+
+        credential_manager = WindowsCredentialManagerSecretProvider(
+            allowed_names=("ADS_API_TOKEN",),
+            credential_reader=lambda _target: {
+                "CredentialBlob": "windows-secret".encode("utf-16-le")
+            },
+        )
+        self.assertEqual(credential_manager.get("ADS_API_TOKEN"), "windows-secret")
+
+    def test_retry_after_state_is_cross_process_private_and_route_only(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            path = root / "private" / "retry-after.sqlite3"
+            first = SQLiteRetryAfterStore(path, boundary_root=root)
+            second = SQLiteRetryAfterStore(path, boundary_root=root)
+
+            first.record("unpaywall-all-locations", 30)
+
+            self.assertGreater(second.remaining("unpaywall-all-locations"), 0)
+            self.assertEqual(path.stat().st_mode & 0o777, 0o600)
+            self.assertNotIn("10.1000", path.read_bytes().decode("latin-1"))
+
+    def test_institutional_external_policy_invokes_serial_browser_boundary(self) -> None:
+        class BrowserAdapter:
+            calls = 0
+
+            def acquire(self, _request):
+                self.calls += 1
+                return FullTextProviderResult(
+                    status="manual-required",
+                    provider="machine-local-browser",
+                    provider_version="1",
+                    route="external-paper-fetch",
+                    blocker_codes=("SSO_MANUAL_REQUIRED",),
+                    attempts=(
+                        AcquisitionAttempt(
+                            "external-paper-fetch",
+                            "manual-required",
+                            "SSO_MANUAL_REQUIRED",
+                        ),
+                    ),
+                )
+
+        browser = BrowserAdapter()
+        provider = PortableScientificAcquisitionProvider(
+            http_client=FakeHTTP({}),
+            policy=AcquisitionPolicy(courtesy_interval_s=0),
+            browser_session_provider=browser,
+        )
+        request = AcquisitionRequest(
+            identifiers=CanonicalIdentifierSet.resolve(
+                ["https://publisher.example/article"]
+            ),
+            project_id=PROJECT_ID,
+            activation_id=ACTIVATION_ID,
+            source_id="fixture",
+            policy_profile="institutional-external",
+        )
+
+        result = provider.acquire(request)
+
+        self.assertEqual(browser.calls, 1)
+        self.assertEqual(result.status, "manual-required")
+        self.assertIn("SSO_MANUAL_REQUIRED", result.blocker_codes)
+        self.assertIn("external-paper-fetch", result.tried_routes)
+
+    def test_holdings_csv_preview_apply_and_read_only_entitlement(self) -> None:
+        from rkf.acquisition import SQLiteHoldingsEntitlementProvider
+
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            csv_path = root / "holdings.csv"
+            database = root / "holdings.sqlite3"
+            csv_path.write_text(
+                "title,platform,issn_print,issn_e,is_free,coverage\n"
+                "Journal of Fixtures,Fixture Platform,1234-5678,,0,from 2020 until 2025\n",
+                encoding="utf-8",
+            )
+
+            preview = ingest_holdings_csv(csv_path, database)
+            self.assertFalse(database.exists())
+            applied = ingest_holdings_csv(csv_path, database, apply=True)
+            entitlement = SQLiteHoldingsEntitlementProvider(database).check(
+                identifier=resolve_identifier("10.1000/fixture"),
+                metadata={
+                    "issns": ["1234-5678"],
+                    "journal": "Journal of Fixtures",
+                    "year": 2024,
+                },
+            )
+
+            self.assertFalse(preview["apply"])
+            self.assertTrue(applied["apply"])
+            self.assertEqual(database.stat().st_mode & 0o777, 0o600)
+            self.assertEqual(entitlement.state, "covered")
+
     def test_atmospheric_p0_prefixes_have_explicit_policy_profiles(self) -> None:
         for doi in (
             "10.1029/example",
@@ -1852,13 +2032,13 @@ class RKFAcquisitionTests(unittest.TestCase):
                 storage_root=storage_root,
                 storage_boundary=Path(directory),
             )
-            completed = subprocess.CompletedProcess(provider.command, 4, stdout="{}", stderr="busy")
+            completed = BoundedProcessResult(4, stdout="{}", stderr="busy")
 
             def leave_partial_output(command, **_kwargs):
                 Path(command[-1]).write_bytes(b"partial")
                 return completed
 
-            with patch("rkf.acquisition.subprocess.run", side_effect=leave_partial_output):
+            with patch("rkf.acquisition.run_bounded_process", side_effect=leave_partial_output):
                 result = provider.obtain(
                     source_id="fixture",
                     identifier="10.1000/fixture",
@@ -1882,8 +2062,7 @@ class RKFAcquisitionTests(unittest.TestCase):
 
             def report_sensitive_attempts(command, **_kwargs):
                 Path(command[-1]).write_bytes(b"partial")
-                return subprocess.CompletedProcess(
-                    command,
+                return BoundedProcessResult(
                     2,
                     stdout=json.dumps(
                         {
@@ -1906,7 +2085,7 @@ class RKFAcquisitionTests(unittest.TestCase):
                     stderr="",
                 )
 
-            with patch("rkf.acquisition.subprocess.run", side_effect=report_sensitive_attempts):
+            with patch("rkf.acquisition.run_bounded_process", side_effect=report_sensitive_attempts):
                 result = provider.obtain(
                     source_id="fixture",
                     identifier="10.1000/fixture",
@@ -1994,14 +2173,13 @@ class RKFAcquisitionTests(unittest.TestCase):
 
             def leave_symlink_output(command, **_kwargs):
                 Path(command[-1]).symlink_to(symlink_target)
-                return subprocess.CompletedProcess(
-                    command,
+                return BoundedProcessResult(
                     0,
                     stdout=json.dumps({"ok": True, "route": "fixture"}),
                     stderr="",
                 )
 
-            with patch("rkf.acquisition.subprocess.run", side_effect=leave_symlink_output):
+            with patch("rkf.acquisition.run_bounded_process", side_effect=leave_symlink_output):
                 result = provider.obtain(
                     source_id="fixture",
                     identifier="10.1000/fixture",
@@ -2027,14 +2205,13 @@ class RKFAcquisitionTests(unittest.TestCase):
 
             def leave_oversized_output(command, **_kwargs):
                 Path(command[-1]).write_bytes(b"x" * 33)
-                return subprocess.CompletedProcess(
-                    command,
+                return BoundedProcessResult(
                     0,
                     stdout=json.dumps({"ok": True, "route": "fixture"}),
                     stderr="",
                 )
 
-            with patch("rkf.acquisition.subprocess.run", side_effect=leave_oversized_output):
+            with patch("rkf.acquisition.run_bounded_process", side_effect=leave_oversized_output):
                 result = provider.obtain(
                     source_id="fixture",
                     identifier="10.1000/fixture",
@@ -2059,9 +2236,14 @@ class RKFAcquisitionTests(unittest.TestCase):
 
             def time_out_with_partial_output(command, **_kwargs):
                 Path(command[-1]).write_bytes(b"partial")
-                raise subprocess.TimeoutExpired(command, timeout=1)
+                return BoundedProcessResult(
+                    -9,
+                    stdout="",
+                    stderr="",
+                    timed_out=True,
+                )
 
-            with patch("rkf.acquisition.subprocess.run", side_effect=time_out_with_partial_output):
+            with patch("rkf.acquisition.run_bounded_process", side_effect=time_out_with_partial_output):
                 result = provider.obtain(
                     source_id="fixture",
                     identifier="10.1000/fixture",

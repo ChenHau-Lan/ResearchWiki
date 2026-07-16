@@ -33,6 +33,7 @@ from rkf.providers import (  # noqa: E402
     FullTextProviderResult,
     register_acquisition_run,
     register_evidence_artifact,
+    register_related_artifact_records,
 )
 
 
@@ -50,6 +51,7 @@ REQUIRED_DEFINITIONS = {
     "acquisitionAttempt",
     "acquisitionRun",
     "artifactRecord",
+    "relatedArtifactRecord",
     "argumentMap",
     "appraisalProviderResult",
     "retrievalRun",
@@ -210,6 +212,14 @@ def runtime_payload_findings(schema: dict[str, Any]) -> list[str]:
         entitlement_state="covered",
         pdf_magic_validated=True,
         acquisition_run_id="acq_1234567890abcdef12345678",
+        related_artifacts=(
+            {
+                "relationship": "related",
+                "artifact_type": "dataset-link",
+                "host": "data.example.org",
+                "identifier": "url-sha256:" + "b" * 16,
+            },
+        ),
     )
     provider_definition = schema.get("$defs", {}).get("fullTextProviderResult", {})
     findings.extend(
@@ -233,6 +243,13 @@ def runtime_payload_findings(schema: dict[str, Any]) -> list[str]:
             origin_project_id="prj_1234567890abcdef12345678",
             activation_id="act_1234567890abcdef12345678",
         )
+        related_artifacts = register_related_artifact_records(
+            workspace,
+            paper_id="papers/schema-fixture",
+            result=provider_result,
+            origin_project_id="prj_1234567890abcdef12345678",
+            activation_id="act_1234567890abcdef12345678",
+        )
         acquisition_run = register_acquisition_run(
             workspace,
             result=provider_result,
@@ -241,7 +258,10 @@ def runtime_payload_findings(schema: dict[str, Any]) -> list[str]:
             paper_id="papers/schema-fixture",
             origin_project_id="prj_1234567890abcdef12345678",
             activation_id="act_1234567890abcdef12345678",
-            artifact_ids=(artifact["artifact_id"],),
+            artifact_ids=(
+                artifact["artifact_id"],
+                *(item["related_artifact_id"] for item in related_artifacts),
+            ),
         )
     findings.extend(
         validate_instance(
@@ -251,6 +271,15 @@ def runtime_payload_findings(schema: dict[str, Any]) -> list[str]:
             label="register_evidence_artifact",
         )
     )
+    for related_artifact in related_artifacts:
+        findings.extend(
+            validate_instance(
+                related_artifact,
+                schema.get("$defs", {}).get("relatedArtifactRecord", {}),
+                schema,
+                label="RelatedArtifactRecord",
+            )
+        )
     findings.extend(
         validate_instance(
             acquisition_run,

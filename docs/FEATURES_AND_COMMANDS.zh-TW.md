@@ -54,5 +54,13 @@ checksum-addressed artifact 必須寫在 repository 外，結果一律維持
 [`public-safe 決策摘要`](operations/2026-07-16-issue-18-atmospheric-journal-closeout.zh-TW.md)，
 不包含逐字 transcript、PDF 或 private path。
 
+PR #30 合併後的 completion layer 另外加入 hard wall-clock HTTP deadline、external
+adapter stdout/stderr 上限、跨 process `Retry-After`、macOS Keychain／Linux Secret
+Service／optional Windows Credential Manager、holdings CSV preview/apply、Review route
+health，以及獨立的 related-artifact pointer records。Institutional browser 只會在明確
+`institutional-external` policy 且提供 machine-local adapter 時 serial 執行；SSO、
+CAPTCHA、Ovid seat 與 access control 仍回 typed handoff。Pointer、下載成功與 PDF QC
+都不會自行建立 Evidence 或升格 Claim。
+
 舊的 world/stats/queue/graph、discovery lifecycle、dashboard、Obsidian、maintenance、
 cleanup 與 migration 名稱不是 v1 使用者入口。相容與移除版本見 `docs/V1_SCOPE_INVENTORY.md`。

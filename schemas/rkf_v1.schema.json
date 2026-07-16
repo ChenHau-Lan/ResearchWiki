@@ -11,7 +11,10 @@
     "readIntent": {"enum": ["digest", "appraise", "both"]},
     "readingScope": {"enum": ["metadata", "abstract", "partial", "fulltext"]},
     "locatorState": {"enum": ["missing", "coarse", "exact"]},
-    "providerStatus": {"enum": ["obtained", "manual-required", "unavailable", "retryable", "blocked"]},
+    "providerStatus": {"enum": ["obtained", "manual-required", "retryable", "not-entitled", "unavailable", "blocked", "identity-mismatch", "invalid-artifact", "provider-error"]},
+    "identifierType": {"enum": ["doi", "url", "arxiv", "ads-bibcode", "eartharxiv", "osf-preprint", "ess-open-archive", "datacite-doi", "handle", "nasa-ntrs", "noaa-report", "wmo-report", "ipcc-report", "repository", "report"]},
+    "artifactVersion": {"enum": ["version-of-record", "accepted-manuscript", "preprint", "unknown"]},
+    "artifactQuality": {"enum": ["pending", "readable", "partial", "ocr-required", "corrupt", "identity-mismatch"]},
     "activationMode": {"enum": ["ACTIVE", "ACTIVE_READ_ONLY", "OFF"]},
     "appraisalStatus": {"enum": ["completed", "retryable", "blocked"]},
     "projectId": {"type": "string", "pattern": "^prj_[a-f0-9]{24}$"},
@@ -192,7 +195,86 @@
         "entitlement_state": {"enum": ["unknown", "covered", "not-covered"]},
         "pdf_magic_validated": {"type": "boolean"},
         "blocker_codes": {"type": "array", "items": {"type": "string"}, "uniqueItems": true},
-        "private_artifact_available": {"type": "boolean"}
+        "private_artifact_available": {"type": "boolean"},
+        "acquisition_run_id": {"type": "string", "pattern": "^$|^acq_[a-f0-9]{24}$"},
+        "identifier_types": {"type": "array", "items": {"$ref": "#/$defs/identifierType"}, "uniqueItems": true},
+        "attempts": {"type": "array", "items": {"$ref": "#/$defs/acquisitionAttempt"}},
+        "artifact_type": {"type": "string"},
+        "artifact_version": {"$ref": "#/$defs/artifactVersion"},
+        "artifact_license": {"type": "string"},
+        "source_host": {"type": "string"},
+        "byte_count": {"type": "integer", "minimum": 0},
+        "mime_type": {"type": "string"},
+        "quality_state": {"$ref": "#/$defs/artifactQuality"},
+        "identity_state": {"enum": ["verified", "unverified", "mismatch"]},
+        "page_count": {"type": "integer", "minimum": 0},
+        "text_layer_state": {"enum": ["available", "missing", "unknown"]},
+        "locator_readiness": {"enum": ["ready", "partial", "not-ready", "unknown"]},
+        "related_artifacts": {"type": "array", "items": {"type": "object"}}
+      }
+    },
+    "canonicalIdentifier": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["identifier_type", "value"],
+      "properties": {
+        "identifier_type": {"$ref": "#/$defs/identifierType"},
+        "value": {"type": "string", "minLength": 1}
+      }
+    },
+    "acquisitionAttempt": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["route", "status", "reason_code", "host", "http_status", "elapsed_ms"],
+      "properties": {
+        "route": {"type": "string", "minLength": 1},
+        "status": {"enum": ["resolved", "no-result", "obtained", "manual-required", "retryable", "not-entitled", "unavailable", "blocked", "identity-mismatch", "invalid-artifact", "provider-error"]},
+        "reason_code": {"type": "string"},
+        "host": {"type": "string"},
+        "http_status": {"type": "integer", "minimum": 0},
+        "elapsed_ms": {"type": "integer", "minimum": 0}
+      }
+    },
+    "acquisitionRun": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["schema", "acquisition_run_id", "origin_project_id", "activation_id", "source_id", "paper_id", "identifier_fingerprint", "identifier_types", "status", "provider", "provider_version", "selected_route", "attempts", "entitlement_state", "artifact_ids", "blocker_codes", "elapsed_ms", "retry_class", "promotion", "paths_redacted", "public_safe", "created"],
+      "properties": {
+        "schema": {"const": "rkf-acquisition-run-v1"},
+        "acquisition_run_id": {"type": "string", "pattern": "^acq_[a-f0-9]{24}$"},
+        "origin_project_id": {"$ref": "#/$defs/projectId"},
+        "activation_id": {"$ref": "#/$defs/activationId"},
+        "source_id": {"type": "string", "minLength": 1},
+        "paper_id": {"type": "string", "minLength": 1},
+        "identifier_fingerprint": {"type": "string", "pattern": "^[a-f0-9]{64}$"},
+        "identifier_types": {"type": "array", "items": {"$ref": "#/$defs/identifierType"}, "uniqueItems": true},
+        "status": {"$ref": "#/$defs/providerStatus"},
+        "provider": {"type": "string", "minLength": 1},
+        "provider_version": {"type": "string", "minLength": 1},
+        "selected_route": {"type": "string"},
+        "attempts": {"type": "array", "items": {"$ref": "#/$defs/acquisitionAttempt"}},
+        "entitlement_state": {"enum": ["unknown", "covered", "not-covered"]},
+        "artifact_ids": {"type": "array", "items": {"type": "string"}, "uniqueItems": true},
+        "blocker_codes": {"type": "array", "items": {"type": "string"}, "uniqueItems": true},
+        "elapsed_ms": {"type": "integer", "minimum": 0},
+        "retry_class": {"enum": ["none", "serial-retry", "manual"]},
+        "promotion": {"const": "none"},
+        "paths_redacted": {"const": true},
+        "public_safe": {"const": true},
+        "created": {"type": "string"}
+      }
+    },
+    "artifactRecord": {
+      "type": "object",
+      "additionalProperties": true,
+      "required": ["artifact_id", "artifact_version", "quality_state", "sha256", "provider", "acquisition_run_id"],
+      "properties": {
+        "artifact_id": {"type": "string", "pattern": "^art_[a-f0-9]{24}$"},
+        "artifact_version": {"$ref": "#/$defs/artifactVersion"},
+        "quality_state": {"$ref": "#/$defs/artifactQuality"},
+        "sha256": {"type": "string", "pattern": "^[a-f0-9]{64}$"},
+        "provider": {"type": "string", "minLength": 1},
+        "acquisition_run_id": {"type": "string", "pattern": "^acq_[a-f0-9]{24}$"}
       }
     },
     "argumentMap": {

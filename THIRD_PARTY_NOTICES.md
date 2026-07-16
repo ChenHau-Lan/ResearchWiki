@@ -13,12 +13,19 @@ article text from the projects below.
 - Pinned reference commit: `53d846115e81c6891977c33d2ee8a820afc3187a`
 - License at that commit: MIT, Copyright (c) 2026 drpwchen
 - RKF-adopted patterns: typed acquisition status, route history, SHA-256
-  artifact identity, retryable versus unavailable distinction, and a minimal
-  external-command JSON boundary.
-- Local implementation: `rkf.providers.FullTextProvider`,
+  artifact identity, retryable versus unavailable distinction, official
+  OA/TDM route ordering, holdings-aware diagnostics, and an external-command
+  JSON boundary.
+- Local implementation: `rkf.acquisition`, `rkf.providers.FullTextProvider`,
   `ExternalCommandFullTextProvider`, and `register_evidence_artifact`.
-- Not adopted into v1 core: institution login, browser/session automation,
-  CAPTCHA handling, entitlement machinery, publisher routing, or bulk fetch.
+- vNext local extensions: multi-identifier resolution, atmospheric P0 policy
+  profiles, OpenAlex fallback, artifact version/quality provenance,
+  cross-project acquisition runs, cross-platform secret/browser protocols,
+  and bounded private smoke tooling.
+- Institution login, browser/session automation, CAPTCHA handling, and library
+  endpoints were not copied into RKF core. They remain an optional
+  machine-local `paper_fetch.py --json` adapter; RKF ships no credentials or
+  institution-specific configuration.
 
 ### paper-review-and-digest
 

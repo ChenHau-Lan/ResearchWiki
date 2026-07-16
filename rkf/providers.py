@@ -15,7 +15,8 @@ import re
 import stat
 import subprocess
 import tempfile
-from dataclasses import asdict, dataclass, field
+import uuid
+from dataclasses import asdict, dataclass, field, replace
 from pathlib import Path
 from typing import Any, Protocol, Sequence
 
@@ -31,6 +32,42 @@ from .schema import (
 
 
 ABSOLUTE_PROVIDER_PATH_RE = re.compile(r"^(?:/|[A-Za-z]:[\\/])")
+ACQUISITION_RUN_ID_RE = re.compile(r"^acq_[a-f0-9]{24}$")
+ACQUISITION_ATTEMPT_STATUSES = frozenset((*PROVIDER_STATUSES, "resolved", "no-result"))
+
+
+@dataclass(frozen=True)
+class AcquisitionAttempt:
+    """One public-safe route outcome within an acquisition run."""
+
+    route: str
+    status: str
+    reason_code: str = ""
+    host: str = ""
+    http_status: int = 0
+    elapsed_ms: int = 0
+
+    def __post_init__(self) -> None:
+        if not re.fullmatch(r"[a-z0-9][a-z0-9._-]{0,95}", self.route):
+            raise ValueError("acquisition attempt route is invalid")
+        if self.status not in ACQUISITION_ATTEMPT_STATUSES:
+            raise ValueError(f"invalid acquisition attempt status: {self.status}")
+        if self.reason_code and not re.fullmatch(r"[A-Z0-9][A-Z0-9_-]{0,127}", self.reason_code):
+            raise ValueError("acquisition attempt reason code is invalid")
+        if self.host and (
+            "/" in self.host
+            or "\\" in self.host
+            or "@" in self.host
+            or not re.fullmatch(r"[A-Za-z0-9.-]{1,253}", self.host)
+        ):
+            raise ValueError("acquisition attempt host must be a public-safe hostname")
+        if self.http_status < 0 or self.http_status > 599:
+            raise ValueError("acquisition attempt HTTP status is invalid")
+        if self.elapsed_ms < 0:
+            raise ValueError("acquisition attempt elapsed_ms cannot be negative")
+
+    def public_payload(self) -> dict[str, Any]:
+        return asdict(self)
 
 
 @dataclass(frozen=True)
@@ -46,6 +83,21 @@ class FullTextProviderResult:
     entitlement_state: str = "unknown"
     pdf_magic_validated: bool = False
     blocker_codes: tuple[str, ...] = ()
+    acquisition_run_id: str = ""
+    identifier_types: tuple[str, ...] = ()
+    attempts: tuple[AcquisitionAttempt, ...] = ()
+    artifact_type: str = "pdf"
+    artifact_version: str = "unknown"
+    artifact_license: str = ""
+    source_host: str = ""
+    byte_count: int = 0
+    mime_type: str = ""
+    quality_state: str = "pending"
+    identity_state: str = "unverified"
+    page_count: int = 0
+    text_layer_state: str = "unknown"
+    locator_readiness: str = "unknown"
+    related_artifacts: tuple[dict[str, str], ...] = ()
 
     def __post_init__(self) -> None:
         if self.status not in PROVIDER_STATUSES:
@@ -56,6 +108,68 @@ class FullTextProviderResult:
             raise ValueError("elapsed_ms cannot be negative")
         if self.entitlement_state not in {"unknown", "covered", "not-covered"}:
             raise ValueError("invalid entitlement_state")
+        if self.acquisition_run_id and not ACQUISITION_RUN_ID_RE.fullmatch(self.acquisition_run_id):
+            raise ValueError("invalid acquisition_run_id")
+        if self.byte_count < 0 or self.page_count < 0:
+            raise ValueError("artifact byte/page counts cannot be negative")
+        if self.artifact_type not in {
+            "version-of-record-pdf",
+            "accepted-manuscript",
+            "preprint",
+            "publisher-html",
+            "jats-xml",
+            "supplement",
+            "figure",
+            "table",
+            "dataset-link",
+            "software-link",
+            "correction",
+            "retraction-notice",
+            "report",
+            "pdf",
+        }:
+            raise ValueError("invalid artifact_type")
+        if self.artifact_version not in {
+            "version-of-record",
+            "accepted-manuscript",
+            "preprint",
+            "unknown",
+        }:
+            raise ValueError("invalid artifact_version")
+        if self.quality_state not in {
+            "pending",
+            "readable",
+            "partial",
+            "ocr-required",
+            "corrupt",
+            "identity-mismatch",
+        }:
+            raise ValueError("invalid artifact quality_state")
+        if self.identity_state not in {"verified", "unverified", "mismatch"}:
+            raise ValueError("invalid artifact identity_state")
+        if self.text_layer_state not in {"available", "missing", "unknown"}:
+            raise ValueError("invalid artifact text_layer_state")
+        if self.locator_readiness not in {"ready", "partial", "not-ready", "unknown"}:
+            raise ValueError("invalid artifact locator_readiness")
+        if self.source_host and (
+            "/" in self.source_host
+            or "\\" in self.source_host
+            or "@" in self.source_host
+            or not re.fullmatch(r"[A-Za-z0-9.-]{1,253}", self.source_host)
+        ):
+            raise ValueError("source_host must be a public-safe hostname")
+        if any(not re.fullmatch(r"[a-z][a-z0-9-]{0,63}", item) for item in self.identifier_types):
+            raise ValueError("invalid canonical identifier type")
+        for relation in self.related_artifacts:
+            if not isinstance(relation, dict) or set(relation) - {
+                "relationship",
+                "artifact_type",
+                "host",
+                "identifier",
+            }:
+                raise ValueError("related artifact exceeds the public-safe contract")
+            if relation.get("host") and not re.fullmatch(r"[A-Za-z0-9.-]{1,253}", relation["host"]):
+                raise ValueError("related artifact host is invalid")
         if self.artifact_sha256 and (
             len(self.artifact_sha256) != 64
             or any(char not in "0123456789abcdef" for char in self.artifact_sha256)
@@ -63,6 +177,8 @@ class FullTextProviderResult:
             raise ValueError("artifact_sha256 must be a lowercase SHA-256 digest")
         if self.status == "obtained" and (not self.artifact_sha256 or not self.pdf_magic_validated):
             raise ValueError("obtained provider result requires artifact_sha256 and PDF magic validation")
+        if self.status == "obtained" and self.quality_state in {"corrupt", "identity-mismatch"}:
+            raise ValueError("obtained provider result cannot contain a rejected artifact")
         if any(
             ABSOLUTE_PROVIDER_PATH_RE.match(value.strip())
             for value in (self.route, *self.tried_routes)
@@ -75,8 +191,60 @@ class FullTextProviderResult:
         payload.pop("private_artifact_handle", None)
         payload["tried_routes"] = list(self.tried_routes)
         payload["blocker_codes"] = list(self.blocker_codes)
+        payload["identifier_types"] = list(self.identifier_types)
+        payload["attempts"] = [attempt.public_payload() for attempt in self.attempts]
+        payload["related_artifacts"] = [dict(item) for item in self.related_artifacts]
         payload["private_artifact_available"] = bool(self.private_artifact_handle)
         return payload
+
+
+def ensure_acquisition_run_id(
+    result: FullTextProviderResult,
+    *,
+    identity: dict[str, str] | None = None,
+) -> FullTextProviderResult:
+    """Attach one run identity without changing an adapter's typed outcome."""
+
+    if identity:
+        seed = {
+            "identity": identity,
+            "status": result.status,
+            "provider": result.provider,
+            "provider_version": result.provider_version,
+            "route": result.route,
+            "tried_routes": result.tried_routes,
+            "artifact_sha256": result.artifact_sha256,
+            "blocker_codes": result.blocker_codes,
+        }
+        if result.acquisition_run_id:
+            seed["provider_acquisition_run_id"] = result.acquisition_run_id
+        digest = hashlib.sha256(
+            json.dumps(seed, ensure_ascii=True, sort_keys=True).encode("utf-8")
+        ).hexdigest()[:24]
+        return replace(result, acquisition_run_id=f"acq_{digest}")
+    if result.acquisition_run_id:
+        return result
+    return replace(result, acquisition_run_id=f"acq_{uuid.uuid4().hex[:24]}")
+
+
+def _acquisition_run_semantic_payload(payload: dict[str, Any]) -> dict[str, Any]:
+    """Remove volatile timings before checking an idempotent run collision."""
+
+    semantic = {
+        key: value
+        for key, value in payload.items()
+        if key not in {"created", "elapsed_ms"}
+    }
+    semantic["attempts"] = [
+        {
+            key: value
+            for key, value in attempt.items()
+            if key != "elapsed_ms"
+        }
+        for attempt in payload.get("attempts", [])
+        if isinstance(attempt, dict)
+    ]
+    return semantic
 
 
 class FullTextProvider(Protocol):
@@ -395,13 +563,26 @@ def register_evidence_artifact(
         "source_ids": [source_id],
         "paper_ids": [paper_id],
         "artifact_type": "pdf",
+        "scientific_artifact_type": result.artifact_type,
+        "artifact_version": result.artifact_version,
+        "artifact_license": result.artifact_license,
         "status": result.status,
         "qc_status": "pending",
+        "quality_state": result.quality_state,
+        "identity_state": result.identity_state,
+        "page_count": result.page_count,
+        "text_layer_state": result.text_layer_state,
+        "locator_readiness": result.locator_readiness,
         "sha256": result.artifact_sha256,
+        "byte_count": result.byte_count,
+        "mime_type": result.mime_type,
         "provider": result.provider,
         "provider_version": result.provider_version,
         "route": result.route,
         "authorized_route": result.route,
+        "source_host": result.source_host,
+        "acquisition_run_id": result.acquisition_run_id,
+        "related_artifacts": [dict(item) for item in result.related_artifacts],
         "public_safe_pointer": f"artifact:{artifact_id}",
         "locators": [],
         "readability_state": "unreviewed",
@@ -475,6 +656,140 @@ def register_evidence_artifact(
         target_label="public artifact",
     )
     return public_payload
+
+
+def _acquisition_run_root(ws: Workspace) -> Path:
+    private_root = ws.root / ".rkf_private"
+    acquisition_root = private_root / "acquisition"
+    run_root = acquisition_root / "runs"
+    for label, path in (
+        ("private root", private_root),
+        ("acquisition root", acquisition_root),
+        ("acquisition run root", run_root),
+    ):
+        if path.is_symlink():
+            raise ValueError(f"{label} cannot be a symlink")
+    if not _path_is_within(ws.root, run_root):
+        raise ValueError("acquisition run root escaped the workspace")
+    private_root.mkdir(mode=0o700, exist_ok=True)
+    acquisition_root.mkdir(mode=0o700, exist_ok=True)
+    run_root.mkdir(mode=0o700, exist_ok=True)
+    for path in (private_root, acquisition_root, run_root):
+        if path.is_symlink() or not path.is_dir():
+            raise ValueError("acquisition run directory is invalid")
+        _tighten_directory(path, mode=0o700)
+    return run_root
+
+
+def register_acquisition_run(
+    ws: Workspace,
+    *,
+    result: FullTextProviderResult,
+    identifier: str,
+    source_id: str,
+    paper_id: str,
+    origin_project_id: str,
+    activation_id: str,
+    artifact_ids: Sequence[str] = (),
+) -> dict[str, Any]:
+    """Persist one path-redacted acquisition trace under private RKF state."""
+
+    if not PROJECT_ID_RE.fullmatch(origin_project_id) or not ACTIVATION_ID_RE.fullmatch(activation_id):
+        raise ValueError("acquisition run requires valid project/activation lineage")
+    result = ensure_acquisition_run_id(result)
+    identifier_fingerprint = hashlib.sha256(identifier.strip().encode("utf-8")).hexdigest()
+    created = utc_now()
+    payload = {
+        "schema": "rkf-acquisition-run-v1",
+        "acquisition_run_id": result.acquisition_run_id,
+        "origin_project_id": origin_project_id,
+        "activation_id": activation_id,
+        "source_id": source_id,
+        "paper_id": paper_id,
+        "identifier_fingerprint": identifier_fingerprint,
+        "identifier_types": list(result.identifier_types),
+        "status": result.status,
+        "provider": result.provider,
+        "provider_version": result.provider_version,
+        "selected_route": result.route,
+        "attempts": [attempt.public_payload() for attempt in result.attempts],
+        "entitlement_state": result.entitlement_state,
+        "artifact_ids": list(dict.fromkeys(str(item) for item in artifact_ids if str(item))),
+        "blocker_codes": list(result.blocker_codes),
+        "elapsed_ms": result.elapsed_ms,
+        "retry_class": (
+            "serial-retry"
+            if result.status == "retryable"
+            else "manual"
+            if result.status in {"manual-required", "not-entitled"}
+            else "none"
+        ),
+        "promotion": "none",
+        "paths_redacted": True,
+        "public_safe": True,
+        "created": created,
+    }
+    run_root = _acquisition_run_root(ws)
+    target = run_root / f"{result.acquisition_run_id}.json"
+    if target.is_symlink():
+        raise ValueError("acquisition run target cannot be a symlink")
+    if target.exists():
+        existing = _read_artifact_json(target, target_label="acquisition run")
+        existing_semantic = _acquisition_run_semantic_payload(existing)
+        payload_semantic = _acquisition_run_semantic_payload(payload)
+        if existing_semantic != payload_semantic:
+            raise ValueError("acquisition run identity collision")
+        return existing
+    _atomic_write_artifact_json(
+        target,
+        payload,
+        mode=0o600,
+        target_label="acquisition run",
+    )
+    return payload
+
+
+def load_acquisition_runs(
+    ws: Workspace,
+    *,
+    project_id: str = "",
+    activation_id: str = "",
+    status: str = "",
+    target_object_id: str = "",
+) -> list[dict[str, Any]]:
+    """Load private acquisition traces for Review without following symlinks."""
+
+    root = ws.root / ".rkf_private" / "acquisition" / "runs"
+    if not root.exists():
+        return []
+    if root.is_symlink() or not root.is_dir() or not _path_is_within(ws.root, root):
+        raise ValueError("acquisition run root is invalid")
+    runs: list[dict[str, Any]] = []
+    for path in sorted(root.glob("acq_*.json")):
+        if path.is_symlink() or not path.is_file() or not ACQUISITION_RUN_ID_RE.fullmatch(path.stem):
+            raise ValueError("acquisition run collection contains an invalid entry")
+        payload = _read_artifact_json(path, target_label="acquisition run")
+        if (
+            payload.get("schema") != "rkf-acquisition-run-v1"
+            or payload.get("acquisition_run_id") != path.stem
+            or payload.get("paths_redacted") is not True
+            or payload.get("public_safe") is not True
+        ):
+            raise ValueError(f"invalid acquisition run: {path.stem}")
+        if project_id and payload.get("origin_project_id") != project_id:
+            continue
+        if activation_id and payload.get("activation_id") != activation_id:
+            continue
+        if status and payload.get("status") != status:
+            continue
+        if target_object_id and target_object_id not in {
+            payload.get("source_id"),
+            payload.get("paper_id"),
+            *payload.get("artifact_ids", []),
+        }:
+            continue
+        runs.append(payload)
+    return runs
 
 
 def validate_paper_access_target(ws: Workspace, *, paper_id: str) -> str:

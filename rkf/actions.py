@@ -93,6 +93,8 @@ from .providers import (
     FullTextProvider,
     AppraisalProvider,
     RetrievalProvider,
+    ensure_acquisition_run_id,
+    register_acquisition_run,
     register_evidence_artifact,
     update_paper_access_from_artifact,
     validate_paper_access_target,
@@ -1213,8 +1215,19 @@ class RKFActionRuntime:
                         project_id=self.session.project_id,
                         activation_id=self.session.activation_id,
                     )
+                    provider_result = ensure_acquisition_run_id(
+                        provider_result,
+                        identity={
+                            "origin_project_id": self.session.project_id,
+                            "activation_id": self.session.activation_id,
+                            "source_id": source_id,
+                            "paper_id": paper_id,
+                            "identifier": identifier,
+                        },
+                    )
                     payload = provider_result.public_payload()
                     affected: list[str] = [paper_id, source_id]
+                    artifact_ids: list[str] = []
                     if provider_result.status == "obtained":
                         artifact = register_evidence_artifact(
                             self.workspace,
@@ -1230,6 +1243,19 @@ class RKFActionRuntime:
                         payload["artifact"] = artifact
                         payload["paper_state"] = paper_state
                         affected.append(str(artifact["artifact_id"]))
+                        artifact_ids.append(str(artifact["artifact_id"]))
+                    acquisition_run = register_acquisition_run(
+                        self.workspace,
+                        result=provider_result,
+                        identifier=identifier,
+                        source_id=source_id,
+                        paper_id=paper_id,
+                        origin_project_id=self.session.project_id,
+                        activation_id=self.session.activation_id,
+                        artifact_ids=artifact_ids,
+                    )
+                    payload["acquisition_run"] = acquisition_run
+                    affected.append(str(acquisition_run["acquisition_run_id"]))
                 except (OSError, RuntimeError, TypeError, ValueError) as error:
                     return ActionResult(
                         request.action,

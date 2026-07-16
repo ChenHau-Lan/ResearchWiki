@@ -24,6 +24,7 @@ if str(REPO_ROOT) not in sys.path:
     sys.path.insert(0, str(REPO_ROOT))
 
 from rkf.actions import ActionRequest, ActionResult, RKFActionRuntime
+from rkf.acquisition import PortableScientificAcquisitionProvider
 from rkf.capture import CaptureInput, classify_capture as classify_rkf_capture
 from rkf.core import Workspace, load_toml
 
@@ -303,9 +304,22 @@ def open_action_runtime(
         policy = read_project_marker(active_project)
         if policy["version"] not in {1, 2} or policy["available"] is not True:
             raise SystemExit("RKF project is not connected or available")
+    full_text_provider = None
+    if os.environ.get("RKF_ENABLE_PORTABLE_ACQUISITION") == "1":
+        full_text_provider = PortableScientificAcquisitionProvider(
+            contact_email=os.environ.get("RKF_CONTACT_EMAIL", ""),
+            storage_root=(
+                config.researchwiki_root
+                / ".rkf_private"
+                / "acquisition"
+                / "artifacts"
+            ),
+            storage_boundary=config.researchwiki_root,
+        )
     return RKFActionRuntime(
         workspace=Workspace(config.researchwiki_root),
         project_root=active_project,
+        full_text_provider=full_text_provider,
     )
 
 

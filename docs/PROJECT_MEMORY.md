@@ -1,6 +1,108 @@
 # PROJECT_MEMORY
 
-Last updated: 2026-07-15
+Last updated: 2026-07-16
+
+## vNext Issue #18 Scientific Artifact Acquisition
+
+- The current implementation is the issue #18 **portable-core slice**, not the
+  completed issue inventory. Native institutional/browser adapters and several
+  multi-artifact/domain metadata items remain open. Access-control, SSO, and
+  CAPTCHA surfaces must be detected and stopped as typed manual handoffs; they
+  are never bypassed.
+- `IdentifierAdapterRegistry` now gives each non-DOI identifier type one
+  fail-closed owner. Dedicated adapters resolve ADS bibcodes, public OSF
+  primary files, current EarthArXiv Janeway and legacy OSF records, ESSOAr
+  DOIs, NOAA IR PIDs, WMO publication/library IDs, and registered AR6 IPCC
+  report IDs. OSF withdrawn records, bare ESSOAr article numbers, free-form
+  NOAA series numbers, and unknown WMO/IPCC aliases remain manual official-
+  search handoffs rather than guessed artifacts. Complete IPCC volumes remain
+  subject to the bounded default artifact size.
+- `rkf/acquisition.py` now implements canonical DOI/URL/arXiv/ADS/DataCite/
+  Handle/NTRS/repository/report identifiers, conflict review, a portable
+  bounded OA route ladder, atmospheric P0 profiles, optional Elsevier/Wiley
+  TDM secrets, a `paper_fetch.py --json` institutional adapter, read-only
+  holdings checks, provider-level 429 backoff, private checksum storage, and
+  PDF identity/readability/locator QC. The connector enables portable network
+  acquisition only with `RKF_ENABLE_PORTABLE_ACQUISITION=1`; Unpaywall also
+  requires a real `RKF_CONTACT_EMAIL`.
+- Acquisition remains internal to `workflow.add` with `Promotion: none`.
+  Idempotent `acquisition_run_id` traces are stored path-redacted under private
+  state and exposed by Review; artifacts distinguish Version of Record,
+  accepted manuscript, preprint, and unknown version. Provider/QC success
+  never verifies Evidence or Claims.
+- A new public atmospheric-journal corpus records 11 P0 representative cases
+  (AGU/Wiley, Wiley/RMetS, AMS, Copernicus, Elsevier, Springer, Nature, IOP,
+  ACS, AAAS, and Taylor & Francis) and 3 P1 cases (MDPI, Frontiers, and
+  J-STAGE). In the bounded 2026-07-16 final live run, all 14 were `obtained`
+  and all 14 met the smoke helper's research-ready PDF checks across nine
+  selected route labels. The routes included current NCBI PMC Cloud and
+  authorized repositories. This is evidence about those exact cases and run,
+  not proof of journal-wide or future availability. The public-safe result is
+  `docs/benchmarks/acquisition-issue-18-atmospheric-journal-live-smoke.md`.
+- Reusable same-journal retry order is recorded in
+  `docs/operations/atmospheric-journal-acquisition-route-playbook.zh-TW.md`.
+  DOI-family publisher profiles may be reused as route hints, but exact NOAA
+  PIDs, GEOMAR URLs, PMCID membership, repository handles, and bitstream UUIDs
+  remain article-specific and must come from metadata or explicit user input;
+  they must never be guessed from a journal match. The user-requested
+  conversation record is preserved as a public-safe decision summary in
+  `docs/operations/2026-07-16-issue-18-atmospheric-journal-closeout.zh-TW.md`;
+  raw transcript, prompts, article text, private paths, and artifact hashes are
+  intentionally excluded.
+- The NCBI route now uses the current DOI-to-PMCID converter, checks
+  `versions=yes`, selects the flagged current versioned PMCID (or the highest
+  listed version when no current flag exists), rejects a selected version
+  explicitly marked non-live, checks
+  `pmc-oa-opendata` metadata for matching DOI, OA state, and retraction state,
+  and converts only that service's S3 PDF pointer to its anonymous HTTPS object
+  path. A non-manuscript flag is not treated as VOR proof. Crossref licenses
+  are applied only to matching, active artifact versions; unknown and
+  accepted-manuscript files remain conservatively classified. The route does
+  not scrape or bypass PMC HTML/CAPTCHA surfaces.
+- Portable HTTP now validates the actual connected socket peer before reading
+  a body, disables environment-proxy resolution in the default opener, rejects
+  non-public peers and HTTPS-to-HTTP redirects, and strips path/query data from
+  `Referer` before removing it on cross-origin redirects. Secret-bearing
+  requests require HTTPS and cannot cross origins.
+- Each acquisition has a shared 32-request artifact/landing budget across
+  top-level and recursive candidates. PDF DOI identity compares a complete
+  token exactly, including legacy AMS angle-bracket forms, instead of accepting
+  a DOI prefix. External `paper_fetch.py` route output is restricted to the
+  pinned upstream route allowlist and cannot echo arbitrary token-shaped text.
+- Repository landing discovery now supports HTTP Signposting PDF items. A
+  standard DSpace front-end bitstream UUID is tried through the same-origin
+  public REST content endpoint before the advertised front-end URL. This made
+  the migrated Iowa State repository route for the AMS representative stable;
+  the resulting PDF still passed the ordinary DOI/readability/locator gates.
+- Private artifact stores are anchored to an explicit trusted boundary and
+  fail closed on symlinks/path escape. The live-smoke helper additionally
+  requires a fresh non-symlinked report/artifact directory outside the
+  repository and refuses overwrite; PDFs and private raw reports are never
+  committed.
+- The earlier 2026-07-16 broad user corpus contained 79 citations and 78 DOI
+  identifiers. Treat the following numbers as a historical baseline, not the
+  current 14-case journal result or a global availability claim.
+  The final citation-only live run obtained 40 artifacts; an official UCAR URL
+  resolved the no-identifier Tewari 2004 item, producing 41 obtained and 38
+  remaining manual. All 41 passed PDF/checksum/text/page/title-or-DOI and
+  locator-readiness QC under the then-current classifier/verifier; that corpus
+  was not rerun under the later stricter identity and conservative version
+  rules, so its VOR and identity labels are historical rather than current
+  revalidation. Raw PDFs and JSON remained in temporary private storage; only
+  the public-safe result is recorded in
+  `docs/benchmarks/acquisition-issue-18-atmospheric-smoke.md`.
+- Five legacy AMS DOI strings containing percent-encoded angle brackets first
+  exposed a double-encoding bug. Canonical DOI resolution now decodes once and
+  URL construction re-encodes once; a focused live rerun resolved Crossref
+  identity and correctly left only the AMS authorization blocker.
+- Remaining acquisition gaps are a configured real Unpaywall contact,
+  machine-local macOS/Linux secret backends, an authorized AMS adapter,
+  cross-process retry-after persistence, independently registrable JATS/XML,
+  hard wall-clock streaming deadlines, bounded external-adapter stdout/stderr,
+  URL-only version review, and maintained deterministic P0 fixtures. The live
+  14/14 observation does not close those gaps. Do not label the historical
+  baseline's remaining 38 globally unavailable; they were manual/authorization
+  handoffs in that environment.
 
 ## Unreleased v1.2 Locator Promotion Gate
 
@@ -423,6 +525,16 @@ python3 tools/rk.py topic lint
 python3 tools/rk.py lint --mode graph-lint
 python3 tools/public_safety_scan.py
 ```
+
+2026-07-16 issue #18 atmospheric-journal verification completed with 492 unit
+tests, Python compilation, a fresh 14-case live run, and exact corpus/report
+comparison. The designated run obtained 14/14 artifacts and all 14 passed the
+readability, page, locator, and identity gate across nine route labels.
+Version/license review remains separate: five artifacts are version-unknown,
+eight have no machine-recorded license, and the IOP Crossref artifact is an
+accepted manuscript. The raw report and PDFs remained under a fresh private
+repository-external temporary boundary; public records retain `Promotion:
+none`.
 
 For user-facing RKF work, use only Add, Ask, Read, Compare & Synthesize, and
 Review after explicit activation. Maintainers may still run the documented

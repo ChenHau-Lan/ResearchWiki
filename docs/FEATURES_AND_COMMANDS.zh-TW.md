@@ -31,5 +31,28 @@
 activation lineage，不是 process monitor。未正常停用的中斷 task 可能保持 open；
 absolute path 一律遮蔽。
 
+Issue #18 目前完成的是 opt-in **portable-core slice**：支援 URL／DOI／
+preprint／report identifier、有限的 OA／官方 publisher／授權 repository route、
+artifact version／PDF QC 與 private acquisition lineage。Identifier-only
+adapter 支援 ADS、OSF／EarthArXiv、ESSOAr DOI、NOAA IR PID、WMO
+record／publication slug 與已註冊 IPCC report ID。它仍由 `workflow.add` 內部
+呼叫，不是第六個產品模式；browser／institutional adapter 尚未完整實作，遇到
+SSO、CAPTCHA 或其他 access control 時只會 detect + stop，回傳 typed manual
+handoff，不會繞過。
+
+公開測試 corpus 包含 11 個 P0 與 3 個 P1 大氣期刊代表案例。2026-07-16 的
+一次 bounded live observation 為 14/14 `obtained`、14/14 通過 research-ready
+PDF checks，路徑包含 current NCBI PMC Cloud 與授權 repository；這只代表該次、
+該 14 篇，不是所有期刊文章皆可下載的證明。Smoke helper 的 report 與
+checksum-addressed artifact 必須寫在 repository 外，結果一律維持
+`Promotion: none`。完整設定、corpus、結果與限制見
+[`docs/references/vnext-acquisition.md`](references/vnext-acquisition.md) 與
+[`docs/benchmarks/acquisition-issue-18-atmospheric-journal-live-smoke.md`](benchmarks/acquisition-issue-18-atmospheric-journal-live-smoke.md)；
+未來遇到同一期刊 DOI 時，依
+[`期刊 route playbook`](operations/atmospheric-journal-acquisition-route-playbook.zh-TW.md)
+重試，並保持 article-specific identifier 不可猜測的邊界。本次對話保存為
+[`public-safe 決策摘要`](operations/2026-07-16-issue-18-atmospheric-journal-closeout.zh-TW.md)，
+不包含逐字 transcript、PDF 或 private path。
+
 舊的 world/stats/queue/graph、discovery lifecycle、dashboard、Obsidian、maintenance、
 cleanup 與 migration 名稱不是 v1 使用者入口。相容與移除版本見 `docs/V1_SCOPE_INVENTORY.md`。

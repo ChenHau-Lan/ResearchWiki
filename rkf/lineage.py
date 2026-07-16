@@ -770,6 +770,80 @@ def activation_timeline(
     return sorted(events, key=lambda item: (str(item.get("timestamp", "")), str(item.get("event_id", ""))))
 
 
+def open_activation_projects(
+    workspace_root: Path,
+    *,
+    current_activation_id: str = "",
+) -> list[dict[str, Any]]:
+    """Summarize projects whose latest activation transition is ``started``.
+
+    Activation is task-scoped, so this is an append-only lineage view rather
+    than a process-liveness probe. An interrupted task can remain open until a
+    later closure or expiry event is recorded.
+    """
+
+    if current_activation_id and not ACTIVATION_ID_RE.fullmatch(current_activation_id):
+        raise ValueError("invalid current_activation_id")
+    latest_by_activation: dict[str, dict[str, Any]] = {}
+    for event in activation_timeline(workspace_root):
+        activation_id = str(event.get("activation_id", ""))
+        project_id = str(event.get("project_id", ""))
+        transition = str(event.get("transition", ""))
+        if not ACTIVATION_ID_RE.fullmatch(activation_id):
+            raise ValueError("invalid activation_id in activation lineage")
+        if not PROJECT_ID_RE.fullmatch(project_id):
+            raise ValueError("invalid project_id in activation lineage")
+        if transition not in {"started", "closed", "expired", "failed"}:
+            raise ValueError("invalid transition in activation lineage")
+        latest_by_activation[activation_id] = event
+
+    projects: dict[str, dict[str, Any]] = {}
+    for activation_id, event in latest_by_activation.items():
+        if event.get("transition") != "started":
+            continue
+        mode = str(event.get("mode", ""))
+        if mode not in {"ACTIVE", "ACTIVE_READ_ONLY"}:
+            continue
+        project_id = str(event["project_id"])
+        project_name = str(event.get("project_name", ""))
+        started_at = str(event.get("timestamp", ""))
+        project = projects.setdefault(
+            project_id,
+            {
+                "project_id": project_id,
+                "project_name": project_name,
+                "open_activation_count": 0,
+                "modes": set(),
+                "latest_started_at": "",
+                "includes_current_task": False,
+                "paths_redacted": True,
+            },
+        )
+        project["open_activation_count"] += 1
+        project["modes"].add(mode)
+        project["latest_started_at"] = max(project["latest_started_at"], started_at)
+        project["includes_current_task"] = (
+            project["includes_current_task"]
+            or activation_id == current_activation_id
+        )
+
+    summaries: list[dict[str, Any]] = []
+    for project in projects.values():
+        summary = dict(project)
+        summary["modes"] = sorted(project["modes"])
+        _validate_trace_value(summary)
+        summaries.append(summary)
+    return sorted(
+        summaries,
+        key=lambda item: (
+            str(item["latest_started_at"]),
+            str(item["project_name"]),
+            str(item["project_id"]),
+        ),
+        reverse=True,
+    )
+
+
 def object_origin_lookup(
     workspace_root: Path,
     object_id: str,

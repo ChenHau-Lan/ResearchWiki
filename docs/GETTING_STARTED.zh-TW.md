@@ -50,6 +50,16 @@ bridge；不複製第二份 wiki 或 private index。
 新 task 預設 OFF。說「啟動 RKF」後再 validate connection。每次 task 有唯一
 `activation_id`；action lineage 會遮蔽路徑並保持 idempotent。完成後說「停用 RKF」。
 
+可直接說：「根據目前對話整理研究問題與搜尋詞，先 Ask RKF，再列出公開來源的
+candidate papers；等我確認後，用 Add 保存 DOI／URL 與短 note，不保存完整對話，
+Promotion: none。」
+
+若要檢查狀態，說：「顯示 RKF 狀態並列出仍有 open activation record 的 project。」
+回覆會分開顯示本 task 與跨 task 摘要，包括 `active_project_count`、
+`open_activation_count`、project name 與 `project_id`，但不顯示 absolute path。
+中斷而未停用的 task 可能仍保持 open，直到後續寫入 closure 或 expiry event；可透過
+Review 檢查 timeline。
+
 ## 4. 執行隔離的第一個閉環
 
 ```bash

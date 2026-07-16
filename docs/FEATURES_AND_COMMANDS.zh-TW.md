@@ -5,7 +5,7 @@
 
 | 需求 | Structured action | 主要結果 |
 |---|---|---|
-| 啟動／檢查／停用 | `rkf.activate`、`connect.validate`、`rkf.status`、`rkf.deactivate` | project/activation receipt 與 lineage |
+| 啟動／檢查／停用 | `rkf.activate`、`connect.validate`、`rkf.status`、`rkf.deactivate` | 本 task receipt；path-redacted open-activation project 摘要；lineage |
 | 加入資料 | `workflow.add` | event-first capture；可選 `FullTextProvider` acquisition；Promotion: none |
 | 查詢 | `workflow.ask` | 預設 context-first；以 `context-only \| mixed \| evidence` 分開來源脈絡與正式支持，`evidence-only` 保留 strict gate |
 | 閱讀與確認 | `workflow.read` | missing／coarse／exact FindingDraft、exact-locator Evidence，或 `digest \| appraise \| both` scope-gated Read run |
@@ -15,6 +15,8 @@
 自然語言例子：
 
 - 「啟動 RKF，確認這個 project 的 connection。」
+- 「根據目前對話整理搜尋詞，先 Ask RKF；列出候選論文，等我確認後再 Add DOI／URL 與短 note，不保存完整對話。」
+- 「顯示 RKF 狀態，列出仍有 open activation record 的 project name 與 project_id，並標示這個 task。」
 - 「Add 這個 DOI，但 candidate 不要升級成 evidence。」
 - 「Ask RKF 這個 finding；可顯示 source context，但不要把缺 locator 的內容當成 claim support。」
 - 「Read 這篇，先記錄 FindingDraft；locator 稍後補成 exact 再提升 Evidence。」
@@ -24,6 +26,10 @@
 `workflow.review` 可依 `project_id`、`activation_id`、action、status 或
 `target_object_id` 篩選。Optional provider 的完整 v1 邊界見
 [`docs/references/v1-provider-contracts.md`](references/v1-provider-contracts.md)。
+
+`rkf.status` 的 `active_project_count` 與 `open_activation_count` 來自 append-only
+activation lineage，不是 process monitor。未正常停用的中斷 task 可能保持 open；
+absolute path 一律遮蔽。
 
 舊的 world/stats/queue/graph、discovery lifecycle、dashboard、Obsidian、maintenance、
 cleanup 與 migration 名稱不是 v1 使用者入口。相容與移除版本見 `docs/V1_SCOPE_INVENTORY.md`。

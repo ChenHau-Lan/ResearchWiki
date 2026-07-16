@@ -163,6 +163,20 @@ class RKFDocumentationTests(unittest.TestCase):
             positions = [text.index(workflow) for workflow in workflow_rows]
             self.assertEqual(positions, sorted(positions))
             self.assertIn("Maintainer reference", text)
+            self.assertIn("rkf.status", text)
+            self.assertIn("active_project_count", text)
+            self.assertIn("open_activation_count", text)
+            self.assertIn("Promotion: none", text)
+        self.assertIn("Do not save the whole conversation", english)
+        self.assertIn("不要保存完整對話", chinese)
+
+        english_manual = (REPO / "docs" / "manuals" / "rkf_manual.en.md").read_text(encoding="utf-8")
+        chinese_manual = (REPO / "docs" / "manuals" / "rkf_manual.zh-TW.md").read_text(encoding="utf-8")
+        for manual in (english_manual, chinese_manual):
+            self.assertIn("active_project_count", manual)
+            self.assertIn("open_activation_count", manual)
+            self.assertIn("workflow.ask", manual)
+            self.assertIn("workflow.add", manual)
 
     def test_documented_setup_commands_have_matching_help_surfaces(self) -> None:
         commands = (

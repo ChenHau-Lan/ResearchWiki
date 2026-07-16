@@ -52,6 +52,7 @@ class RKFActionsTests(unittest.TestCase):
         self.assertEqual(result.payload["error_code"], "RKF_NOT_ACTIVE")
 
     def test_activate_status_and_deactivate_share_one_runtime(self) -> None:
+        self.runtime.execute(ActionRequest(action="rkf.deactivate"))
         runtime = RKFActionRuntime(
             workspace=self.workspace,
             project_root=self.root,
@@ -66,8 +67,16 @@ class RKFActionsTests(unittest.TestCase):
 
         self.assertEqual(activated.status, "ok")
         self.assertEqual(status.payload["mode"], "ACTIVE")
+        self.assertEqual(status.payload["active_project_count"], 1)
+        self.assertEqual(status.payload["open_activation_count"], 1)
+        self.assertTrue(status.payload["active_projects"][0]["includes_current_task"])
+        self.assertTrue(status.payload["active_projects"][0]["paths_redacted"])
         self.assertEqual(deactivated.payload["mode"], "OFF")
         self.assertEqual(blocked.payload["error_code"], "RKF_NOT_ACTIVE")
+
+        after = runtime.execute(ActionRequest(action="rkf.status"))
+        self.assertEqual(after.payload["active_project_count"], 0)
+        self.assertEqual(after.payload["open_activation_count"], 0)
 
     def test_read_only_session_blocks_writes_but_allows_reads(self) -> None:
         (self.root / "paper.sync-conflict.md").write_text("conflict\n", encoding="utf-8")

@@ -97,6 +97,33 @@ class RKFV1Tests(unittest.TestCase):
         self.assertEqual(result.payload["project_id"], "prj_1234567890abcdef12345678")
         self.assertEqual(result.payload["status"], "connected")
 
+    def test_status_lists_open_projects_without_exposing_folder_paths(self) -> None:
+        second_root = self.root / "second-project"
+        second_root.mkdir()
+        second_root.joinpath(".rkf-connect.toml").write_text(
+            "version = 2\n\n[rkf]\n"
+            "available = true\nactivation = \"manual\"\nquery_first = true\n"
+            "capture_mode = \"active-aggressive\"\n"
+            "project_id = \"prj_abcdef1234567890abcdef12\"\n"
+            "project_name = \"Second Project\"\n"
+            "marker_schema = \"rkf-connect-v2\"\n"
+            "connector_version = \"1.1.0\"\n"
+            "connected_at = \"2026-07-15T00:00:00Z\"\n",
+            encoding="utf-8",
+        )
+        second = RKFActionRuntime(workspace=self.workspace, project_root=second_root)
+        self.assertEqual(second.execute(ActionRequest("rkf.activate")).status, "ok")
+
+        status = self.runtime.execute(ActionRequest("rkf.status"))
+
+        self.assertEqual(status.payload["active_project_count"], 2)
+        self.assertEqual(status.payload["open_activation_count"], 2)
+        self.assertEqual(
+            {project["project_name"] for project in status.payload["active_projects"]},
+            {"Test Project", "Second Project"},
+        )
+        self.assertNotIn(str(self.root), json.dumps(status.payload))
+
     def test_blocked_activation_with_valid_project_id_is_a_failed_event(self) -> None:
         blocked_root = self.root / "blocked-project"
         blocked_root.mkdir()

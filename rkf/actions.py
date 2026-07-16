@@ -80,8 +80,10 @@ from .public_dashboard import (
     render_dashboard_preview,
 )
 from .lineage import (
+    LineageStorageError,
     close_activation,
     input_fingerprint,
+    open_activation_projects,
     record_action,
     record_activation,
     result_fingerprint,
@@ -1945,11 +1947,38 @@ class RKFActionRuntime:
             )
             return self._trace_result(request, result)
         if request.action == "rkf.status":
+            status_warning_codes: list[str] = []
+            try:
+                active_projects = open_activation_projects(
+                    self.workspace.root,
+                    current_activation_id=self.session.activation_id,
+                )
+            except (LineageStorageError, OSError, UnicodeDecodeError, ValueError, TypeError):
+                active_projects = []
+                status_warning_codes.append("RKF_ACTIVATION_LINEAGE_UNAVAILABLE")
+            receipt = session_receipt(self.session)
+            receipt.update(
+                {
+                    "active_project_count": len(active_projects),
+                    "open_activation_count": sum(
+                        int(project["open_activation_count"])
+                        for project in active_projects
+                    ),
+                    "active_projects": active_projects,
+                    "activation_scope": "task-scoped",
+                    "status_warning_codes": status_warning_codes,
+                    "status_note": (
+                        "Projects are listed from open activation records; absolute paths are "
+                        "redacted and interrupted tasks may remain open until a closure or "
+                        "expiry event is recorded."
+                    ),
+                }
+            )
             result = ActionResult(
                 action="rkf.status",
                 status="ok",
                 message=f"RKF is {self.session.mode.value}",
-                payload=session_receipt(self.session),
+                payload=receipt,
             )
             return self._trace_result(request, result)
         if request.action == "rkf.activate":

@@ -34,7 +34,7 @@ repository bootstrap and strict diagnostic. Do not guess another checkout.
 | User intent | Structured action | Boundary |
 |---|---|---|
 | 啟動 RKF | `rkf.activate` then `connect.validate` | read-only validation before research work |
-| 查看狀態 | `rkf.status` | path-redacted task receipt |
+| 查看狀態 | `rkf.status` | task receipt plus path-redacted open-project summary |
 | 收進 RKF | `workflow.add` | candidate capture; `Promotion: none` |
 | 問 RKF | `workflow.ask` | exact-first; claim-supporting answers need locators |
 | 記錄閱讀 | `workflow.read` | exact-locator Evidence and explicit verification |
@@ -51,6 +51,8 @@ repository bootstrap and strict diagnostic. Do not guess another checkout.
 - "Compare these Evidence cards and preserve contradictions and gaps."
 - "Review this project and tell me the next reading action."
 - "啟動 RKF 並確認 connection。"
+- "根據目前對話整理搜尋詞，先 Ask RKF；列出候選論文，等我確認後再 Add DOI／URL 與短 note，不保存完整對話。"
+- "顯示 RKF 狀態，列出仍有 open activation record 的 project name 與 project_id，並標示這個 task。"
 - "把這個 DOI 收進 RKF，但不要升級成 Evidence。"
 - "停用 RKF。"
 
@@ -73,5 +75,7 @@ versions or policy differences that require a user-owned edit.
 ## Report
 
 Report the workflow, activation or dedupe state when relevant, `Promotion:
-none`, and any blocker. Do not echo private paths, machine IDs, keys, raw
-prompts, or unpublished content.
+none`, and any blocker. For status requests, separate the current task from
+projects with open activation records, and note that interrupted tasks can
+remain open until a later closure or expiry event is recorded. Do not echo
+private paths, machine IDs, keys, raw prompts, or unpublished content.

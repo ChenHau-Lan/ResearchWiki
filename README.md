@@ -71,6 +71,33 @@ This creates a v2 `.rkf-connect.toml` and a small `RKF/` bridge; it does not
 copy the central wiki. Every new Codex task still starts with RKF OFF. Say
 “activate RKF” at the start of the task and “deactivate RKF” when finished.
 
+## Use RKF with natural language
+
+After connection, open Codex with the research project folder as the workspace.
+The shell commands above are setup commands; routine research work is a
+conversation. For example:
+
+- “Activate RKF and validate this project.”
+- “From this conversation, extract the research question and search terms. Ask
+  RKF first, then search public scholarly sources if needed. Show me candidate
+  papers; after I confirm them, Add their DOI or URL and a short source-aware
+  note. Do not save the whole conversation. Promotion: none.”
+- “Show RKF status. List project names with open activation records, mark this
+  task’s project, and include project IDs. Do not show absolute paths.”
+- “Deactivate RKF.”
+
+`rkf.status` separates this task’s mode from the path-redacted list of projects
+with open activation records. It reports `active_project_count`,
+`open_activation_count`, project names, stable `project_id` values, modes, and
+open-task counts. An interrupted task can remain listed until its activation is
+closed or expired by a later event, so this is lineage state rather than an
+operating-system process monitor.
+
+Conversation context is used to form queries and short candidate notes. Raw
+transcripts, PDFs, and article text are not saved. Search results remain
+candidates until selected papers are routed through Add; `Promotion: none`
+still applies.
+
 ## Run the zero-network quickstart
 
 Run the same deterministic smoke test used by CI:
@@ -100,7 +127,7 @@ that RKF has read a source you have not supplied.
 
 | Workflow | Natural-language request | Expected result |
 |---|---|---|
-| **Add** | “Add this DOI or URL as a candidate. Do not promote it to Evidence.” | A deduplicated capture receipt with `Promotion: none` and project/activation lineage. |
+| **Add** | “From this conversation, Add the DOI or URL I selected as a candidate with a short search-context note. Do not save the transcript or promote it to Evidence.” | A deduplicated capture receipt with `Promotion: none` and project/activation lineage. |
 | **Ask** | “Ask RKF what these sources report, and separate source context from locator-backed support.” | Useful governed context may be shown without a locator, but it is marked not claim-ready; formal support links exact Evidence. |
 | **Read** | “Capture this observation as a FindingDraft; I will add the exact locator later.” | A missing/coarse/exact FindingDraft. Only an exact finding can be promoted to the existing Evidence format; the direct exact-locator Evidence route remains available. |
 | **Compare & Synthesize** | “Compare these Evidence cards and list agreement, contradiction, gaps, and a provisional conclusion.” | An Evidence-linked Claim or Synthesis that preserves unresolved gaps. |
@@ -119,6 +146,7 @@ compatibility code do not create additional product modes.
 - RKF does not bypass paywalls, CAPTCHA, or access controls.
 
 Use [Getting Started](docs/GETTING_STARTED.md) as the current beginner guide.
+For detailed daily use, see the [Researcher manual](docs/manuals/rkf_manual.en.md).
 For architecture, compatibility/removal decisions, release operations, and the
 public synthetic demo, use the single
 [Maintainer reference](docs/MAINTAINER_REFERENCE.md).

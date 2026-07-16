@@ -51,6 +51,15 @@ Last updated: 2026-07-15
 
 ## RKF v1.1 Scope Simplification
 
+- Everyday RKF use is documented as natural-language-first inside a connected
+  project folder: activate and validate, derive queries from the current
+  conversation, Ask existing RKF knowledge, show public-source candidates, and
+  Add only user-confirmed DOI/URL metadata plus a short note. Whole transcripts
+  and raw prompts remain excluded. `rkf.status` now preserves the same control
+  action while adding a path-redacted, project-grouped summary of activation
+  records whose latest transition is `started`; it reports open counts and
+  warns that interrupted tasks are lineage-open rather than proven-live OS
+  processes.
 - Phase 0 uses `docs/operations/v1-scope-inventory.yaml` as the canonical,
   machine-readable classification authority. It is JSON-compatible YAML 1.2,
   requires owner/follow-up/migration/test impact for every entry, and requires

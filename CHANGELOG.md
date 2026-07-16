@@ -28,6 +28,12 @@
 
 ## v1.1.0 - 2026-07-15
 
+- Make the everyday Codex path explicitly natural-language-first: a project can
+  activate, derive paper queries from the current conversation, Ask existing
+  RKF context, and Add only user-confirmed DOI/URL candidates without storing
+  the raw transcript. Expand `rkf.status` with a path-redacted summary of
+  projects that still have open activation records, including per-project open
+  task counts and a clear interrupted-task caveat.
 - Apply the explicitly approved 57-paper canonical migration for manifest
   `bb4ef62bcb0c533bf023838f9468b180dcb36441da8f674789cbf5405e340aff`,
   create 57 reading ledgers, and retain the 114-entry private checksum-verified

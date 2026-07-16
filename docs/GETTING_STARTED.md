@@ -51,6 +51,17 @@ Every Codex task starts OFF. Say “activate RKF”, then validate the connectio
 The task receives a unique `activation_id`; actions are path-redacted and
 idempotent. Say “deactivate RKF” when finished.
 
+You can say: “From this conversation, extract the research question and search
+terms. Ask RKF first, then show candidate papers from public sources. After I
+confirm them, Add their DOI/URL and a short note; do not save the whole
+conversation. Promotion: none.”
+
+To inspect state, say: “Show RKF status and list projects with open activation
+records.” The response separates this task from the cross-task summary and
+includes `active_project_count`, `open_activation_count`, project names, and
+`project_id` values without absolute paths. An interrupted task can remain open
+until a later closure or expiry event is recorded.
+
 ## 4. Run the isolated first loop
 
 ```bash

@@ -1,0 +1,18 @@
+{
+  "schema": "rkf-acquisition-p0-fixtures-v1",
+  "cases": [
+    {"publisher": "AGU/Wiley", "doi": "10.1029/example", "expected_route": "agu-wiley-landing-meta"},
+    {"publisher": "Wiley/RMetS", "doi": "10.1002/example", "expected_route": "agu-wiley-landing-meta"},
+    {"publisher": "AMS", "doi": "10.1175/example", "expected_route": "ams-landing-meta"},
+    {"publisher": "Copernicus", "doi": "10.5194/amt-17-5619-2024", "expected_route": "copernicus-direct"},
+    {"publisher": "Elsevier", "doi": "10.1016/example", "expected_route": "elsevier-landing-meta"},
+    {"publisher": "Springer", "doi": "10.1007/example", "expected_route": "springer-nature-landing-meta"},
+    {"publisher": "Nature", "doi": "10.1038/example", "expected_route": "springer-nature-landing-meta"},
+    {"publisher": "IOP", "doi": "10.1088/example", "expected_route": "iop-landing-meta"},
+    {"publisher": "ACS", "doi": "10.1021/example", "expected_route": "acs-landing-meta"},
+    {"publisher": "AAAS", "doi": "10.1126/example", "expected_route": "aaas-landing-meta"},
+    {"publisher": "Taylor & Francis", "doi": "10.1080/example", "expected_route": "taylor-francis-landing-meta"}
+  ],
+  "identity_gate": "exact-complete-doi-token",
+  "access_control_boundary": "manual-required-or-retryable; never bypass"
+}

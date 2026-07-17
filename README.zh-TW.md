@@ -144,8 +144,10 @@ GitHub issue #18 現在有一個 opt-in 的科學 artifact acquisition
 **portable-core slice**：支援多種 identifier、有限的 OA／官方 publisher／授權
 repository route、artifact/version provenance、PDF QC、private storage 與
 acquisition lineage。它仍是 Add 的 internal provider，不是第六個 workflow，且在
-connector 中預設關閉。Browser、institutional 與 publisher-specific adapter 尚未
-完成；SSO、CAPTCHA 與其他 access control 只會 detect + stop 並交給人工處理，
+connector 中預設關閉。Public core 現已支援 native desktop secret boundary、跨
+process backoff、holdings import、獨立 related-artifact pointer，以及明確 serial
+的 machine-local browser-adapter contract。Institution endpoint 與授權設定仍只留在
+本機；SSO、CAPTCHA 與其他 access control 只會 detect + stop 並交給人工處理，
 不會被繞過。
 
 可重現的大氣期刊 corpus 包含 11 個 P0 與 3 個 P1 代表案例。2026-07-16 的

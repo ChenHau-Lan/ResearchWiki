@@ -8,10 +8,12 @@ external adapter.
 
 from __future__ import annotations
 
+import csv
 import hashlib
 import ipaddress
 import json
 import os
+import sys
 import re
 import shutil
 import socket
@@ -25,7 +27,7 @@ import urllib.error
 import urllib.parse
 import urllib.request
 import uuid
-from dataclasses import dataclass, field
+from dataclasses import dataclass, field, replace
 from datetime import datetime, timezone
 from html.parser import HTMLParser
 from pathlib import Path
@@ -33,6 +35,7 @@ from typing import Any, Iterable, Protocol, Sequence
 
 from .core import extract_doi, normalize_doi
 from .lineage import ACTIVATION_ID_RE, PROJECT_ID_RE
+from .processes import run_bounded_process
 from .providers import AcquisitionAttempt, FullTextProviderResult
 
 
@@ -472,7 +475,10 @@ class UrllibHTTPClient:
                 "AUTHENTICATED_INSECURE_INITIAL_URL",
                 retryable=False,
             )
+        deadline = time.monotonic() + timeout_s
         for redirect_count in range(self.max_redirects + 1):
+            if time.monotonic() >= deadline:
+                raise HTTPTransportError("HTTP_WALL_CLOCK_DEADLINE")
             _validate_public_url(current_url, resolve_dns=True)
             request = urllib.request.Request(
                 current_url,
@@ -480,7 +486,10 @@ class UrllibHTTPClient:
                 method="GET",
             )
             try:
-                with self.opener.open(request, timeout=timeout_s) as response:
+                with self.opener.open(
+                    request,
+                    timeout=max(0.001, deadline - time.monotonic()),
+                ) as response:
                     _validate_urllib_peer(response)
                     final_url = _quote_http_url(str(response.geturl()))
                     _validate_public_url(final_url, resolve_dns=True)
@@ -497,7 +506,11 @@ class UrllibHTTPClient:
                             "AUTHENTICATED_CROSS_ORIGIN_RESPONSE",
                             retryable=False,
                         )
-                    body = response.read(max_bytes + 1)
+                    body = _read_bounded_http_body(
+                        response,
+                        max_bytes=max_bytes,
+                        deadline=deadline,
+                    )
                     if len(body) > max_bytes:
                         raise ResponseTooLargeError("response exceeded configured byte limit")
                     return HTTPResponse(
@@ -538,7 +551,11 @@ class UrllibHTTPClient:
                         }
                     current_url = next_url
                     continue
-                body = error.read(min(max_bytes, 256 * 1024))
+                body = _read_bounded_http_body(
+                    error,
+                    max_bytes=min(max_bytes, 256 * 1024),
+                    deadline=deadline,
+                )
                 return HTTPResponse(
                     status=int(error.code),
                     url=str(error.geturl()),
@@ -550,6 +567,40 @@ class UrllibHTTPClient:
             except (TimeoutError, urllib.error.URLError, OSError) as error:
                 raise HTTPTransportError(type(error).__name__) from error
         raise HTTPTransportError("HTTP_REDIRECT_LIMIT", retryable=False)
+
+
+def _read_bounded_http_body(
+    response: Any,
+    *,
+    max_bytes: int,
+    deadline: float,
+) -> bytes:
+    """Read a response with byte and monotonic wall-clock limits."""
+
+    content = bytearray()
+    reader = getattr(response, "read1", None)
+    if not callable(reader):
+        reader = response.read
+        if time.monotonic() >= deadline:
+            raise HTTPTransportError("HTTP_WALL_CLOCK_DEADLINE")
+        body = reader(max_bytes + 1)
+        if time.monotonic() > deadline:
+            raise HTTPTransportError("HTTP_WALL_CLOCK_DEADLINE")
+        if len(body) > max_bytes:
+            raise ResponseTooLargeError("response exceeded configured byte limit")
+        return bytes(body)
+    while True:
+        if time.monotonic() >= deadline:
+            raise HTTPTransportError("HTTP_WALL_CLOCK_DEADLINE")
+        chunk = reader(min(64 * 1024, max_bytes + 1 - len(content)))
+        if not chunk:
+            break
+        content.extend(chunk)
+        if len(content) > max_bytes:
+            raise ResponseTooLargeError("response exceeded configured byte limit")
+    if time.monotonic() > deadline:
+        raise HTTPTransportError("HTTP_WALL_CLOCK_DEADLINE")
+    return bytes(content)
 
 
 def _embedded_ipv4_addresses(
@@ -921,6 +972,102 @@ def _crossref_license_for_version(
     latest_start = max(start for start, _url in matches)
     latest_urls = {url for start, url in matches if start == latest_start}
     return next(iter(latest_urls)) if len(latest_urls) == 1 else ""
+
+
+def _crossref_related_artifacts(message: dict[str, Any]) -> tuple[dict[str, str], ...]:
+    mapping = {
+        "is-preprint-of": ("is-version-of", "preprint"),
+        "has-preprint": ("related", "preprint"),
+        "is-version-of": ("is-version-of", "pdf"),
+        "is-supplement-to": ("supplements", "supplement"),
+        "has-supplement": ("related", "supplement"),
+        "is-correction-of": ("corrects", "correction"),
+        "is-corrected-by": ("related", "correction"),
+        "is-retraction-of": ("retracts", "retraction-notice"),
+        "is-retracted-by": ("related", "retraction-notice"),
+    }
+    related: list[dict[str, str]] = []
+    raw_relations = message.get("relation")
+    if not isinstance(raw_relations, dict):
+        return ()
+    for relation_name, items in raw_relations.items():
+        mapped = mapping.get(str(relation_name).lower())
+        if mapped is None or not isinstance(items, list):
+            continue
+        relationship, artifact_type = mapped
+        for item in items:
+            if not isinstance(item, dict):
+                continue
+            identifier_type = str(item.get("id-type", "")).lower()
+            identifier = normalize_doi(str(item.get("id", "")))
+            if identifier_type != "doi" or not identifier:
+                continue
+            related.append(
+                {
+                    "relationship": relationship,
+                    "artifact_type": artifact_type,
+                    "host": "doi.org",
+                    "identifier": "doi-sha256:"
+                    + hashlib.sha256(identifier.encode("utf-8")).hexdigest()[:16],
+                }
+            )
+    return _dedupe_related(related)
+
+
+def _datacite_related_artifacts(attributes: dict[str, Any]) -> tuple[dict[str, str], ...]:
+    mapping = {
+        "isversionof": "is-version-of",
+        "isnewversionof": "is-version-of",
+        "ispreviousversionof": "is-version-of",
+        "issupplementto": "supplements",
+        "iscorrectionof": "corrects",
+        "isretractionof": "retracts",
+    }
+    related: list[dict[str, str]] = []
+    for item in attributes.get("relatedIdentifiers", []):
+        if not isinstance(item, dict):
+            continue
+        relationship = mapping.get(
+            re.sub(r"[^a-z]", "", str(item.get("relationType", "")).lower()),
+            "related",
+        )
+        resource_type = str(item.get("resourceTypeGeneral", "")).lower()
+        artifact_type = {
+            "dataset": "dataset-link",
+            "software": "software-link",
+            "text": "report",
+        }.get(resource_type, "pdf")
+        identifier_type = str(item.get("relatedIdentifierType", "")).lower()
+        value = str(item.get("relatedIdentifier", "")).strip()
+        if identifier_type == "doi":
+            value = normalize_doi(value)
+            if not value:
+                continue
+            host = "doi.org"
+            identifier = "doi-sha256:" + hashlib.sha256(
+                value.encode("utf-8")
+            ).hexdigest()[:16]
+        elif identifier_type in {"url", "handle"}:
+            if identifier_type == "handle" and not value.lower().startswith(("http://", "https://")):
+                value = "https://hdl.handle.net/" + urllib.parse.quote(value, safe="/")
+            try:
+                host = _validate_public_url(value)
+            except ValueError:
+                continue
+            identifier = "url-sha256:" + hashlib.sha256(
+                value.encode("utf-8")
+            ).hexdigest()[:16]
+        else:
+            continue
+        related.append(
+            {
+                "relationship": relationship,
+                "artifact_type": artifact_type,
+                "host": host,
+                "identifier": identifier,
+            }
+        )
+    return _dedupe_related(related)
 
 
 def _current_pmc_version(record: dict[str, Any]) -> tuple[str, dict[str, Any]]:
@@ -1875,6 +2022,106 @@ class SQLiteHoldingsEntitlementProvider:
         )
 
 
+def ingest_holdings_csv(
+    csv_path: Path,
+    database: Path,
+    *,
+    apply: bool = False,
+) -> dict[str, Any]:
+    """Validate or atomically import a machine-local holdings CSV export."""
+
+    source = csv_path.absolute()
+    target = database.absolute()
+    if source.is_symlink() or not source.is_file():
+        raise ValueError("holdings CSV must be a regular non-symlink file")
+    if target.is_symlink() or (target.exists() and not target.is_file()):
+        raise ValueError("holdings database target is unsafe")
+    if target.parent.is_symlink() or not target.parent.is_dir():
+        raise ValueError("holdings database parent must be an existing directory")
+    required = {
+        "title",
+        "platform",
+        "issn_print",
+        "issn_e",
+        "is_free",
+        "coverage",
+    }
+    rows: list[tuple[str, str, str, str, int, str]] = []
+    with source.open("r", encoding="utf-8-sig", newline="") as handle:
+        reader = csv.DictReader(handle)
+        if set(reader.fieldnames or ()) != required:
+            raise ValueError("holdings CSV header does not match the canonical six fields")
+        for index, raw in enumerate(reader, start=2):
+            title = str(raw.get("title") or "").strip()
+            platform = str(raw.get("platform") or "").strip()
+            issn_print_raw = str(raw.get("issn_print") or "").strip()
+            issn_e_raw = str(raw.get("issn_e") or "").strip()
+            issn_print = _normalize_issn(issn_print_raw)
+            issn_e = _normalize_issn(issn_e_raw)
+            is_free_raw = str(raw.get("is_free") or "").strip().lower()
+            coverage = str(raw.get("coverage") or "").strip()
+            if not title or not platform:
+                raise ValueError(f"holdings CSV row {index} requires title and platform")
+            if issn_print_raw and not issn_print:
+                raise ValueError(f"holdings CSV row {index} has invalid print ISSN")
+            if issn_e_raw and not issn_e:
+                raise ValueError(f"holdings CSV row {index} has invalid electronic ISSN")
+            if not issn_print and not issn_e:
+                raise ValueError(f"holdings CSV row {index} requires at least one ISSN")
+            if is_free_raw not in {"0", "1", "false", "true", "no", "yes"}:
+                raise ValueError(f"holdings CSV row {index} has invalid is_free value")
+            is_free = int(is_free_raw in {"1", "true", "yes"})
+            if coverage and not re.search(r"\bfrom\s+\d{4}\b", coverage, re.I):
+                raise ValueError(f"holdings CSV row {index} has invalid coverage")
+            rows.append((title, platform, issn_print, issn_e, is_free, coverage))
+    if not rows:
+        raise ValueError("holdings CSV contains no rows")
+    report = {
+        "schema": "rkf-holdings-import-v1",
+        "row_count": len(rows),
+        "free_oa_count": sum(row[4] for row in rows),
+        "coverage_unknown_count": sum(not row[5] for row in rows),
+        "apply": apply,
+        "paths_redacted": True,
+    }
+    if not apply:
+        return report
+    descriptor, temporary_name = tempfile.mkstemp(
+        prefix=f".{target.name}.",
+        suffix=".tmp",
+        dir=target.parent,
+    )
+    os.close(descriptor)
+    temporary = Path(temporary_name)
+    try:
+        connection = sqlite3.connect(temporary)
+        try:
+            connection.execute(
+                "CREATE TABLE journals ("
+                "title TEXT NOT NULL, platform TEXT NOT NULL, "
+                "issn_print TEXT NOT NULL, issn_e TEXT NOT NULL, "
+                "is_free INTEGER NOT NULL CHECK(is_free IN (0, 1)), "
+                "coverage TEXT NOT NULL)"
+            )
+            connection.executemany(
+                "INSERT INTO journals(title, platform, issn_print, issn_e, is_free, coverage) "
+                "VALUES (?, ?, ?, ?, ?, ?)",
+                rows,
+            )
+            connection.execute("CREATE INDEX journals_issn_print ON journals(issn_print)")
+            connection.execute("CREATE INDEX journals_issn_e ON journals(issn_e)")
+            connection.commit()
+        finally:
+            connection.close()
+        os.chmod(temporary, 0o600)
+        if target.is_symlink():
+            raise ValueError("holdings database target became unsafe")
+        os.replace(temporary, target)
+    finally:
+        temporary.unlink(missing_ok=True)
+    return report
+
+
 class SecretProvider(Protocol):
     def get(self, name: str) -> str | None: ...
 
@@ -1891,6 +2138,250 @@ class EnvironmentSecretProvider:
         return os.environ.get(name) or None
 
 
+def _valid_secret_name(name: str) -> bool:
+    return bool(re.fullmatch(r"[A-Z][A-Z0-9_]{0,63}", name))
+
+
+class MacOSKeychainSecretProvider:
+    """Read explicitly allowlisted secrets from macOS Keychain.
+
+    Each secret is stored as a generic-password service named
+    ``<service_prefix>.<lowercase-secret-name>``. Values are returned only in
+    memory and command diagnostics are never exposed by the provider.
+    """
+
+    def __init__(
+        self,
+        *,
+        allowed_names: Sequence[str],
+        service_prefix: str = "org.rkf",
+    ) -> None:
+        if not service_prefix or not re.fullmatch(r"[A-Za-z0-9._-]{1,80}", service_prefix):
+            raise ValueError("invalid macOS Keychain service prefix")
+        if any(not _valid_secret_name(name) for name in allowed_names):
+            raise ValueError("invalid allowlisted secret name")
+        self.allowed_names = frozenset(allowed_names)
+        self.service_prefix = service_prefix
+
+    def get(self, name: str) -> str | None:
+        if name not in self.allowed_names or sys.platform != "darwin":
+            return None
+        try:
+            result = run_bounded_process(
+                [
+                    "/usr/bin/security",
+                    "find-generic-password",
+                    "-s",
+                    f"{self.service_prefix}.{name.lower()}",
+                    "-w",
+                ],
+                timeout_seconds=10,
+                max_stdout_bytes=16 * 1024,
+                max_stderr_bytes=16 * 1024,
+            )
+        except OSError:
+            return None
+        if result.returncode != 0 or result.timed_out or result.stdout_overflow:
+            return None
+        return result.stdout.rstrip("\r\n") or None
+
+
+class LinuxSecretServiceProvider:
+    """Read allowlisted secrets through the machine-local ``secret-tool`` CLI."""
+
+    def __init__(
+        self,
+        *,
+        allowed_names: Sequence[str],
+        application: str = "rkf",
+        executable: str = "secret-tool",
+    ) -> None:
+        if any(not _valid_secret_name(name) for name in allowed_names):
+            raise ValueError("invalid allowlisted secret name")
+        if not application or not re.fullmatch(r"[A-Za-z0-9._-]{1,80}", application):
+            raise ValueError("invalid Secret Service application name")
+        if not executable:
+            raise ValueError("Secret Service executable is required")
+        self.allowed_names = frozenset(allowed_names)
+        self.application = application
+        self.executable = executable
+
+    def get(self, name: str) -> str | None:
+        if name not in self.allowed_names or not sys.platform.startswith("linux"):
+            return None
+        try:
+            result = run_bounded_process(
+                [
+                    self.executable,
+                    "lookup",
+                    "application",
+                    self.application,
+                    "key",
+                    name,
+                ],
+                timeout_seconds=10,
+                max_stdout_bytes=16 * 1024,
+                max_stderr_bytes=16 * 1024,
+            )
+        except OSError:
+            return None
+        if result.returncode != 0 or result.timed_out or result.stdout_overflow:
+            return None
+        return result.stdout.rstrip("\r\n") or None
+
+
+class WindowsCredentialManagerSecretProvider:
+    """Read generic credentials through optional machine-local ``pywin32``."""
+
+    def __init__(
+        self,
+        *,
+        allowed_names: Sequence[str],
+        target_prefix: str = "RKF",
+        credential_reader: Any | None = None,
+    ) -> None:
+        if any(not _valid_secret_name(name) for name in allowed_names):
+            raise ValueError("invalid allowlisted secret name")
+        if not target_prefix or not re.fullmatch(r"[A-Za-z0-9._/-]{1,80}", target_prefix):
+            raise ValueError("invalid Windows credential target prefix")
+        self.allowed_names = frozenset(allowed_names)
+        self.target_prefix = target_prefix.rstrip("/")
+        self._credential_reader = credential_reader
+
+    @staticmethod
+    def _decode_blob(value: Any) -> str | None:
+        if isinstance(value, str):
+            return value or None
+        if isinstance(value, bytes):
+            for encoding in ("utf-16-le", "utf-8"):
+                try:
+                    decoded = value.decode(encoding).rstrip("\x00")
+                except UnicodeDecodeError:
+                    continue
+                if decoded:
+                    return decoded
+        return None
+
+    def get(self, name: str) -> str | None:
+        if name not in self.allowed_names:
+            return None
+        reader = self._credential_reader
+        if reader is None:
+            if os.name != "nt":
+                return None
+            try:
+                import win32cred  # type: ignore[import-not-found]
+            except ImportError:
+                return None
+            reader = lambda target: win32cred.CredRead(  # noqa: E731
+                target,
+                win32cred.CRED_TYPE_GENERIC,
+                0,
+            )
+        try:
+            credential = reader(f"{self.target_prefix}/{name}")
+        except Exception:  # machine-local backend failure stays non-sensitive
+            return None
+        if not isinstance(credential, dict):
+            return None
+        return self._decode_blob(credential.get("CredentialBlob"))
+
+
+class PlatformSecretProvider:
+    """Select the native desktop secret backend without an environment fallback."""
+
+    def __init__(self, *, allowed_names: Sequence[str]) -> None:
+        if sys.platform == "darwin":
+            self.backend: SecretProvider = MacOSKeychainSecretProvider(
+                allowed_names=allowed_names
+            )
+        elif os.name == "nt":
+            self.backend = WindowsCredentialManagerSecretProvider(
+                allowed_names=allowed_names
+            )
+        elif sys.platform.startswith("linux"):
+            self.backend = LinuxSecretServiceProvider(allowed_names=allowed_names)
+        else:
+            self.backend = EnvironmentSecretProvider(allowed_names=())
+
+    def get(self, name: str) -> str | None:
+        return self.backend.get(name)
+
+
+class RetryAfterStore(Protocol):
+    def remaining(self, route: str) -> float: ...
+
+    def record(self, route: str, delay_seconds: float) -> None: ...
+
+
+class SQLiteRetryAfterStore:
+    """Cross-process retry-after state containing no identifiers or URLs."""
+
+    def __init__(self, path: Path, *, boundary_root: Path) -> None:
+        self.path = path.absolute()
+        self.boundary_root = boundary_root.absolute()
+        try:
+            self.path.relative_to(self.boundary_root)
+        except ValueError as error:
+            raise ValueError("retry-after state must stay inside its boundary") from error
+        current = self.boundary_root
+        if current.is_symlink() or not current.is_dir():
+            raise ValueError("retry-after boundary must be an existing directory")
+        for part in self.path.parent.relative_to(self.boundary_root).parts:
+            current = current / part
+            if current.exists() and (current.is_symlink() or not current.is_dir()):
+                raise ValueError("retry-after state has an unsafe path component")
+            current.mkdir(mode=0o700, exist_ok=True)
+            os.chmod(current, 0o700)
+        if self.path.is_symlink() or (self.path.exists() and not self.path.is_file()):
+            raise ValueError("retry-after state target is unsafe")
+        self._initialize()
+
+    def _connect(self) -> sqlite3.Connection:
+        connection = sqlite3.connect(self.path, timeout=5.0)
+        connection.execute("PRAGMA journal_mode=WAL")
+        connection.execute("PRAGMA busy_timeout=5000")
+        return connection
+
+    def _initialize(self) -> None:
+        with self._connect() as connection:
+            connection.execute(
+                "CREATE TABLE IF NOT EXISTS retry_after ("
+                "route TEXT PRIMARY KEY, until_epoch REAL NOT NULL, updated_epoch REAL NOT NULL)"
+            )
+        os.chmod(self.path, 0o600)
+
+    @staticmethod
+    def _validate_route(route: str) -> str:
+        if not re.fullmatch(r"[a-z0-9][a-z0-9._-]{0,95}", route):
+            raise ValueError("retry-after route is invalid")
+        return route
+
+    def remaining(self, route: str) -> float:
+        route = self._validate_route(route)
+        with self._connect() as connection:
+            row = connection.execute(
+                "SELECT until_epoch FROM retry_after WHERE route = ?",
+                (route,),
+            ).fetchone()
+        return max(0.0, float(row[0]) - time.time()) if row else 0.0
+
+    def record(self, route: str, delay_seconds: float) -> None:
+        route = self._validate_route(route)
+        if delay_seconds <= 0:
+            raise ValueError("retry-after delay must be positive")
+        now = time.time()
+        until = now + delay_seconds
+        with self._connect() as connection:
+            connection.execute(
+                "INSERT INTO retry_after(route, until_epoch, updated_epoch) VALUES (?, ?, ?) "
+                "ON CONFLICT(route) DO UPDATE SET "
+                "until_epoch = MAX(retry_after.until_epoch, excluded.until_epoch), "
+                "updated_epoch = excluded.updated_epoch",
+                (route, until, now),
+            )
+
+
 class BrowserSessionProvider(Protocol):
     def acquire(self, request: AcquisitionRequest) -> FullTextProviderResult: ...
 
@@ -1899,7 +2390,7 @@ class PortableScientificAcquisitionProvider:
     """Open/public route ladder with bounded downloads and artifact QC."""
 
     name = "rkf-portable-oa"
-    version = "3"
+    version = "4"
 
     def __init__(
         self,
@@ -1912,6 +2403,8 @@ class PortableScientificAcquisitionProvider:
         validator: PDFArtifactValidator | None = None,
         entitlement_provider: EntitlementProvider | None = None,
         secret_provider: SecretProvider | None = None,
+        retry_after_store: RetryAfterStore | None = None,
+        browser_session_provider: BrowserSessionProvider | None = None,
         identifier_adapters: Sequence[IdentifierAdapter] | None = None,
     ) -> None:
         self.contact_email = contact_email.strip()
@@ -1927,6 +2420,16 @@ class PortableScientificAcquisitionProvider:
         )
         self.entitlement_provider = entitlement_provider
         self.secret_provider = secret_provider
+        self.retry_after_store = retry_after_store
+        self.browser_session_provider = browser_session_provider
+        self._browser_lock = threading.Lock()
+        if self.retry_after_store is None and storage_root is not None:
+            retry_boundary = (storage_boundary or storage_root.parent).absolute()
+            if retry_boundary.is_dir() and not retry_boundary.is_symlink():
+                self.retry_after_store = SQLiteRetryAfterStore(
+                    storage_root.parent / "retry-after.sqlite3",
+                    boundary_root=retry_boundary,
+                )
         self.identifier_adapters = IdentifierAdapterRegistry(
             identifier_adapters if identifier_adapters is not None else default_identifier_adapters()
         )
@@ -2001,7 +2504,12 @@ class PortableScientificAcquisitionProvider:
         host = urllib.parse.urlsplit(url).hostname or ""
         with self._backoff_lock:
             backoff_until = self._backoff_until.get(route, 0.0)
-        if time.monotonic() < backoff_until:
+        persisted_remaining = (
+            self.retry_after_store.remaining(route)
+            if self.retry_after_store is not None
+            else 0.0
+        )
+        if time.monotonic() < backoff_until or persisted_remaining > 0:
             self._attempt(
                 attempts,
                 route=route,
@@ -2052,6 +2560,11 @@ class PortableScientificAcquisitionProvider:
                 self._backoff_until[route] = max(
                     self._backoff_until.get(route, 0.0),
                     time.monotonic() + min(max(delay, 5.0), 600.0),
+                )
+            if self.retry_after_store is not None:
+                self.retry_after_store.record(
+                    route,
+                    min(max(delay, 5.0), 600.0),
                 )
         self._attempt(attempts, route=route, status=status, started=started, reason=reason, host=host, http_status=response.status)
         return {}
@@ -2150,6 +2663,7 @@ class PortableScientificAcquisitionProvider:
                 licenses,
                 "version-of-record",
             )
+            metadata["related_artifacts"] = _crossref_related_artifacts(message)
             for link in message.get("link") or []:
                 if not isinstance(link, dict) or not link.get("URL"):
                     continue
@@ -2183,6 +2697,9 @@ class PortableScientificAcquisitionProvider:
                 titles = attributes.get("titles") or []
                 if titles and isinstance(titles[0], dict):
                     metadata["title"] = str(titles[0].get("title", ""))
+                metadata["related_artifacts"] = _datacite_related_artifacts(
+                    attributes
+                )
                 content_url = attributes.get("contentUrl")
                 for url in content_url if isinstance(content_url, list) else []:
                     self._add_candidate(candidates, AcquisitionCandidate("datacite-content", str(url)))
@@ -2564,6 +3081,10 @@ class PortableScientificAcquisitionProvider:
             "citation_data_url": "dataset-link",
             "citation_code_url": "software-link",
             "citation_supplementary_material": "supplement",
+            "citation_xml_url": "jats-xml",
+            "citation_fulltext_html_url": "publisher-html",
+            "citation_correction": "correction",
+            "citation_retraction": "retraction-notice",
         }
         for meta_name, artifact_type in mapping.items():
             for value in parser.meta.get(meta_name, []):
@@ -2574,7 +3095,9 @@ class PortableScientificAcquisitionProvider:
                     continue
                 related.append(
                     {
-                        "relationship": "supplements" if artifact_type == "supplement" else "related",
+                        "relationship": (
+                            "supplements" if artifact_type == "supplement" else "related"
+                        ),
                         "artifact_type": artifact_type,
                         "host": host,
                         "identifier": "url-sha256:" + hashlib.sha256(url.encode("utf-8")).hexdigest()[:16],
@@ -2841,7 +3364,11 @@ class PortableScientificAcquisitionProvider:
                 )
         expected_doi = normalize_doi(str(metadata.get("doi", ""))) if metadata.get("doi") else ""
         expected_title = str(metadata.get("title", ""))
-        related: tuple[dict[str, str], ...] = ()
+        related: tuple[dict[str, str], ...] = _dedupe_related(
+            metadata.get("related_artifacts", ())
+            if isinstance(metadata.get("related_artifacts"), (list, tuple))
+            else ()
+        )
         request_budget = _CandidateRequestBudget(self.policy.max_candidate_requests)
         for candidate in candidates:
             body, selected, quality, found_related = self._fetch_candidate(
@@ -2891,6 +3418,33 @@ class PortableScientificAcquisitionProvider:
                 related_artifacts=_dedupe_related(related),
             )
         statuses = {attempt.status for attempt in attempts}
+        if (
+            self.browser_session_provider is not None
+            and request.policy_profile == "institutional-external"
+        ):
+            with self._browser_lock:
+                browser_result = self.browser_session_provider.acquire(request)
+            return replace(
+                browser_result,
+                tried_routes=tuple(
+                    dict.fromkeys(
+                        route
+                        for route in (
+                            *(item.route for item in attempts),
+                            browser_result.route,
+                            *browser_result.tried_routes,
+                        )
+                        if route
+                    )
+                ),
+                attempts=tuple((*attempts, *browser_result.attempts)),
+                elapsed_ms=int((time.monotonic() - run_started) * 1000),
+                entitlement_state=(
+                    browser_result.entitlement_state
+                    if browser_result.entitlement_state != "unknown"
+                    else entitlement.state
+                ),
+            )
         if "manual-required" in statuses:
             status = "manual-required"
         elif "identity-mismatch" in statuses:
@@ -2967,6 +3521,8 @@ class ExternalPaperFetchProvider:
         provider_version: str = "1.0.0",
         timeout_seconds: int = 300,
         max_artifact_bytes: int = 64 * 1024 * 1024,
+        max_stdout_bytes: int = 1024 * 1024,
+        max_stderr_bytes: int = 256 * 1024,
         validator: PDFArtifactValidator | None = None,
     ) -> None:
         if not command or not all(isinstance(part, str) and part for part in command):
@@ -2975,11 +3531,15 @@ class ExternalPaperFetchProvider:
             raise ValueError("external paper-fetch timeout must be positive")
         if max_artifact_bytes <= 0:
             raise ValueError("external paper-fetch artifact limit must be positive")
+        if min(max_stdout_bytes, max_stderr_bytes) <= 0:
+            raise ValueError("external paper-fetch output limits must be positive")
         self.command = tuple(command)
         self.store = PrivateArtifactStore(storage_root, boundary_root=storage_boundary)
         self.provider_version = provider_version
         self.timeout_seconds = timeout_seconds
         self.max_artifact_bytes = max_artifact_bytes
+        self.max_stdout_bytes = max_stdout_bytes
+        self.max_stderr_bytes = max_stderr_bytes
         self.validator = validator or PDFArtifactValidator()
 
     @classmethod
@@ -3106,21 +3666,27 @@ class ExternalPaperFetchProvider:
         output = temp_root / f".{temp_token}.download"
         command = [*self.command, "--json", identifier, str(output)]
         try:
-            completed = subprocess.run(
+            completed = run_bounded_process(
                 command,
-                capture_output=True,
-                text=True,
-                timeout=self.timeout_seconds,
-                check=False,
+                timeout_seconds=self.timeout_seconds,
+                max_stdout_bytes=self.max_stdout_bytes,
+                max_stderr_bytes=self.max_stderr_bytes,
             )
-        except subprocess.TimeoutExpired:
-            if not self._cleanup_output(output.name):
-                return without_artifact("provider-error", "PROVIDER_OUTPUT_CLEANUP_FAILED")
-            return without_artifact("retryable", "WATCHDOG_OR_COMMAND_TIMEOUT")
         except OSError:
             if not self._cleanup_output(output.name):
                 return without_artifact("provider-error", "PROVIDER_OUTPUT_CLEANUP_FAILED")
             return without_artifact("provider-error", "PROVIDER_EXECUTION_ERROR")
+        if completed.timed_out:
+            if not self._cleanup_output(output.name):
+                return without_artifact("provider-error", "PROVIDER_OUTPUT_CLEANUP_FAILED")
+            return without_artifact("retryable", "WATCHDOG_OR_COMMAND_TIMEOUT")
+        if completed.stdout_overflow or completed.stderr_overflow:
+            if not self._cleanup_output(output.name):
+                return without_artifact("provider-error", "PROVIDER_OUTPUT_CLEANUP_FAILED")
+            return without_artifact(
+                "provider-error",
+                "PROVIDER_STDOUT_LIMIT" if completed.stdout_overflow else "PROVIDER_STDERR_LIMIT",
+            )
         try:
             payload = json.loads(completed.stdout)
             if not isinstance(payload, dict):
@@ -3132,7 +3698,13 @@ class ExternalPaperFetchProvider:
         tried = self._public_tried_routes(payload.get("tried", []))
         public_route = self._public_tried_routes([payload.get("route")])
         route = public_route[0] if public_route else "external-paper-fetch"
-        if completed.returncode in {4, 5}:
+        external_status = str(
+            payload.get("status") or payload.get("reason") or ""
+        ).strip().lower().replace("-", "_")
+        if external_status == "license_seat_e3":
+            status = "retryable"
+            blocker = "LICENSE_SEAT_E3"
+        elif completed.returncode in {4, 5}:
             status = "retryable"
             blocker = "PROFILE_BUSY" if completed.returncode == 4 else "WATCHDOG_ABORT"
         elif completed.returncode == 1:
@@ -3210,4 +3782,22 @@ class ExternalPaperFetchProvider:
             page_count=quality.page_count,
             text_layer_state=quality.text_layer_state,
             locator_readiness=quality.locator_readiness,
+        )
+
+    def acquire(self, request: AcquisitionRequest) -> FullTextProviderResult:
+        """Implement the optional serial BrowserSessionProvider boundary."""
+
+        preferred = next(
+            (
+                item
+                for item in request.identifiers.identifiers
+                if item.identifier_type in {"doi", "url"}
+            ),
+            request.identifiers.primary,
+        )
+        return self.obtain(
+            source_id=request.source_id,
+            identifier=preferred.value,
+            project_id=request.project_id,
+            activation_id=request.activation_id,
         )

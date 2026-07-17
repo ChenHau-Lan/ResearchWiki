@@ -22,6 +22,7 @@ from typing import Any, Protocol, Sequence
 
 from .core import Workspace, frontmatter, parse_frontmatter
 from .lineage import ACTIVATION_ID_RE, PROJECT_ID_RE, utc_now
+from .processes import run_bounded_process
 from .schema import (
     ACCESS_STATES,
     APPRAISAL_STATUSES,
@@ -33,7 +34,28 @@ from .schema import (
 
 ABSOLUTE_PROVIDER_PATH_RE = re.compile(r"^(?:/|[A-Za-z]:[\\/])")
 ACQUISITION_RUN_ID_RE = re.compile(r"^acq_[a-f0-9]{24}$")
+RELATED_ARTIFACT_ID_RE = re.compile(r"^rel_[a-f0-9]{24}$")
 ACQUISITION_ATTEMPT_STATUSES = frozenset((*PROVIDER_STATUSES, "resolved", "no-result"))
+RELATED_ARTIFACT_TYPES = frozenset(
+    {
+        "publisher-html",
+        "jats-xml",
+        "preprint",
+        "supplement",
+        "figure",
+        "table",
+        "dataset-link",
+        "software-link",
+        "correction",
+        "retraction-notice",
+        "report",
+        "pdf",
+    }
+)
+ARTIFACT_RELATIONSHIPS = frozenset(
+    {"related", "is-version-of", "supplements", "corrects", "retracts"}
+)
+RELATED_POINTER_RE = re.compile(r"^(?:url|doi)-sha256:[a-f0-9]{16,64}$")
 
 
 @dataclass(frozen=True)
@@ -170,6 +192,12 @@ class FullTextProviderResult:
                 raise ValueError("related artifact exceeds the public-safe contract")
             if relation.get("host") and not re.fullmatch(r"[A-Za-z0-9.-]{1,253}", relation["host"]):
                 raise ValueError("related artifact host is invalid")
+            if relation.get("relationship") not in ARTIFACT_RELATIONSHIPS:
+                raise ValueError("related artifact relationship is invalid")
+            if relation.get("artifact_type") not in RELATED_ARTIFACT_TYPES:
+                raise ValueError("related artifact type is invalid")
+            if not RELATED_POINTER_RE.fullmatch(str(relation.get("identifier", ""))):
+                raise ValueError("related artifact identifier must be a public-safe fingerprint")
         if self.artifact_sha256 and (
             len(self.artifact_sha256) != 64
             or any(char not in "0123456789abcdef" for char in self.artifact_sha256)
@@ -272,15 +300,21 @@ class ExternalCommandFullTextProvider:
         provider: str = "external-command",
         provider_version: str = "unknown",
         timeout_seconds: int = 300,
+        max_stdout_bytes: int = 1024 * 1024,
+        max_stderr_bytes: int = 256 * 1024,
     ) -> None:
         if not command or not all(isinstance(part, str) and part for part in command):
             raise ValueError("external provider command must be a non-empty string sequence")
         if timeout_seconds <= 0:
             raise ValueError("timeout_seconds must be positive")
+        if min(max_stdout_bytes, max_stderr_bytes) <= 0:
+            raise ValueError("external provider output limits must be positive")
         self.command = tuple(command)
         self.provider = provider
         self.provider_version = provider_version
         self.timeout_seconds = timeout_seconds
+        self.max_stdout_bytes = max_stdout_bytes
+        self.max_stderr_bytes = max_stderr_bytes
 
     def obtain(
         self,
@@ -299,20 +333,35 @@ class ExternalCommandFullTextProvider:
             "activation_id": activation_id,
         }
         try:
-            completed = subprocess.run(
+            completed = run_bounded_process(
                 self.command,
-                input=json.dumps(request, ensure_ascii=True),
-                text=True,
-                capture_output=True,
-                timeout=self.timeout_seconds,
-                check=False,
+                input_text=json.dumps(request, ensure_ascii=True),
+                timeout_seconds=self.timeout_seconds,
+                max_stdout_bytes=self.max_stdout_bytes,
+                max_stderr_bytes=self.max_stderr_bytes,
             )
-        except subprocess.TimeoutExpired:
+        except OSError:
+            return FullTextProviderResult(
+                status="provider-error",
+                provider=self.provider,
+                provider_version=self.provider_version,
+                blocker_codes=("PROVIDER_EXECUTION_ERROR",),
+            )
+        if completed.timed_out:
             return FullTextProviderResult(
                 status="retryable",
                 provider=self.provider,
                 provider_version=self.provider_version,
                 blocker_codes=("PROVIDER_TIMEOUT",),
+            )
+        if completed.stdout_overflow or completed.stderr_overflow:
+            return FullTextProviderResult(
+                status="blocked",
+                provider=self.provider,
+                provider_version=self.provider_version,
+                blocker_codes=(
+                    "PROVIDER_STDOUT_LIMIT" if completed.stdout_overflow else "PROVIDER_STDERR_LIMIT",
+                ),
             )
         try:
             payload = json.loads(completed.stdout)
@@ -537,6 +586,24 @@ def _private_artifact_path(ws: Workspace, artifact_id: str) -> Path:
     return target
 
 
+def _public_related_artifact_path(ws: Workspace, related_artifact_id: str) -> Path:
+    if not RELATED_ARTIFACT_ID_RE.fullmatch(related_artifact_id):
+        raise ValueError("related artifact ID is invalid")
+    public_root = ws.paths.evidence_index
+    parent = public_root / "artifacts" / "related"
+    target = parent / f"{related_artifact_id}.json"
+    for label, path in (("root", public_root), ("parent", parent), ("target", target)):
+        if path.is_symlink():
+            raise ValueError(f"related artifact {label} cannot be a symlink")
+    if not _path_is_within(ws.paths.wiki_root, target):
+        raise ValueError("related artifact path escaped the configured wiki root")
+    public_root.mkdir(parents=True, exist_ok=True)
+    parent.mkdir(parents=True, mode=0o755, exist_ok=True)
+    if target.exists() and not target.is_file():
+        raise ValueError("related artifact target must be a regular file")
+    return target
+
+
 def register_evidence_artifact(
     ws: Workspace,
     *,
@@ -656,6 +723,142 @@ def register_evidence_artifact(
         target_label="public artifact",
     )
     return public_payload
+
+
+def register_related_artifact_records(
+    ws: Workspace,
+    *,
+    paper_id: str,
+    result: FullTextProviderResult,
+    origin_project_id: str,
+    activation_id: str,
+) -> list[dict[str, Any]]:
+    """Register public-safe related pointers independently from the PDF record."""
+
+    if result.status != "obtained":
+        raise ValueError("related artifacts require an obtained source artifact")
+    if not PROJECT_ID_RE.fullmatch(origin_project_id) or not ACTIVATION_ID_RE.fullmatch(activation_id):
+        raise ValueError("related artifact registration requires valid lineage")
+    paper_id, _source_id = _artifact_relation_ids(paper_id)
+    source_artifact_id = "art_" + hashlib.sha256(
+        result.artifact_sha256.encode("ascii")
+    ).hexdigest()[:24]
+    records: list[dict[str, Any]] = []
+    now = utc_now()
+    for relation in result.related_artifacts:
+        seed = {
+            "artifact_type": relation["artifact_type"],
+            "host": relation["host"],
+            "identifier": relation["identifier"],
+        }
+        related_id = "rel_" + hashlib.sha256(
+            json.dumps(seed, sort_keys=True, ensure_ascii=True).encode("utf-8")
+        ).hexdigest()[:24]
+        target = _public_related_artifact_path(ws, related_id)
+        payload = {
+            "schema": "rkf-related-artifact-v1",
+            "related_artifact_id": related_id,
+            "source_artifact_ids": [source_artifact_id],
+            "paper_ids": [paper_id],
+            "acquisition_run_ids": [result.acquisition_run_id],
+            "relationship": relation["relationship"],
+            "artifact_type": relation["artifact_type"],
+            "host": relation["host"],
+            "identifier_fingerprint": relation["identifier"],
+            "registration_state": "pointer-only",
+            "provenance_review_state": "pending",
+            "provenance_gaps": ["relationship-validation", "artifact-identity"],
+            "promotion": "none",
+            "public_safe": True,
+            "created": now,
+            "updated": now,
+        }
+        if target.exists():
+            existing = _read_artifact_json(target, target_label="related artifact")
+            if (
+                existing.get("schema") != "rkf-related-artifact-v1"
+                or existing.get("related_artifact_id") != related_id
+                or existing.get("identifier_fingerprint") != relation["identifier"]
+            ):
+                raise ValueError("existing related artifact has an identity collision")
+            for key, value in (
+                ("source_artifact_ids", source_artifact_id),
+                ("paper_ids", paper_id),
+                ("acquisition_run_ids", result.acquisition_run_id),
+            ):
+                values = existing.get(key, [])
+                if not isinstance(values, list) or any(not isinstance(item, str) for item in values):
+                    raise ValueError(f"existing related artifact {key} is invalid")
+                existing[key] = list(dict.fromkeys((*values, value)))
+            existing["updated"] = now
+            payload = existing
+        _atomic_write_artifact_json(
+            target,
+            payload,
+            mode=0o644,
+            target_label="related artifact",
+        )
+        records.append(payload)
+    return records
+
+
+def load_related_artifact_records(
+    ws: Workspace,
+    *,
+    paper_id: str = "",
+    review_state: str = "",
+) -> list[dict[str, Any]]:
+    root = ws.paths.evidence_index / "artifacts" / "related"
+    if not root.exists():
+        return []
+    if root.is_symlink() or not root.is_dir() or not _path_is_within(ws.paths.wiki_root, root):
+        raise ValueError("related artifact collection is invalid")
+    records: list[dict[str, Any]] = []
+    for path in sorted(root.glob("rel_*.json")):
+        if path.is_symlink() or not path.is_file() or not RELATED_ARTIFACT_ID_RE.fullmatch(path.stem):
+            raise ValueError("related artifact collection contains an invalid entry")
+        payload = _read_artifact_json(path, target_label="related artifact")
+        if (
+            payload.get("schema") != "rkf-related-artifact-v1"
+            or payload.get("related_artifact_id") != path.stem
+            or payload.get("public_safe") is not True
+            or payload.get("promotion") != "none"
+        ):
+            raise ValueError(f"invalid related artifact: {path.stem}")
+        if paper_id and paper_id not in payload.get("paper_ids", []):
+            continue
+        if review_state and payload.get("provenance_review_state") != review_state:
+            continue
+        records.append(payload)
+    return records
+
+
+def load_artifact_provenance_gaps(ws: Workspace) -> list[dict[str, Any]]:
+    root = ws.paths.evidence_index / "artifacts"
+    if not root.exists():
+        return []
+    if root.is_symlink() or not root.is_dir() or not _path_is_within(ws.paths.wiki_root, root):
+        raise ValueError("artifact collection is invalid")
+    gaps: list[dict[str, Any]] = []
+    for path in sorted(root.glob("art_*.json")):
+        payload = _read_artifact_json(path, target_label="public artifact")
+        if payload.get("schema") != "rkf-evidence-artifact-v1":
+            raise ValueError(f"invalid public artifact: {path.stem}")
+        missing: list[str] = []
+        if payload.get("artifact_version") in {None, "", "unknown"}:
+            missing.append("artifact-version")
+        if not str(payload.get("artifact_license", "")).strip():
+            missing.append("artifact-license")
+        if missing:
+            gaps.append(
+                {
+                    "artifact_id": payload.get("artifact_id", path.stem),
+                    "paper_ids": list(payload.get("paper_ids", [])),
+                    "missing": missing,
+                    "next_action": "human-provenance-review",
+                }
+            )
+    return gaps
 
 
 def _acquisition_run_root(ws: Workspace) -> Path:
@@ -790,6 +993,40 @@ def load_acquisition_runs(
             continue
         runs.append(payload)
     return runs
+
+
+def summarize_acquisition_route_health(
+    runs: Sequence[dict[str, Any]],
+) -> list[dict[str, Any]]:
+    """Build a path-free route scorecard from canonical acquisition attempts."""
+
+    by_route: dict[str, dict[str, Any]] = {}
+    for run in runs:
+        created = str(run.get("created", ""))
+        for attempt in run.get("attempts", []):
+            if not isinstance(attempt, dict):
+                continue
+            route = str(attempt.get("route", ""))
+            status = str(attempt.get("status", ""))
+            if not re.fullmatch(r"[a-z0-9][a-z0-9._-]{0,95}", route):
+                continue
+            entry = by_route.setdefault(
+                route,
+                {
+                    "route": route,
+                    "attempt_count": 0,
+                    "obtained_count": 0,
+                    "retryable_count": 0,
+                    "manual_count": 0,
+                    "last_observed": "",
+                },
+            )
+            entry["attempt_count"] += 1
+            entry["obtained_count"] += int(status == "obtained")
+            entry["retryable_count"] += int(status == "retryable")
+            entry["manual_count"] += int(status in {"manual-required", "not-entitled"})
+            entry["last_observed"] = max(entry["last_observed"], created)
+    return sorted(by_route.values(), key=lambda item: item["route"])
 
 
 def validate_paper_access_target(ws: Workspace, *, paper_id: str) -> str:

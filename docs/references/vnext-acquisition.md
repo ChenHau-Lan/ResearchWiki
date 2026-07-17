@@ -57,6 +57,28 @@ inventory or a complete set of institutional adapters.
   NAT64 forms. It rejects HTTPS downgrade, strips cross-origin `Referer`, keeps
   secret-bearing requests HTTPS/same-origin, and caps candidate/landing HTTP
   requests at 32 per acquisition.
+- HTTP body reads now use a monotonic wall-clock deadline in addition to socket
+  inactivity and byte limits. External full-text adapters cap stdout and
+  stderr while the child is running; overflow kills the child and produces a
+  typed result rather than buffering arbitrary diagnostics.
+- `SQLiteRetryAfterStore` persists only route labels and expiry timestamps in
+  owner-only state so independent processes honor provider 429 backoff. Review
+  builds a route-health scorecard from path-redacted acquisition attempts.
+- Allowlisted macOS Keychain, Linux Secret Service, and optional Windows
+  Credential Manager/`pywin32` backends keep publisher tokens outside ordinary
+  config and lineage. The environment backend remains intended for CI/tests.
+- Landing, Crossref, and DataCite relationships create independent
+  `rkf-related-artifact-v1` pointer records for datasets, software,
+  supplements, HTML/XML, versions, corrections, and retractions. These records
+  contain only host and identifier fingerprints, remain `pointer-only`, expose
+  human provenance gaps in Review, and never promote Evidence or Claims.
+- A six-column holdings export can be previewed and atomically imported with
+  `python3 tools/import_rkf_holdings.py holdings.csv --database holdings.sqlite3`;
+  add `--apply` only after review. Missing rows remain `unknown`.
+- A supplied machine-local `BrowserSessionProvider` is called serially only
+  under the explicit `institutional-external` policy. The external
+  `paper_fetch.py` adapter implements this boundary and preserves profile-busy,
+  watchdog, SSO/manual, and Ovid seat outcomes as typed handoffs.
 
 ### Current NCBI PMC Cloud route
 
@@ -190,36 +212,26 @@ Do not close the issue yet. The following remain explicit gaps:
   arbitrary NOAA/WMO/IPCC series names. Exact ADS/OSF/EarthArXiv/ESSOAr DOI,
   NOAA PID, WMO record/registered slug, and registered IPCC IDs now resolve;
   ambiguous aliases deliberately return a manual official-search handoff.
-- Broader Handle/DataCite report relationship extraction beyond their existing
-  canonical identifier and DOI/content URL paths.
-- Independent registration and validation of publisher HTML, JATS/XML,
-  supplements, figures, tables, corrections, retractions, datasets, and code.
-  Current landing metadata preserves selected related pointers but the
-  full multi-artifact relationship graph is not complete.
+- Actual download and format-specific validation of publisher HTML, JATS/XML,
+  supplements, figures, and tables. These are now independently registered as
+  public-safe pointer records, and Crossref/DataCite version/correction/
+  retraction relationships are linked, but pointer registration is not proof
+  of artifact identity or a completed download.
 - Full data/code availability statement extraction, model/instrument/campaign/
   satellite/reanalysis version extraction, and Review gaps based on those
   domain fields.
-- Native macOS Keychain, Windows Credential Manager/DPAPI, and Linux Secret
-  Service implementations. Only the protocol, CI/test environment backend,
-  and external machine-local `paper-fetch` adapter exist.
-- A native optional browser adapter, entitlement ingestion/scraper, and Ovid
-  seat release/cooldown logic. Any future browser integration must detect and
-  stop at SSO/CAPTCHA or other access-control surfaces with a manual handoff;
-  it must remain optional, serial, and machine-local. Copying one
-  institution's setup is not acceptable.
-- Per-provider persisted policy/terms review dates, cross-process retry-after,
-  long-term route scorecards, holdings-gap analytics, and route-health reports.
-- Hard wall-clock deadlines for continuously streaming HTTP bodies and
-  byte-bounded stdout/stderr capture for the external adapter. The current
-  core has socket inactivity timeouts, response-size limits, a subprocess
-  timeout, and post-download artifact-size validation, but those are not the
-  complete resource-accounting contract.
-- Deterministic public fixtures for every atmospheric P0 publisher plus live
-  policy review. The current unit fixtures cover contracts and the live corpus
-  supplies bounded observational evidence, but volatile publisher responses
-  cannot be the only CI oracle.
+- Institution-specific endpoint configuration, holdings exports, and Ovid seat
+  release/cooldown behavior remain machine-local inputs to the now-complete
+  serial external adapter boundary. RKF cannot ship or infer them, and it will
+  not copy one institution's setup into the public repository.
+- Per-provider terms/policy review dates and legal eligibility conclusions
+  require human review. Route-health, cross-process retry state, and
+  deterministic P0 route/identity fixtures are implemented, but operational
+  success is not a terms-of-use conclusion.
 - Human version classification for URL-only artifacts and a complete
-  supersedes/`is-version-of`/`corrects`/`retracts` graph.
+  supersedes decision for the five version-unknown live artifacts. Structured
+  `is-version-of`/`corrects`/`retracts` edges are now registered when Crossref
+  or DataCite supplies them; unverified relationships stay pending.
 
 The curated live atmospheric-journal result and provenance gaps are in
 [`../benchmarks/acquisition-issue-18-atmospheric-journal-live-smoke.md`](../benchmarks/acquisition-issue-18-atmospheric-journal-live-smoke.md).

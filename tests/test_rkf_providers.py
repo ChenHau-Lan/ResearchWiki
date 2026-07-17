@@ -17,7 +17,11 @@ from rkf.providers import (
     ExternalCommandFullTextProvider,
     ExternalCommandRetrievalProvider,
     FullTextProviderResult,
+    load_artifact_provenance_gaps,
+    load_related_artifact_records,
     register_evidence_artifact,
+    register_related_artifact_records,
+    summarize_acquisition_route_health,
 )
 from rkf.retrieval import search_central_rkf
 from tools.validate_rkf_schema import validate_instance
@@ -28,6 +32,116 @@ ACTIVATION_ID = "act_1234567890abcdef12345678"
 
 
 class RKFProviderTests(unittest.TestCase):
+    def test_related_artifact_is_independent_deduplicated_and_reviewable(self) -> None:
+        result = FullTextProviderResult(
+            status="obtained",
+            provider="fixture",
+            provider_version="1",
+            artifact_sha256="c" * 64,
+            pdf_magic_validated=True,
+            acquisition_run_id="acq_1234567890abcdef12345678",
+            artifact_version="unknown",
+            related_artifacts=(
+                {
+                    "relationship": "related",
+                    "artifact_type": "dataset-link",
+                    "host": "data.example.org",
+                    "identifier": "url-sha256:" + "a" * 16,
+                },
+            ),
+        )
+        with tempfile.TemporaryDirectory() as directory:
+            workspace = Workspace(Path(directory))
+            register_evidence_artifact(
+                workspace,
+                paper_id="papers/fixture",
+                result=result,
+                origin_project_id=PROJECT_ID,
+                activation_id=ACTIVATION_ID,
+            )
+            first = register_related_artifact_records(
+                workspace,
+                paper_id="papers/fixture",
+                result=result,
+                origin_project_id=PROJECT_ID,
+                activation_id=ACTIVATION_ID,
+            )
+            second = register_related_artifact_records(
+                workspace,
+                paper_id="papers/fixture",
+                result=result,
+                origin_project_id=PROJECT_ID,
+                activation_id=ACTIVATION_ID,
+            )
+            related = load_related_artifact_records(
+                workspace,
+                review_state="pending",
+            )
+            provenance_gaps = load_artifact_provenance_gaps(workspace)
+
+            schema_path = (
+                Path(__file__).resolve().parents[1]
+                / "schemas"
+                / "related_artifact.schema.json"
+            )
+            schema = json.loads(schema_path.read_text(encoding="utf-8"))
+            self.assertEqual(
+                first[0]["related_artifact_id"],
+                second[0]["related_artifact_id"],
+            )
+            self.assertEqual(first[0]["source_artifact_ids"], second[0]["source_artifact_ids"])
+            self.assertEqual(
+                [item["related_artifact_id"] for item in related],
+                [item["related_artifact_id"] for item in first],
+            )
+            self.assertEqual(validate_instance(first[0], schema, schema, label="related"), [])
+            self.assertEqual(first[0]["promotion"], "none")
+            self.assertNotIn("https://", json.dumps(first[0]))
+            self.assertEqual(provenance_gaps[0]["missing"], [
+                "artifact-version",
+                "artifact-license",
+            ])
+
+    def test_route_health_aggregates_public_safe_attempts(self) -> None:
+        health = summarize_acquisition_route_health(
+            [
+                {
+                    "created": "2026-07-16T00:00:00Z",
+                    "attempts": [
+                        {"route": "unpaywall", "status": "retryable"},
+                        {"route": "repository", "status": "obtained"},
+                    ],
+                },
+                {
+                    "created": "2026-07-16T01:00:00Z",
+                    "attempts": [
+                        {"route": "repository", "status": "obtained"},
+                    ],
+                },
+            ]
+        )
+
+        self.assertEqual(
+            health,
+            [
+                {
+                    "route": "repository",
+                    "attempt_count": 2,
+                    "obtained_count": 2,
+                    "retryable_count": 0,
+                    "manual_count": 0,
+                    "last_observed": "2026-07-16T01:00:00Z",
+                },
+                {
+                    "route": "unpaywall",
+                    "attempt_count": 1,
+                    "obtained_count": 0,
+                    "retryable_count": 1,
+                    "manual_count": 0,
+                    "last_observed": "2026-07-16T00:00:00Z",
+                },
+            ],
+        )
     def test_external_command_preserves_retryable_status(self) -> None:
         adapter = ExternalCommandFullTextProvider(
             [

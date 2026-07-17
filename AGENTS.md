@@ -18,6 +18,11 @@ The only user-facing research workflows are:
 Cross-project access uses preview/apply `connect-project`, then task-scoped
 `rkf.activate`, `connect.validate`, `rkf.status`, and `rkf.deactivate`.
 Every new task starts OFF. A marker means available, never permanently active.
+Only a direct user instruction to activate authorizes `rkf.activate`. If any
+research workflow is requested while OFF, return `RKF_NOT_ACTIVE` without
+implicit activation, connection changes, or RKF research-data I/O.
+For an OFF `workflow.ask`, ask whether the user wants to `啟動 RKF` and wait;
+the question and the original Ask are not activation consent.
 
 Graph/index/world/handoff, inbox/source/discovery helpers, and synthesis review
 passes are internal projections or helpers. Do not present them as additional

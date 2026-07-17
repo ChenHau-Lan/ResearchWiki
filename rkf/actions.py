@@ -2060,11 +2060,34 @@ class RKFActionRuntime:
                 )
             return result
         if self.session.mode == SessionMode.OFF:
+            activation_question = (
+                "是否要「啟動 RKF」？"
+                if request.action == "workflow.ask"
+                else ""
+            )
+            message = (
+                f"RKF is OFF. {activation_question} "
+                "The request remains blocked until explicit activation."
+                if activation_question
+                else (
+                    "RKF is not active; explicitly say 啟動 RKF first. "
+                    "Workflow requests never activate RKF automatically."
+                )
+            )
+            payload = {
+                "error_code": "RKF_NOT_ACTIVE",
+                "activation_required": True,
+                "implicit_activation": False,
+                "research_io_performed": False,
+                **session_receipt(self.session),
+            }
+            if activation_question:
+                payload["activation_question"] = activation_question
             return ActionResult(
                 action=request.action,
                 status="blocked",
-                message="RKF is not active; say 啟動 RKF first",
-                payload={"error_code": "RKF_NOT_ACTIVE", **session_receipt(self.session)},
+                message=message,
+                payload=payload,
             )
         if self.session.mode == SessionMode.ACTIVE_READ_ONLY and request.action in SHARED_WRITE_ACTIONS:
             return ActionResult(

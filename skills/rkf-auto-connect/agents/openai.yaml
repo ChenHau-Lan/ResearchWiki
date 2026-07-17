@@ -1,4 +1,4 @@
 interface:
   display_name: "RKF Auto-Connect"
   short_description: "Connect Codex research tasks to a governed RKF workspace"
-  default_prompt: "Use $rkf-auto-connect to activate this project, use the current conversation to form paper queries, and report path-redacted open-project status safely."
+  default_prompt: "Use $rkf-auto-connect and preserve the task-scoped OFF boundary. Activate only after a direct user request to activate RKF. If Ask RKF or 問 RKF is requested while OFF, you must return RKF_NOT_ACTIVE, ask 是否要「啟動 RKF」？, and wait without reading or writing RKF research data."

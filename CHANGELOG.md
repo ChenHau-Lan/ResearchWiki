@@ -14,6 +14,11 @@
   provenance-review gaps and `Promotion: none`. Deterministic fixtures cover
   all 11 atmospheric P0 route families without relying on volatile live
   publisher responses.
+- Harden the task-scoped OFF boundary: research workflow requests no longer
+  imply activation consent. While OFF they return `RKF_NOT_ACTIVE` with an
+  explicit no-implicit-activation/no-research-I/O receipt; the installed skill
+  contract and tests forbid automatic activation or connection changes. An OFF
+  Ask now offers `是否要「啟動 RKF」？` and waits for explicit confirmation.
 - Implement the issue #18 vNext **portable-core slice** without expanding the
   five-workflow product surface: multi-identifier resolution, atmospheric P0
   and P1 profiles, bounded OA/Crossref/DataCite/OpenAlex/current NCBI PMC Cloud/

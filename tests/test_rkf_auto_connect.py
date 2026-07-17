@@ -195,6 +195,46 @@ class RKFAutoConnectTests(unittest.TestCase):
         self.assertEqual(after, before)
         self.assertEqual(result.status, "blocked")
         self.assertEqual(result.payload["error_code"], "RKF_NOT_ACTIVE")
+        self.assertNotIn("activation_question", result.payload)
+
+    def test_ask_while_off_does_not_activate_or_touch_research_data(self) -> None:
+        config = auto.load_connector_config()
+        request = auto.build_query_request(config=config, query="wildfire papers")
+        runtime = auto.open_action_runtime(
+            config=config,
+            project_root=self.researchwiki,
+        )
+        before = sorted(
+            (path.relative_to(self.researchwiki), path.read_bytes())
+            for path in self.researchwiki.rglob("*")
+            if path.is_file()
+        )
+
+        with mock.patch("rkf.actions.search_central_rkf") as search:
+            result = auto.execute_action_request(
+                config=config,
+                request=request,
+                runtime=runtime,
+            )
+
+        after = sorted(
+            (path.relative_to(self.researchwiki), path.read_bytes())
+            for path in self.researchwiki.rglob("*")
+            if path.is_file()
+        )
+        search.assert_not_called()
+        self.assertEqual(after, before)
+        self.assertEqual(runtime.session.mode.value, "OFF")
+        self.assertEqual(result.status, "blocked")
+        self.assertEqual(result.payload["error_code"], "RKF_NOT_ACTIVE")
+        self.assertTrue(result.payload["activation_required"])
+        self.assertFalse(result.payload["implicit_activation"])
+        self.assertFalse(result.payload["research_io_performed"])
+        self.assertEqual(
+            result.payload["activation_question"],
+            "是否要「啟動 RKF」？",
+        )
+        self.assertIn("是否要「啟動 RKF」？", result.message)
 
     def test_connected_project_reuses_one_runtime_for_app_actions(self) -> None:
         raw = self.root / "raw"

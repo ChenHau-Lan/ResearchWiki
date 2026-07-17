@@ -70,6 +70,11 @@ python3 tools/rkf_auto_connect.py connect-project /path/to/research-project --ap
 This creates a v2 `.rkf-connect.toml` and a small `RKF/` bridge; it does not
 copy the central wiki. Every new Codex task still starts with RKF OFF. Say
 “activate RKF” at the start of the task and “deactivate RKF” when finished.
+An Ask or other research workflow request does not imply activation: while OFF,
+RKF returns `RKF_NOT_ACTIVE` without automatically activating, changing the
+connection, or reading or writing RKF research data.
+For an OFF Ask, RKF asks whether you want to activate and waits for an explicit
+answer before doing anything else.
 
 ## Use RKF with natural language
 

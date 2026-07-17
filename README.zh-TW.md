@@ -67,6 +67,9 @@ python3 tools/rkf_auto_connect.py connect-project /path/to/research-project --ap
 這會建立 v2 `.rkf-connect.toml` 與小型 `RKF/` bridge，不會複製中央 wiki。
 每個新的 Codex task 仍從 RKF OFF 開始；task 開始時說「啟動 RKF」，完成後說
 「停用 RKF」。
+「Ask RKF」或其他研究 workflow 請求不代表同意啟動；OFF 時只能回傳
+`RKF_NOT_ACTIVE`，不得自動啟動、變更 connection，也不得讀寫 RKF 研究資料。
+若被阻擋的是 Ask／問 RKF，系統會詢問「是否要『啟動 RKF』？」並等待明確回答。
 
 ## 用自然語言操作 RKF
 

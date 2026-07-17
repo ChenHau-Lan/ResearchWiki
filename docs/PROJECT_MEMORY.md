@@ -349,6 +349,12 @@ older releases. They do not expand the current app-facing v1 surface.
   starts OFF; only explicit `rkf.activate` can enable that task after a
   read-only storage/writer preflight. `rkf.deactivate` returns it to OFF, and a
   project marker never persists activation.
+- Activation consent is literal and separate from workflow intent. `Ask RKF`,
+  `問 RKF`, Add, Read, Compare & Synthesize, or Review while OFF must return
+  `RKF_NOT_ACTIVE`; the agent must not activate, connect, scan, or write RKF
+  research data until the user separately and directly requests activation.
+  An OFF Ask additionally asks `是否要「啟動 RKF」？` and waits; neither the
+  original Ask nor this question constitutes activation consent.
 - `query.search` is the deterministic retrieval-first entry point.
   `capture.route` classifies and deduplicates cross-project material, then
   preserves an immutable operational event before any derived projection.

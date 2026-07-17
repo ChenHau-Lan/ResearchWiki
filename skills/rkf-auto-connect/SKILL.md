@@ -21,11 +21,16 @@ repository bootstrap and strict diagnostic. Do not guess another checkout.
 ## Enforce The Session Boundary
 
 1. Start every task with RKF OFF.
-2. Before explicit activation, do not query or write RKF.
-3. Open one task-owned backend runtime from the validated connector checkout and
-   current project root.
-4. Execute `rkf.activate`, validate the connection, and report the path-redacted
-   receipt.
+2. Only a direct user instruction to activate RKF authorizes `rkf.activate`.
+   `Ask RKF`, `問 RKF`, or any other workflow request is not activation consent.
+3. If a workflow is requested while the task is OFF, return the
+   `RKF_NOT_ACTIVE` blocker. Do not execute `rkf.activate`, `connect-project`,
+   or the requested workflow, and do not read or write RKF research data.
+   For `Ask RKF` or `問 RKF`, ask the user `是否要「啟動 RKF」？` and stop for
+   their answer; the question itself never authorizes activation.
+4. After explicit activation consent, open one task-owned backend runtime from
+   the validated connector checkout and current project root, execute
+   `rkf.activate`, validate the connection, and report the path-redacted receipt.
 5. Reuse that runtime for every later action in the task.
 6. Execute `rkf.deactivate` when the user says `停用 RKF`.
 
@@ -36,7 +41,7 @@ repository bootstrap and strict diagnostic. Do not guess another checkout.
 | 啟動 RKF | `rkf.activate` then `connect.validate` | read-only validation before research work |
 | 查看狀態 | `rkf.status` | task receipt plus path-redacted open-project summary |
 | 收進 RKF | `workflow.add` | candidate capture; `Promotion: none` |
-| 問 RKF | `workflow.ask` | exact-first; claim-supporting answers need locators |
+| 問 RKF | `workflow.ask` | while OFF, refuse and ask whether to activate without research I/O; when active, exact-first and locator-gated |
 | 記錄閱讀 | `workflow.read` | exact-locator Evidence and explicit verification |
 | 比較與整合 | `workflow.compare-synthesize` | Evidence-linked Claim or Synthesis |
 | 查看下一步 | `workflow.review` | gaps, pending checks, disputed Claims, and lineage |
@@ -64,6 +69,11 @@ versions or policy differences that require a user-owned edit.
 
 ## Safety Rules
 
+- Never infer activation consent from a research workflow request. An OFF
+  blocker is a terminal result for that request until the user separately and
+  explicitly asks to activate RKF.
+- When an OFF Ask returns the activation question, wait for the user's answer.
+  Do not treat silence, the original Ask, or the question itself as consent.
 - Do not capture secrets, credentials, private paths, personal data, PDFs, full
   articles, whole transcripts, or browser captures.
 - Candidate metadata and model output are not Evidence.

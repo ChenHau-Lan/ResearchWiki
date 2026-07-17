@@ -10,7 +10,8 @@
 ## 每個 Codex task
 
 1. 新 task 預設 RKF OFF。
-2. 使用者說「啟動 RKF」。
+2. 只有使用者直接說「啟動 RKF」才構成 activation 授權；「Ask RKF」、
+   「問 RKF」或其他研究 workflow 請求不等於啟動授權。
 3. Agent 執行 `rkf.activate`，建立唯一 `activation_id`。
 4. `connect.validate` 檢查 marker、central availability、version 與 path redaction。
 5. 研究工作使用 `workflow.add`、`workflow.ask`、`workflow.read`、
@@ -23,6 +24,14 @@
 
 Marker 只表示 availability，不代表永久 ACTIVE。舊 v2 marker 若缺 `project_id`，必須先
 人工 review/upgrade；不能把 absolute path 當作 project identity。
+
+若 task 仍為 OFF，任何 `workflow.add`、`workflow.ask`、`workflow.read`、
+`workflow.compare-synthesize` 或 `workflow.review` 請求都必須直接回傳
+`RKF_NOT_ACTIVE`。Agent 不得自動執行 `rkf.activate` 或 `connect-project`，也不得讀取、
+掃描或寫入 RKF research data；必須等待使用者另外明確要求啟動。
+其中 `Ask RKF`／`問 RKF` 被 OFF 阻擋時，Agent 必須詢問
+「是否要『啟動 RKF』？」並等待回答。這個詢問、原始 Ask 或使用者未回覆都不構成
+activation 授權。
 
 ## 依目前對話搜尋並保存論文
 

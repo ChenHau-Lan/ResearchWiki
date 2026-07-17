@@ -5,7 +5,7 @@ layer. Internal helpers are implementation details, not parallel user modes.
 
 | User workflow | Structured action | Writes | Evidence boundary |
 |---|---|---:|---|
-| Connect & Activate | `rkf.activate`, `rkf.status`, `rkf.deactivate`, `connect.validate` | lineage only | every task starts OFF; status summarizes open projects without paths; raw prompts are excluded |
+| Connect & Activate | `rkf.activate`, `rkf.status`, `rkf.deactivate`, `connect.validate` | lineage only | every task starts OFF; only direct activation consent permits `rkf.activate`; status summarizes open projects without paths; raw prompts are excluded |
 | Add | `workflow.add` | event, inbox/source projection | candidates and metadata are not stable evidence |
 | Ask | `workflow.ask` | action lineage only | governed source context may be shown without a locator; claim support requires exact Evidence |
 | Read | `workflow.read` | FindingDraft or canonical Evidence | drafts may have missing/coarse locators; Evidence still requires exact locator and explicit verification |
@@ -22,6 +22,10 @@ layer. Internal helpers are implementation details, not parallel user modes.
 - Reading queue, missing locators, pending verification or project timeline → Review.
 - External project access → preview/apply `connect-project`, then explicitly
   activate in each Codex task.
+- A workflow request while OFF → `RKF_NOT_ACTIVE`; never infer activation
+  consent, change connection state, or perform RKF research-data I/O.
+- An Ask request while OFF → include `是否要「啟動 RKF」？` and wait for an
+  explicit answer without activating automatically.
 
 ## Invariants
 

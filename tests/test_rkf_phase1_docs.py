@@ -34,9 +34,29 @@ class RKFPhase1DocsTests(unittest.TestCase):
         self.assertIn("workflow.compare-synthesize", features)
         self.assertIn("workflow.review", features)
         self.assertIn("新 task 預設 RKF OFF", workflow)
+        self.assertIn("「Ask RKF」", workflow)
+        self.assertIn("RKF_NOT_ACTIVE", workflow)
+        self.assertIn("不得自動執行 `rkf.activate`", workflow)
+        self.assertIn("是否要『啟動 RKF』？", workflow)
         self.assertNotIn("rk hot record", workflow)
         self.assertNotIn("inbox-execute", workflow)
         self.assertNotIn("hot-execute", workflow)
+
+    def test_auto_connect_skill_never_infers_activation_from_workflow_intent(self) -> None:
+        skill = (REPO / "skills" / "rkf-auto-connect" / "SKILL.md").read_text(
+            encoding="utf-8"
+        )
+        interface = (
+            REPO / "skills" / "rkf-auto-connect" / "agents" / "openai.yaml"
+        ).read_text(encoding="utf-8")
+
+        self.assertIn("Only a direct user instruction to activate RKF", skill)
+        self.assertIn("`Ask RKF`, `問 RKF`", skill)
+        self.assertIn("do not read or write RKF research data", skill)
+        self.assertIn("是否要「啟動 RKF」？", skill)
+        self.assertIn("Activate only after a direct user request", interface)
+        self.assertIn("must return RKF_NOT_ACTIVE", interface)
+        self.assertNotIn("to activate this project", interface)
 
     def test_project_memory_and_changelog_record_phase1_contract(self) -> None:
         memory = (REPO / "docs" / "PROJECT_MEMORY.md").read_text(encoding="utf-8")
